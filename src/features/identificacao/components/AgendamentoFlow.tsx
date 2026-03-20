@@ -33,6 +33,18 @@ interface Props {
   credits: StudentCredits;
 }
 
+// Brazilian national fixed holidays (MM-DD)
+const FERIADOS_FIXOS = new Set([
+  '01-01', '04-21', '05-01', '09-07', '10-12', '11-02', '11-15', '11-20', '12-25',
+])
+
+function isNonWorkday(d: Date): boolean {
+  const dow = d.getDay()
+  if (dow === 0 || dow === 6) return true
+  const mmdd = `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  return FERIADOS_FIXOS.has(mmdd)
+}
+
 const DIAS_SEMANA = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"];
 const DIAS_HEADER_MON = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 
@@ -131,7 +143,7 @@ export function AgendamentoFlow({
 
   // Step handlers
   const handleDateSelect = (d: Date) => {
-    if (d < today) return;
+    if (d < today || isNonWorkday(d)) return;
     setDate(d);
     goNext();
   };
@@ -323,6 +335,8 @@ export function AgendamentoFlow({
                       <div className="grid grid-cols-7 gap-1">
                         {weekDays().map((d, i) => {
                           const isPast = d < today;
+                          const isOff = isNonWorkday(d);
+                          const isDisabled = isPast || isOff;
                           const isToday = dateStr(d) === dateStr(today);
                           const isSelected = date
                             ? dateStr(d) === dateStr(date)
@@ -330,10 +344,10 @@ export function AgendamentoFlow({
                           return (
                             <button
                               key={`week-${i}`}
-                              disabled={isPast}
+                              disabled={isDisabled}
                               onClick={() => handleDateSelect(d)}
                               className={`flex flex-col items-center gap-0.5 py-2.5 rounded-xl transition-all text-xs ${
-                                isPast
+                                isDisabled
                                   ? "text-[--p-text-3] opacity-25 cursor-not-allowed"
                                   : isSelected
                                     ? "bg-[--p-accent] text-white font-bold shadow-sm"
@@ -375,6 +389,8 @@ export function AgendamentoFlow({
                         {monthDays().map((d, i) => {
                           if (!d) return <div key={`empty-${i}`} />;
                           const isPast = d < today;
+                          const isOff = isNonWorkday(d);
+                          const isDisabled = isPast || isOff;
                           const isToday = dateStr(d) === dateStr(today);
                           const isSelected = date
                             ? dateStr(d) === dateStr(date)
@@ -382,10 +398,10 @@ export function AgendamentoFlow({
                           return (
                             <button
                               key={`month-${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`}
-                              disabled={isPast}
+                              disabled={isDisabled}
                               onClick={() => handleDateSelect(d)}
                               className={`aspect-square rounded-full flex items-center justify-center text-xs sm:text-sm transition-all ${
-                                isPast
+                                isDisabled
                                   ? "text-[--p-text-3] opacity-25 cursor-not-allowed"
                                   : isSelected
                                     ? "bg-[--p-accent] text-white font-bold"

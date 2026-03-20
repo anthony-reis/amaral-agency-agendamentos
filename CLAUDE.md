@@ -35,6 +35,7 @@ SaaS multi-tenant para gestão de autoescolas.
   calendario                   → Calendário mensal de agendamentos
   instrutores                  → CRUD instrutores + senha
   alunos                       → CRUD alunos + créditos por categoria
+  agendamento-massa            → Wizard 4 etapas para agendar múltiplas aulas em lote
   horarios                     → Horários disponíveis por instrutor
   bloqueios                    → Bloqueios de dias/horários
   historico                    → Lista de agendamentos paginada + CSV
@@ -86,6 +87,7 @@ src/features/
       authPainel.ts       → loginPainel, logoutPainel, getPainelSession, listarUsuariosPainel
       instrutores.ts      → listarInstrutores, criarInstrutor, atualizarInstrutor, excluirInstrutor, alterarSenhaInstrutor
       agendamentos.ts     → listarAgendamentos, getAgendamentosStats, getDesempenhoInstrutores, cancelarAgendamento
+      agendamentoMassa.ts → buscarDisponibilidadeMassa (reusa fetchDisponibilidade), criarAgendamentosMassa
       bloqueios.ts        → listarBloqueios, criarBloqueio, excluirBloqueio
       horarios.ts         → listarHorarios, criarHorario, toggleHorario, excluirHorario
       conflitos.ts        → detectarConflitos, resolverConflito
@@ -95,7 +97,7 @@ src/features/
     components/
       PainelLoginForm.tsx, PainelNav.tsx, DashboardStats.tsx, InstrutoesTable.tsx,
       HorariosGrid.tsx, BloqueioForm.tsx, HistoricoList.tsx, ConflitosPanel.tsx,
-      Calendario.tsx, AlunosList.tsx, AuditoriaList.tsx
+      Calendario.tsx, AlunosList.tsx, AuditoriaList.tsx, AgendamentoMassa.tsx
   admin/
     types.ts              → Autoescola, AdminUser, NovoClienteInput, ActionResult
     actions/
@@ -229,7 +231,14 @@ SUPABASE_SERVICE_ROLE_KEY=
 
 ## Histórico de Decisões e Implementações
 
-### Implementação do Fluxo de Agendamento do Aluno & Ajustes Gerais (Atual)
+### Agendamento em Massa no Painel (Atual)
+- **Novo item de nav** "Agend. em Massa" com ícone `CalendarPlus` adicionado ao `PainelNav.tsx` entre Alunos e Horários.
+- **Rota** `/{escola}/painel/agendamento-massa` → wizard 4 etapas (Server page + Client component `AgendamentoMassa.tsx`).
+- **`buscarDisponibilidadeMassa`** em `agendamentoMassa.ts`: importa e chama `fetchDisponibilidade` sem duplicar lógica; escaneia até 90 dias úteis a partir de `startDate`, retornando apenas dias com slots reais para a categoria/instrutor solicitados.
+- **`criarAgendamentosMassa`**: valida créditos server-side, faz insert em lote (`supabase.insert(rows)`), deduz créditos e registra log de auditoria.
+- Wizard: Step 1 (selecionar aluno + ver créditos), Step 2 (categoria, data inicial, filtro de instrutor), Step 3 (acordeão de dias com seleção de instrutor+horário, limitado por créditos), Step 4 (tabela resumo + confirmar).
+
+### Implementação do Fluxo de Agendamento do Aluno & Ajustes Gerais
 - **Header da Landing Page:** Adicionados botões primários e secundários ("Sou aluno" e "Sou autoescola") usando CTAs coerentes com a `HeroSection`, importando ícones `GraduationCap` e `Building2`.
 - **Produção e `autoescola_id`:** O insert no banco agora exige `autoescola_id`. Para resolver o erro `not-null constraint`, o fluxo atualizado em `agendarAula.ts` insere o `autoescola_id` corretamente na tabela de agendamentos. A pedido, a tratativa profunda em rotas legadas e banco foi pulada para focar na UI do aluno por enquanto.
 - **Fluxo `/:slug/aluno/agendar`:** 

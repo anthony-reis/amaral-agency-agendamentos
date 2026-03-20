@@ -101,7 +101,10 @@ export interface Conflito {
   time_slot: string
   total: number
   ids: string[]
-  alunos?: string[]
+  alunos?: string[]           // student names (for instrutor conflicts)
+  studentDocs?: string[]      // student documents (for credit refund)
+  categories?: string[]       // instructorCategory per agendamento
+  instructorNames?: string[]  // instructor names (for aluno conflicts)
 }
 
 // ─── Auth Painel ──────────────────────────────────────────────────────────────

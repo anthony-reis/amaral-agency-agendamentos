@@ -55,7 +55,12 @@ export function AlunosList({ alunos: initial, autoescola_id }: Props) {
     .filter((a) => {
       if (!search) return true
       const s = search.toLowerCase()
-      return a.name.toLowerCase().includes(s) || a.document_id.includes(search.replace(/\D/g, '')) || (a.phone ?? '').includes(search)
+      const stripped = search.replace(/\D/g, '')
+      return (
+        a.name.toLowerCase().includes(s) ||
+        (stripped.length > 0 && a.document_id.includes(stripped)) ||
+        (a.phone ?? '').includes(search)
+      )
     })
     .sort((a, b) => {
       if (!sortCol) return 0

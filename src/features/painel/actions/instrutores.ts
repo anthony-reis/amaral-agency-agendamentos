@@ -67,6 +67,15 @@ export async function excluirInstrutor(
   autoescola_id: string
 ): Promise<ActionResult> {
   const supabase = createServiceClient()
+
+  // Fetch name first so we can clean up horarios
+  const { data: inst } = await supabase
+    .from('instructors')
+    .select('name')
+    .eq('id', id)
+    .eq('autoescola_id', autoescola_id)
+    .single()
+
   const { error } = await supabase
     .from('instructors')
     .delete()
@@ -74,6 +83,16 @@ export async function excluirInstrutor(
     .eq('autoescola_id', autoescola_id)
 
   if (error) return { success: false, error: 'Erro ao excluir instrutor.' }
+
+  // Null out horarios linked to this instructor's name
+  if (inst?.name) {
+    await supabase
+      .from('horarios_disponiveis')
+      .update({ instrutor: null })
+      .eq('autoescola_id', autoescola_id)
+      .eq('instrutor', inst.name)
+  }
+
   return { success: true, data: undefined }
 }
 
