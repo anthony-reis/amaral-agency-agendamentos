@@ -5,7 +5,8 @@ import { createServiceClient } from '@/lib/supabase/server'
 import type { VerificarCreditosResponse } from '../types'
 
 export async function verificarCreditos(
-  documentId: string
+  documentId: string,
+  autoescola_id: string
 ): Promise<VerificarCreditosResponse> {
   const cleaned = documentId.replace(/\D/g, '').trim()
 
@@ -22,6 +23,7 @@ export async function verificarCreditos(
     .from('students')
     .select('id, name, email, phone, document_id, registration_number, created_at')
     .eq('document_id', cleaned)
+    .eq('autoescola_id', autoescola_id)
     .single()
 
   if (studentError || !student) {

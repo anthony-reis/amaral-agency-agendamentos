@@ -9,9 +9,10 @@ import type { StudentCredits } from '../types'
 
 interface Props {
   redirectTo?: string
+  autoescolaId: string
 }
 
-export function IdentificacaoForm({ redirectTo = '/aluno/creditos' }: Props) {
+export function IdentificacaoForm({ redirectTo = '/aluno/creditos', autoescolaId }: Props) {
   const [value, setValue] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -35,7 +36,7 @@ export function IdentificacaoForm({ redirectTo = '/aluno/creditos' }: Props) {
     }
 
     startTransition(async () => {
-      const result = await verificarCreditos(value)
+      const result = await verificarCreditos(value, autoescolaId)
       if (result.success) {
         setCredits(result.credits)
       } else {

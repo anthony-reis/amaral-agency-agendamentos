@@ -1,3 +1,5 @@
+import { notFound } from 'next/navigation'
+import { createServiceClient } from '@/lib/supabase/server'
 import { IdentificacaoForm } from '@/features/identificacao/components/IdentificacaoForm'
 
 interface Props {
@@ -6,6 +8,15 @@ interface Props {
 
 export default async function EscolaAlunoPage({ params }: Props) {
   const { escola } = await params
+
+  const supabase = createServiceClient()
+  const { data: autoescola } = await supabase
+    .from('autoescolas')
+    .select('id')
+    .eq('slug', escola)
+    .single()
+
+  if (!autoescola) notFound()
 
   return (
     <div className="flex flex-col items-center justify-start pt-10 pb-6 px-4 min-h-full">
@@ -18,7 +29,7 @@ export default async function EscolaAlunoPage({ params }: Props) {
         </div>
 
         <div className="w-full">
-          <IdentificacaoForm redirectTo={`/${escola}/aluno/agendar`} />
+          <IdentificacaoForm redirectTo={`/${escola}/aluno/agendar`} autoescolaId={autoescola.id} />
         </div>
       </div>
     </div>
