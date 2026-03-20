@@ -99,13 +99,59 @@ export async function editarAluno(
   return { success: true, data: undefined }
 }
 
+export async function contarAulasAgendadas(
+  student_id: string,
+  autoescola_id: string
+): Promise<number> {
+  const supabase = createServiceClient()
+
+  // Buscar document_id do aluno para encontrar agendamentos (vinculados por cpf_cnh)
+  const { data: student } = await supabase
+    .from('students')
+    .select('document_id')
+    .eq('id', student_id)
+    .eq('autoescola_id', autoescola_id)
+    .single()
+
+  if (!student?.document_id) return 0
+
+  const { count } = await supabase
+    .from('agendamentos')
+    .select('id', { count: 'exact', head: true })
+    .eq('autoescola_id', autoescola_id)
+    .eq('cpf_cnh', student.document_id)
+    .in('status', ['scheduled', 'confirmed'])
+
+  return count ?? 0
+}
+
 export async function excluirAluno(
   id: string,
   autoescola_id: string
 ): Promise<ActionResult<void>> {
   const supabase = createServiceClient()
-  // Excluir créditos primeiro (FK)
+
+  // Buscar document_id para encontrar agendamentos vinculados por cpf_cnh
+  const { data: student } = await supabase
+    .from('students')
+    .select('document_id')
+    .eq('id', id)
+    .eq('autoescola_id', autoescola_id)
+    .single()
+
+  // Excluir agendamentos futuros/agendados (libera horários)
+  if (student?.document_id) {
+    await supabase
+      .from('agendamentos')
+      .delete()
+      .eq('autoescola_id', autoescola_id)
+      .eq('cpf_cnh', student.document_id)
+      .in('status', ['scheduled', 'confirmed'])
+  }
+
+  // Excluir créditos (FK)
   await supabase.from('student_credits').delete().eq('student_id', id).eq('autoescola_id', autoescola_id)
+
   const { error } = await supabase.from('students').delete().eq('id', id).eq('autoescola_id', autoescola_id)
   if (error) return { success: false, error: 'Erro ao excluir aluno.' }
   return { success: true, data: undefined }

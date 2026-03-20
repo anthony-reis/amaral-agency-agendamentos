@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { GraduationCap, Plus, Search, Download, Pencil, Trash2, X, Minus, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
-import { criarAluno, editarAluno, excluirAluno, ajustarCredito } from '../actions/alunos'
+import { criarAluno, editarAluno, excluirAluno, ajustarCredito, contarAulasAgendadas } from '../actions/alunos'
 import type { AlunoComCreditos } from '../types'
 
 interface Props {
@@ -41,6 +41,8 @@ export function AlunosList({ alunos: initial, autoescola_id }: Props) {
   const [modalEditar, setModalEditar] = useState<AlunoComCreditos | null>(null)
   const [formData, setFormData] = useState({ name: '', document_id: '', phone: '', email: '' })
   const [formError, setFormError] = useState('')
+  const [modalExcluir, setModalExcluir] = useState<{ aluno: AlunoComCreditos; aulasCount: number } | null>(null)
+  const [isLoadingCount, setIsLoadingCount] = useState(false)
 
   function handleSort(col: SortCol) {
     if (sortCol === col) {
@@ -117,8 +119,17 @@ export function AlunosList({ alunos: initial, autoescola_id }: Props) {
     })
   }
 
-  function handleExcluir(id: string) {
-    if (!confirm('Excluir este aluno e todos os seus créditos?')) return
+  async function handleAbrirExcluir(aluno: AlunoComCreditos) {
+    setIsLoadingCount(true)
+    const count = await contarAulasAgendadas(aluno.id, autoescola_id)
+    setIsLoadingCount(false)
+    setModalExcluir({ aluno, aulasCount: count })
+  }
+
+  function handleConfirmarExcluir() {
+    if (!modalExcluir) return
+    const id = modalExcluir.aluno.id
+    setModalExcluir(null)
     startTransition(async () => {
       const result = await excluirAluno(id, autoescola_id)
       if (result.success) setAlunos((prev) => prev.filter((a) => a.id !== id))
@@ -274,7 +285,25 @@ export function AlunosList({ alunos: initial, autoescola_id }: Props) {
                     </div>
                   </td>
                   <td className="px-4 py-3.5 font-mono text-xs text-[--p-text-2]">{formatDoc(a.document_id)}</td>
-                  <td className="px-4 py-3.5 text-[--p-text-2]">{a.phone ?? '—'}</td>
+                  <td className="px-4 py-3.5 text-[--p-text-2]">
+                    {a.phone ? (
+                      <div className="flex items-center gap-2">
+                        <span>{a.phone}</span>
+                        <a
+                          href={`https://wa.me/55${a.phone.replace(/\D/g, '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Abrir no WhatsApp"
+                          className="shrink-0 text-emerald-500 hover:text-emerald-400 transition-colors"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                          </svg>
+                        </a>
+                      </div>
+                    ) : '—'}
+                  </td>
                   {CATS.map((c) => {
                     const val = a.creditos ? (a.creditos[`aulas_cat_${c}` as keyof typeof a.creditos] as number ?? 0) : 0
                     return (
@@ -314,8 +343,8 @@ export function AlunosList({ alunos: initial, autoescola_id }: Props) {
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
                       <button
-                        onClick={() => handleExcluir(a.id)}
-                        disabled={isPending}
+                        onClick={() => handleAbrirExcluir(a)}
+                        disabled={isPending || isLoadingCount}
                         className="p-1.5 rounded-lg text-[--p-text-3] hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-30"
                         title="Excluir"
                       >
@@ -392,6 +421,75 @@ export function AlunosList({ alunos: initial, autoescola_id }: Props) {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Modal de confirmação de exclusão */}
+      <AnimatePresence>
+        {modalExcluir && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/70 z-40"
+              onClick={() => setModalExcluir(null)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 8 }}
+              transition={{ duration: 0.15 }}
+              className="fixed inset-0 flex items-center justify-center z-50 p-4"
+            >
+              <div className="bg-[--p-bg-card] rounded-2xl border border-[--p-border] p-6 w-full max-w-sm shadow-2xl">
+                <div className="flex items-start gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center shrink-0">
+                    <Trash2 className="w-5 h-5 text-red-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-[--p-text-1] text-base">Excluir Aluno</h3>
+                    <p className="text-xs text-[--p-text-3] mt-0.5">
+                      Esta ação não pode ser desfeita.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-[--p-bg-base] rounded-xl border border-[--p-border] p-3 mb-4">
+                  <p className="font-semibold text-[--p-text-1] text-sm uppercase">{modalExcluir.aluno.name}</p>
+                  <p className="text-xs text-[--p-text-3] mt-0.5">CPF/CNH: {formatDoc(modalExcluir.aluno.document_id)}</p>
+                </div>
+
+                {modalExcluir.aulasCount > 0 && (
+                  <div className="flex items-start gap-2 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2.5 mb-4">
+                    <span className="text-amber-400 text-base shrink-0">⚠</span>
+                    <p className="text-xs text-amber-300">
+                      Este aluno possui{' '}
+                      <span className="font-bold">{modalExcluir.aulasCount} {modalExcluir.aulasCount === 1 ? 'aula agendada' : 'aulas agendadas'}</span>{' '}
+                      que também {modalExcluir.aulasCount === 1 ? 'será excluída' : 'serão excluídas'}, liberando os horários.
+                    </p>
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setModalExcluir(null)}
+                    disabled={isPending}
+                    className="flex-1 py-2.5 text-sm font-semibold rounded-xl border border-[--p-border] text-[--p-text-2] hover:bg-[--p-hover] disabled:opacity-50 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleConfirmarExcluir}
+                    disabled={isPending}
+                    className="flex-1 py-2.5 text-sm font-bold rounded-xl bg-red-500 hover:bg-red-400 text-white disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                  >
+                    {isPending ? (
+                      <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                    ) : (
+                      'Excluir'
+                    )}
+                  </button>
+                </div>
+              </div>
             </motion.div>
           </>
         )}

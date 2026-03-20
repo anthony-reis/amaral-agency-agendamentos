@@ -156,6 +156,67 @@ export async function getMapaSemanal(
   })
 }
 
+export async function finalizarAula(
+  agendamento_id: string,
+  fotoFormData: FormData,
+  signatureDataURL: string,
+  instructor_name: string,
+  autoescola_id: string
+): Promise<ActionResult> {
+  const supabase = createServiceClient()
+
+  const fotoFile = fotoFormData.get('foto') as File | null
+  if (!fotoFile || fotoFile.size === 0) return { success: false, error: 'Foto obrigatória.' }
+  if (!signatureDataURL || signatureDataURL === 'data:,') return { success: false, error: 'Assinatura obrigatória.' }
+
+  const ext = fotoFile.name.split('.').pop() ?? 'jpg'
+  const fotoPath = `${autoescola_id}/${agendamento_id}/foto.${ext}`
+  const assinaturaPath = `${autoescola_id}/${agendamento_id}/assinatura.png`
+
+  // Upload da foto
+  const fotoBuffer = Buffer.from(await fotoFile.arrayBuffer())
+  const { error: fotoError } = await supabase.storage
+    .from('aulas-finalizadas')
+    .upload(fotoPath, fotoBuffer, { contentType: fotoFile.type, upsert: true })
+
+  if (fotoError) return { success: false, error: 'Erro ao fazer upload da foto.' }
+
+  const { data: { publicUrl: photoUrl } } = supabase.storage
+    .from('aulas-finalizadas')
+    .getPublicUrl(fotoPath)
+
+  // Upload da assinatura (base64 PNG → buffer)
+  const base64Data = signatureDataURL.replace(/^data:image\/png;base64,/, '')
+  const sigBuffer = Buffer.from(base64Data, 'base64')
+  const { error: sigError } = await supabase.storage
+    .from('aulas-finalizadas')
+    .upload(assinaturaPath, sigBuffer, { contentType: 'image/png', upsert: true })
+
+  if (sigError) return { success: false, error: 'Erro ao salvar assinatura.' }
+
+  const { data: { publicUrl: signatureUrl } } = supabase.storage
+    .from('aulas-finalizadas')
+    .getPublicUrl(assinaturaPath)
+
+  // Atualiza agendamento
+  const { error } = await supabase
+    .from('agendamentos')
+    .update({ status: 'completed', photo_url: photoUrl, signature_url: signatureUrl })
+    .eq('id', agendamento_id)
+    .eq('autoescola_id', autoescola_id)
+
+  if (error) return { success: false, error: error.message }
+
+  await supabase.from('activity_logs_painel').insert({
+    username: instructor_name,
+    action_type: 'agendamento',
+    description: `Instrutor ${instructor_name} finalizou a aula com evidências (foto + assinatura) — agendamento ${agendamento_id}`,
+    autoescola_id,
+  })
+
+  return { success: true, data: undefined }
+}
+
 export async function atualizarStatusAula(
   agendamento_id: string,
   status: 'completed' | 'absent' | 'cancelled',

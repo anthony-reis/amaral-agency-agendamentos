@@ -19,6 +19,7 @@ import {
 import {
   fetchDisponibilidade,
   criarAgendamento,
+  atualizarTelefoneAluno,
 } from "@/features/aluno/actions/agendarAula";
 import type { StudentCredits } from "@/features/identificacao/types";
 
@@ -30,19 +31,28 @@ interface Props {
   studentId: string;
   studentName: string;
   studentDocument: string;
+  studentPhone: string | null;
   credits: StudentCredits;
 }
 
 // Brazilian national fixed holidays (MM-DD)
 const FERIADOS_FIXOS = new Set([
-  '01-01', '04-21', '05-01', '09-07', '10-12', '11-02', '11-15', '11-20', '12-25',
-])
+  "01-01",
+  "04-21",
+  "05-01",
+  "09-07",
+  "10-12",
+  "11-02",
+  "11-15",
+  "11-20",
+  "12-25",
+]);
 
 function isNonWorkday(d: Date): boolean {
-  const dow = d.getDay()
-  if (dow === 0 || dow === 6) return true
-  const mmdd = `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-  return FERIADOS_FIXOS.has(mmdd)
+  const dow = d.getDay();
+  if (dow === 0 || dow === 6) return true;
+  const mmdd = `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return FERIADOS_FIXOS.has(mmdd);
 }
 
 const DIAS_SEMANA = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"];
@@ -64,12 +74,18 @@ export function AgendamentoFlow({
   studentId,
   studentName,
   studentDocument,
+  studentPhone,
   credits,
 }: Props) {
   const router = useRouter();
   const [step, setStep] = useState(2);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+
+  // Phone collection (step 6, only if studentPhone is null)
+  const [phoneInput, setPhoneInput] = useState("");
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const needsPhone = !studentPhone;
 
   // Booking state
   const [date, setDate] = useState<Date | null>(null);
@@ -137,6 +153,11 @@ export function AgendamentoFlow({
       router.push(`/${escola}/aluno`);
       return;
     }
+    // step 7 (confirmation): if no phone step, go back to step 5 (horário); if phone step, go to 6
+    if (step === 7) {
+      setStep(needsPhone ? 6 : 5);
+      return;
+    }
     setStep((s) => s - 1);
   };
   const goNext = () => setStep((s) => s + 1);
@@ -178,7 +199,21 @@ export function AgendamentoFlow({
 
   const handleTimeSelect = (time: string) => {
     setTimeSlot(time);
-    goNext();
+    // If student has no phone, go to phone step (6), else go to confirmation (7)
+    setStep(needsPhone ? 6 : 7);
+  };
+
+  const handlePhoneSubmit = () => {
+    const digits = phoneInput.replace(/\D/g, "");
+    if (digits.length < 10) {
+      setPhoneError("Informe um telefone válido com DDD.");
+      return;
+    }
+    setPhoneError(null);
+    startTransition(async () => {
+      await atualizarTelefoneAluno(studentId, phoneInput.trim());
+      setStep(7);
+    });
   };
 
   const handleConfirm = () => {
@@ -194,7 +229,7 @@ export function AgendamentoFlow({
           studentName,
           studentDocument,
         });
-        setStep(7);
+        setStep(8);
       } catch (err: unknown) {
         setError(
           err instanceof Error ? err.message : "Erro ao confirmar agendamento",
@@ -203,13 +238,9 @@ export function AgendamentoFlow({
     });
   };
 
-  const stepLabels = [
-    "Data",
-    "Categoria",
-    "Instrutor",
-    "Horário",
-    "Confirmação",
-  ];
+  const stepLabels = needsPhone
+    ? ["Data", "Categoria", "Instrutor", "Horário", "Telefone", "Confirmação"]
+    : ["Data", "Categoria", "Instrutor", "Horário", "Confirmação"];
 
   const BackButton = ({ label = "Voltar" }: { label?: string }) => (
     <button
@@ -224,28 +255,30 @@ export function AgendamentoFlow({
   return (
     <div className="flex flex-col min-h-full">
       {/* Progress dots */}
-      {step <= 6 && (
-        <div className="flex items-center justify-between px-4 py-3 bg-[--p-bg-card] border-b border-[--p-border]">
-          <span className="text-xs font-semibold text-[--p-text-3] uppercase tracking-wide">
-            {stepLabels[step - 2]}
-          </span>
-          <div className="flex items-center gap-1.5">
-            {[2, 3, 4, 5, 6].map((s) => (
-              <div
-                key={s}
-                className={`rounded-full transition-all duration-300 ${
-                  s === step
-                    ? "w-6 h-2 bg-[--p-accent]"
-                    : s < step
-                      ? "w-2 h-2 bg-[--p-accent]/50"
-                      : "w-2 h-2 bg-[--p-border]"
-                }`}
-              />
-            ))}
+      {step <= (needsPhone ? 7 : 7) &&
+        step >= 2 &&
+        step < (needsPhone ? 8 : 8) && (
+          <div className="flex items-center justify-between px-4 py-3 bg-[--p-bg-card] border-b border-[--p-border]">
+            <span className="text-xs font-semibold text-[--p-text-3] uppercase tracking-wide">
+              {stepLabels[step - 2]}
+            </span>
+            <div className="flex items-center gap-1.5">
+              {(needsPhone ? [2, 3, 4, 5, 6, 7] : [2, 3, 4, 5, 7]).map((s) => (
+                <div
+                  key={s}
+                  className={`rounded-full transition-all duration-300 ${
+                    s === step
+                      ? "w-6 h-2 bg-[--p-accent]"
+                      : s < step
+                        ? "w-2 h-2 bg-[--p-accent]/50"
+                        : "w-2 h-2 bg-[--p-border]"
+                  }`}
+                />
+              ))}
+            </div>
+            <div className="w-16" />
           </div>
-          <div className="w-16" />
-        </div>
-      )}
+        )}
 
       {/* Content */}
       <div className="flex-1 flex flex-col items-center pt-5 pb-4 px-4">
@@ -625,8 +658,63 @@ export function AgendamentoFlow({
               </motion.div>
             )}
 
-            {/* STEP 6: CONFIRMAÇÃO */}
-            {step === 6 && (
+            {/* STEP 6: TELEFONE (apenas se não tiver) */}
+            {step === 6 && needsPhone && (
+              <motion.div
+                key="step6"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="w-full"
+              >
+                <BackButton />
+                <div className="text-center mb-6">
+                  <div className="w-11 h-11 bg-blue-500/10 rounded-2xl flex items-center justify-center mx-auto mb-2.5 border border-blue-500/20">
+                    <User className="w-5 h-5 text-blue-400" />
+                  </div>
+                  <h2 className="text-lg font-bold text-[--p-text-1]">
+                    Seu WhatsApp
+                  </h2>
+                  <p className="text-sm text-[--p-text-3] mt-1">
+                    Para enviar lembretes da sua aula
+                  </p>
+                </div>
+                <div className="space-y-3">
+                  <input
+                    type="tel"
+                    value={phoneInput}
+                    onChange={(e) => {
+                      setPhoneInput(e.target.value);
+                      setPhoneError(null);
+                    }}
+                    placeholder="(11) 99999-9999"
+                    className="w-full px-4 py-3.5 rounded-xl bg-[--p-bg-input] border border-[--p-border] text-[--p-text-1] placeholder:text-[--p-text-3] text-center text-lg tracking-wider focus:outline-none focus:border-[--p-accent]"
+                    onKeyDown={(e) => e.key === "Enter" && handlePhoneSubmit()}
+                    autoFocus
+                  />
+                  {phoneError && (
+                    <div className="flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-xl">
+                      <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
+                      <p className="text-sm text-red-400">{phoneError}</p>
+                    </div>
+                  )}
+                  <button
+                    onClick={handlePhoneSubmit}
+                    disabled={isPending || !phoneInput.trim()}
+                    className="w-full py-3.5 rounded-xl bg-[--p-accent] text-white font-semibold disabled:opacity-50 flex items-center justify-center transition-opacity"
+                  >
+                    {isPending ? (
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      "Continuar"
+                    )}
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
+            {/* STEP 7: CONFIRMAÇÃO */}
+            {step === 7 && (
               <motion.div
                 key="step6"
                 initial={{ opacity: 0, x: 20 }}
@@ -706,8 +794,8 @@ export function AgendamentoFlow({
               </motion.div>
             )}
 
-            {/* STEP 7: SUCESSO */}
-            {step === 7 && (
+            {/* STEP 8: SUCESSO */}
+            {step === 8 && (
               <motion.div
                 key="step7"
                 initial={{ opacity: 0, scale: 0.95 }}

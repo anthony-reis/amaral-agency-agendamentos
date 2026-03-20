@@ -18,32 +18,26 @@ export default async function EscolaAgendarPage({ params }: Props) {
 
   const supabase = createServiceClient()
 
-  const { data: credits } = await supabase
-    .from('student_credits')
-    .select('*')
-    .eq('student_id', studentId)
-    .single()
+  const [creditsResult, studentResult, autoescolaResult] = await Promise.all([
+    supabase.from('student_credits').select('*').eq('student_id', studentId).single(),
+    supabase.from('students').select('phone').eq('id', studentId).single(),
+    supabase.from('autoescolas').select('id, nome, logo_url').eq('slug', escola).single(),
+  ])
 
-  if (!credits) redirect(`/${escola}/aluno`)
-
-  const { data: autoescola } = await supabase
-    .from('autoescolas')
-    .select('id, nome, logo_url')
-    .eq('slug', escola)
-    .single()
-
-  if (!autoescola) redirect('/')
+  if (!creditsResult.data) redirect(`/${escola}/aluno`)
+  if (!autoescolaResult.data) redirect('/')
 
   return (
     <AgendamentoFlow
       escola={escola}
-      autoescolaId={autoescola.id}
-      autoescolaNome={autoescola.nome}
-      autoescolaLogoUrl={autoescola.logo_url}
+      autoescolaId={autoescolaResult.data.id}
+      autoescolaNome={autoescolaResult.data.nome}
+      autoescolaLogoUrl={autoescolaResult.data.logo_url}
       studentId={studentId}
       studentName={studentName}
       studentDocument={studentDocument}
-      credits={credits}
+      studentPhone={studentResult.data?.phone ?? null}
+      credits={creditsResult.data}
     />
   )
 }

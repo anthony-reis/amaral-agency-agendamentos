@@ -64,3 +64,8 @@ export async function criarAgendamento(data: {
 
   return { success: true }
 }
+
+export async function atualizarTelefoneAluno(studentId: string, phone: string): Promise<void> {
+  const supabase = createServiceClient()
+  await supabase.from('students').update({ phone: phone.trim() }).eq('id', studentId)
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useCallback } from "react";
+import { useState, useTransition } from "react";
 import { motion } from "framer-motion";
 import {
   History,
@@ -9,8 +9,10 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
+  Eye,
 } from "lucide-react";
 import type { Agendamento, AgendamentoStats } from "../types";
+import { DetalheAulaModal } from "./DetalheAulaModal";
 
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   scheduled: { label: "Agendado", className: "bg-[#0ea5e9]/10 text-[#0ea5e9]" },
@@ -70,6 +72,7 @@ export function HistoricoList({
   const [totalCount, setTotalCount] = useState(initTotal);
   const [page, setPage] = useState(0);
   const [isPending, startTransition] = useTransition();
+  const [aulaDetalhe, setAulaDetalhe] = useState<Agendamento | null>(null);
 
   const [filters, setFilters] = useState({
     dateStart: monthAgo,
@@ -333,7 +336,8 @@ export function HistoricoList({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: idx * 0.02 }}
-                className="flex items-center gap-4 px-4 py-3.5 bg-[--p-bg-card] rounded-xl border border-[--p-border] hover:bg-[--p-hover] transition-colors"
+                onClick={() => a.status === 'completed' ? setAulaDetalhe(a) : undefined}
+                className={`flex items-center gap-4 px-4 py-3.5 bg-[--p-bg-card] rounded-xl border border-[--p-border] hover:bg-[--p-hover] transition-colors ${a.status === 'completed' ? 'cursor-pointer' : ''}`}
               >
                 <div className="w-9 h-9 rounded-full bg-[#0ea5e9]/10 flex items-center justify-center shrink-0">
                   <span className="text-xs font-bold text-[#0ea5e9]">
@@ -383,6 +387,12 @@ export function HistoricoList({
                   <span className="text-xs text-slate-600">
                     {getRelativeTime(a.created_at)}
                   </span>
+                  {a.status === 'completed' && (
+                    <span className="flex items-center gap-1 text-[10px] text-emerald-400">
+                      <Eye className="w-3 h-3" />
+                      Ver detalhes
+                    </span>
+                  )}
                 </div>
               </motion.div>
             );
@@ -419,6 +429,8 @@ export function HistoricoList({
           </div>
         </div>
       )}
+
+      <DetalheAulaModal aula={aulaDetalhe} onClose={() => setAulaDetalhe(null)} />
     </div>
   );
 }

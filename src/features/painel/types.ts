@@ -44,6 +44,8 @@ export interface Agendamento {
   notes: string | null
   created_at: string
   autoescola_id: string
+  photo_url: string | null
+  signature_url: string | null
 }
 
 export interface AgendamentoStats {

@@ -1,10 +1,12 @@
 'use client'
 
-import { useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import { motion } from 'framer-motion'
 import { Clock, Car, User, FileText, BarChart2, Calendar } from 'lucide-react'
 import { atualizarStatusAula } from '../actions/minhasAulas'
 import type { AulaInstrutor } from '../actions/minhasAulas'
+import { ConfirmarAcaoModal } from './ConfirmarAcaoModal'
+import { FinalizarAulaModal } from './FinalizarAulaModal'
 
 interface Props {
   aula: AulaInstrutor
@@ -20,13 +22,19 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   cancelled: { label: 'DESMARCADA', color: 'bg-slate-500/20 text-slate-400' },
 }
 
+type ModalAberto = 'falta' | 'desmarcar' | 'finalizar' | null
+
 export function InstructorAulaCard({ aula, instructorName, onUpdate }: Props) {
   const [isPending, startTransition] = useTransition()
+  const [modalAberto, setModalAberto] = useState<ModalAberto>(null)
 
-  function handleAction(status: 'completed' | 'absent' | 'cancelled') {
+  function handleConfirmarAcao(status: 'absent' | 'cancelled') {
     startTransition(async () => {
       const result = await atualizarStatusAula(aula.id, status, instructorName, aula.autoescola_id)
-      if (result.success) onUpdate(aula.id, status)
+      if (result.success) {
+        onUpdate(aula.id, status)
+        setModalAberto(null)
+      }
     })
   }
 
@@ -39,102 +47,142 @@ export function InstructorAulaCard({ aula, instructorName, onUpdate }: Props) {
       : null
 
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      className={`bg-[--p-bg-card] rounded-2xl border border-[--p-border] p-5 ${isDone ? 'opacity-60' : ''}`}
-    >
-      {/* Student header */}
-      <div className="flex items-start justify-between gap-3 mb-4">
-        <div className="flex items-center gap-3 flex-1 min-w-0">
-          <div className="w-9 h-9 rounded-full bg-purple-500/10 flex items-center justify-center shrink-0">
-            <User className="w-4 h-4 text-purple-400" />
-          </div>
-          <div className="min-w-0">
-            <p className="font-bold text-[--p-text-1] text-sm truncate uppercase">
-              {aula.student_name}
-            </p>
-            <div className="flex items-center gap-2 flex-wrap mt-0.5">
-              {creditoPct != null && (
-                <span className="inline-flex items-center gap-1 text-xs text-[--p-text-3]">
-                  <BarChart2 className="w-3 h-3" />
-                  {aula.creditos_usados}/{aula.creditos_total} ({creditoPct}%)
-                  {aula.instructorCategory && (
-                    <span className="ml-1 px-1.5 py-0.5 bg-purple-500/20 text-purple-300 text-[10px] font-bold rounded">
-                      CAT {aula.instructorCategory}
-                    </span>
-                  )}
+    <>
+      <motion.div
+        layout
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className={`bg-[--p-bg-card] rounded-2xl border border-[--p-border] p-5 ${isDone ? 'opacity-60' : ''}`}
+      >
+        {/* Student header */}
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className="w-9 h-9 rounded-full bg-purple-500/10 flex items-center justify-center shrink-0">
+              <User className="w-4 h-4 text-purple-400" />
+            </div>
+            <div className="min-w-0">
+              <p className="font-bold text-[--p-text-1] text-sm truncate uppercase">
+                {aula.student_name}
+              </p>
+              <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                {creditoPct != null && (
+                  <span className="inline-flex items-center gap-1 text-xs text-[--p-text-3]">
+                    <BarChart2 className="w-3 h-3" />
+                    {aula.creditos_usados}/{aula.creditos_total} ({creditoPct}%)
+                    {aula.instructorCategory && (
+                      <span className="ml-1 px-1.5 py-0.5 bg-purple-500/20 text-purple-300 text-[10px] font-bold rounded">
+                        CAT {aula.instructorCategory}
+                      </span>
+                    )}
+                  </span>
+                )}
+                <span className={`px-2 py-0.5 text-[10px] font-bold rounded ${statusInfo.color}`}>
+                  {statusInfo.label}
                 </span>
-              )}
-              <span className={`px-2 py-0.5 text-[10px] font-bold rounded ${statusInfo.color}`}>
-                {statusInfo.label}
-              </span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Details grid */}
-      <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-[--p-text-3] mb-4">
-        <div className="flex items-center gap-1.5">
-          <Calendar className="w-3.5 h-3.5" />
-          <span>{aula.date.split('-').reverse().join('/')}</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <Clock className="w-3.5 h-3.5" />
-          <span>{aula.time_slot}</span>
-        </div>
-        {aula.instructorCategory && (
+        {/* Details grid */}
+        <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-[--p-text-3] mb-4">
           <div className="flex items-center gap-1.5">
-            <Car className="w-3.5 h-3.5" />
-            <span>{aula.instructorCategory === 'A' || aula.instructorCategory === 'MOTO' ? 'MOTORCYCLE' : 'AUTOMÓVEL'}</span>
+            <Calendar className="w-3.5 h-3.5" />
+            <span>{aula.date.split('-').reverse().join('/')}</span>
           </div>
-        )}
-        {(aula.cpf_cnh ?? aula.student_document) && (
           <div className="flex items-center gap-1.5">
-            <User className="w-3.5 h-3.5" />
-            <span>CPF: {aula.cpf_cnh ?? aula.student_document}</span>
+            <Clock className="w-3.5 h-3.5" />
+            <span>{aula.time_slot}</span>
           </div>
-        )}
-        {aula.notes && (
-          <div className="col-span-2 flex items-center gap-1.5">
-            <FileText className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate">{aula.notes}</span>
-          </div>
-        )}
-      </div>
+          {aula.instructorCategory && (
+            <div className="flex items-center gap-1.5">
+              <Car className="w-3.5 h-3.5" />
+              <span>{aula.instructorCategory === 'A' || aula.instructorCategory === 'MOTO' ? 'MOTORCYCLE' : 'AUTOMÓVEL'}</span>
+            </div>
+          )}
+          {(aula.cpf_cnh ?? aula.student_document) && (
+            <div className="flex items-center gap-1.5">
+              <User className="w-3.5 h-3.5" />
+              <span>CPF: {aula.cpf_cnh ?? aula.student_document}</span>
+            </div>
+          )}
+          {aula.notes && (
+            <div className="col-span-2 flex items-center gap-1.5">
+              <FileText className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">{aula.notes}</span>
+            </div>
+          )}
+        </div>
 
-      {/* Action buttons */}
-      {!isDone && (
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            onClick={() => handleAction('absent')}
-            disabled={isPending}
-            className="py-2 px-3 text-xs font-semibold rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 disabled:opacity-50 transition-colors"
-          >
-            Dar Falta
-          </button>
-          <button
-            onClick={() => handleAction('cancelled')}
-            disabled={isPending}
-            className="py-2 px-3 text-xs font-semibold rounded-xl bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 disabled:opacity-50 transition-colors"
-          >
-            Desmarcar
-          </button>
-          <button
-            onClick={() => handleAction('completed')}
-            disabled={isPending}
-            className="col-span-2 py-2.5 px-3 text-sm font-bold rounded-xl bg-emerald-500 text-white hover:bg-emerald-400 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
-          >
-            {isPending ? (
-              <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
-            ) : (
-              'Finalizar Aula ✓'
-            )}
-          </button>
-        </div>
-      )}
-    </motion.div>
+        {/* Action buttons */}
+        {!isDone && (
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setModalAberto('falta')}
+              disabled={isPending}
+              className="py-2 px-3 text-xs font-semibold rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 disabled:opacity-50 transition-colors"
+            >
+              Dar Falta
+            </button>
+            <button
+              onClick={() => setModalAberto('desmarcar')}
+              disabled={isPending}
+              className="py-2 px-3 text-xs font-semibold rounded-xl bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 disabled:opacity-50 transition-colors"
+            >
+              Desmarcar
+            </button>
+            <button
+              onClick={() => setModalAberto('finalizar')}
+              disabled={isPending}
+              className="col-span-2 py-2.5 px-3 text-sm font-bold rounded-xl bg-emerald-500 text-white hover:bg-emerald-400 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+            >
+              Finalizar Aula ✓
+            </button>
+          </div>
+        )}
+      </motion.div>
+
+      {/* Modal: Dar Falta */}
+      <ConfirmarAcaoModal
+        open={modalAberto === 'falta'}
+        titulo="Registrar Falta"
+        descricao="Confirme para registrar a falta deste aluno."
+        nomeAluno={aula.student_name}
+        data={aula.date}
+        horario={aula.time_slot}
+        confirmLabel="Confirmar Falta"
+        confirmClass="bg-red-500 hover:bg-red-400"
+        isPending={isPending}
+        onConfirm={() => handleConfirmarAcao('absent')}
+        onCancel={() => setModalAberto(null)}
+      />
+
+      {/* Modal: Desmarcar */}
+      <ConfirmarAcaoModal
+        open={modalAberto === 'desmarcar'}
+        titulo="Desmarcar Aula"
+        descricao="A aula será cancelada e o crédito devolvido ao aluno."
+        nomeAluno={aula.student_name}
+        data={aula.date}
+        horario={aula.time_slot}
+        confirmLabel="Desmarcar Aula"
+        confirmClass="bg-orange-500 hover:bg-orange-400"
+        isPending={isPending}
+        onConfirm={() => handleConfirmarAcao('cancelled')}
+        onCancel={() => setModalAberto(null)}
+      />
+
+      {/* Modal: Finalizar com foto + assinatura */}
+      <FinalizarAulaModal
+        open={modalAberto === 'finalizar'}
+        aula={aula}
+        instructorName={instructorName}
+        onSuccess={(id) => {
+          onUpdate(id, 'completed')
+          setModalAberto(null)
+        }}
+        onCancel={() => setModalAberto(null)}
+      />
+    </>
   )
 }
