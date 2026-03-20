@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Plus, Building2, CheckCircle2, Clock, XCircle, Users, Pencil } from 'lucide-react'
+import { Plus, Building2, CheckCircle2, Clock, XCircle, Users, Pencil, Tag } from 'lucide-react'
 import type { Autoescola } from '../types'
 
 const statusConfig = {
@@ -20,11 +20,6 @@ const statusConfig = {
   },
 }
 
-const planoLabel: Record<string, string> = {
-  basico: 'Básico',
-  pro: 'Pro',
-  enterprise: 'Enterprise',
-}
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', {
@@ -80,9 +75,6 @@ export function ClientesList({ clientes }: Props) {
                   Slug / URL
                 </th>
                 <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3.5">
-                  Plano
-                </th>
-                <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3.5">
                   Status
                 </th>
                 <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3.5">
@@ -129,11 +121,6 @@ export function ClientesList({ clientes }: Props) {
                       </code>
                     </td>
                     <td className="px-4 py-4">
-                      <span className="text-slate-700 font-medium capitalize">
-                        {planoLabel[c.plano] ?? c.plano}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4">
                       <span
                         className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${st.className}`}
                       >
@@ -159,6 +146,13 @@ export function ClientesList({ clientes }: Props) {
                         >
                           <Users className="w-3.5 h-3.5" />
                           Usuários
+                        </Link>
+                        <Link
+                          href={`/admin/clientes/${c.id}/categorias`}
+                          className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-brand-teal transition-colors"
+                        >
+                          <Tag className="w-3.5 h-3.5" />
+                          Categorias
                         </Link>
                       </div>
                     </td>

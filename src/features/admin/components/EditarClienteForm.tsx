@@ -10,12 +10,6 @@ interface Props {
   cliente: Autoescola
 }
 
-const PLANOS = [
-  { value: 'basico', label: 'Básico' },
-  { value: 'pro', label: 'Pro' },
-  { value: 'enterprise', label: 'Enterprise' },
-]
-
 const STATUS = [
   { value: 'active', label: 'Ativo' },
   { value: 'trial', label: 'Trial' },
@@ -95,12 +89,6 @@ export function EditarClienteForm({ cliente }: Props) {
           {form.logo_url && (
             <img src={form.logo_url} alt="preview" className="mt-2 h-10 object-contain rounded" />
           )}
-        </div>
-        <div>
-          <label className={labelCls}>Plano</label>
-          <select value={form.plano} onChange={(e) => setForm((p) => ({ ...p, plano: e.target.value as import('../types').AutoescolaPlano }))} className={inputCls}>
-            {PLANOS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-          </select>
         </div>
         <div>
           <label className={labelCls}>Status</label>

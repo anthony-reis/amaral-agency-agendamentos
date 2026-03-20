@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { Shield, Car } from 'lucide-react'
+import { ThemeToggle } from '@/components/ThemeToggle'
 
 interface Props {
   params: Promise<{ escola: string }>
@@ -9,18 +10,21 @@ export default async function AcessoPage({ params }: Props) {
   const { escola } = await params
 
   return (
-    <div className="min-h-screen bg-[--p-bg-base] flex flex-col items-center justify-center px-4">
-      {/* Back */}
-      <div className="w-full max-w-sm mb-6">
+    <div className="min-h-screen bg-[--p-bg-base] flex flex-col">
+      {/* Header */}
+      <header className="sticky top-0 z-30 bg-[--p-bg-card] border-b border-[--p-border] px-4 py-3 flex items-center justify-between">
         <Link
           href={`/entrar?perfil=escola`}
           className="text-sm text-[--p-text-3] hover:text-[--p-text-1] transition-colors"
         >
           ← Voltar
         </Link>
-      </div>
+        <ThemeToggle />
+      </header>
 
-      {/* Header */}
+      <div className="flex flex-col items-center justify-center flex-1 px-4 py-12">
+
+      {/* Title */}
       <div className="text-center mb-8">
         <p className="text-xs font-semibold text-[--p-accent] uppercase tracking-widest mb-2">
           Como deseja entrar?
@@ -70,6 +74,8 @@ export default async function AcessoPage({ params }: Props) {
             Entrar como instrutor →
           </span>
         </Link>
+      </div>
+
       </div>
     </div>
   )

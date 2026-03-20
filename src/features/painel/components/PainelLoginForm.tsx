@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Car, ChevronDown, Lock, AlertCircle, ArrowRight, User } from 'lucide-react'
 import { loginPainel } from '../actions/authPainel'
+import { ThemeToggle } from '@/components/ThemeToggle'
 import type { PainelUser } from '../types'
 
 interface Props {
@@ -38,7 +39,11 @@ export function PainelLoginForm({ users, escola, escolaNome }: Props) {
   const selectedUser = users.find((u) => u.id === selectedUserId)
 
   return (
-    <main className="min-h-screen bg-[--p-bg-input] flex items-center justify-center px-4">
+    <main className="min-h-screen bg-[--p-bg-input] flex flex-col">
+      <header className="flex justify-end px-4 py-3">
+        <ThemeToggle />
+      </header>
+      <div className="flex-1 flex items-center justify-center px-4">
       <motion.div
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
@@ -51,7 +56,7 @@ export function PainelLoginForm({ users, escola, escolaNome }: Props) {
             <Car className="w-5 h-5 text-[--p-text-1]" strokeWidth={2} />
           </div>
           <div>
-            <p className="text-lg font-bold text-white leading-none">{escolaNome}</p>
+            <p className="text-lg font-bold text-[--p-text-1] leading-none">{escolaNome}</p>
             <p className="text-[11px] text-[--p-text-3] mt-0.5 tracking-wide uppercase">
               Painel Administrativo
             </p>
@@ -60,7 +65,7 @@ export function PainelLoginForm({ users, escola, escolaNome }: Props) {
 
         {/* Card */}
         <div className="bg-[--p-bg-card] rounded-2xl shadow-2xl p-8 border border-[--p-border]">
-          <h1 className="text-xl font-bold text-white mb-1">Acesso ao painel</h1>
+          <h1 className="text-xl font-bold text-[--p-text-1] mb-1">Acesso ao painel</h1>
           <p className="text-sm text-[--p-text-3] mb-6">
             Selecione seu perfil e informe a senha.
           </p>
@@ -68,7 +73,7 @@ export function PainelLoginForm({ users, escola, escolaNome }: Props) {
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* User select */}
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1.5">
+              <label className="block text-sm font-medium text-[--p-text-2] mb-1.5">
                 Usuário
               </label>
               <div className="relative">
@@ -92,7 +97,7 @@ export function PainelLoginForm({ users, escola, escolaNome }: Props) {
 
             {/* Password */}
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1.5">
+              <label className="block text-sm font-medium text-[--p-text-2] mb-1.5">
                 Senha
               </label>
               <div className="relative">
@@ -146,6 +151,7 @@ export function PainelLoginForm({ users, escola, escolaNome }: Props) {
           Powered by AmaralPro
         </p>
       </motion.div>
+      </div>
     </main>
   )
 }

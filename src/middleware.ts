@@ -68,6 +68,6 @@ export const config = {
     // Admin: protege /admin/* EXCETO /admin/login
     '/admin/((?!login).*)',
     // Painel: protege /:slug/painel/* EXCETO /:slug/painel/login
-    '/:slug/painel/:path*',
+    '/:slug/painel/((?!login).*)',
   ],
 }

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Car, AlertCircle, LogIn } from 'lucide-react'
 import { loginInstrutor } from '../actions/authInstrutor'
+import { ThemeToggle } from '@/components/ThemeToggle'
 
 interface Props {
   instructors: { id: string; name: string }[]
@@ -34,20 +35,23 @@ export function InstructorLoginForm({ instructors, escola, escolaNome }: Props) 
   }
 
   return (
-    <div className="min-h-screen bg-[--p-bg-base] flex items-center justify-center px-4">
+    <div className="min-h-screen bg-[--p-bg-base] flex flex-col">
+      <header className="flex items-center justify-between px-4 py-3">
+        <a
+          href={`/${escola}/acesso`}
+          className="text-sm text-[--p-text-3] hover:text-[--p-text-1] transition-colors"
+        >
+          ← Voltar
+        </a>
+        <ThemeToggle />
+      </header>
+      <div className="flex-1 flex items-center justify-center px-4">
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
         className="w-full max-w-sm"
       >
-        {/* Back */}
-        <a
-          href={`/${escola}/acesso`}
-          className="inline-flex items-center gap-1.5 text-sm text-[--p-text-3] hover:text-[--p-text-1] transition-colors mb-6"
-        >
-          ← Voltar
-        </a>
 
         {/* Card */}
         <div className="bg-[--p-bg-card] rounded-2xl border border-[--p-border] p-8 shadow-card-lg">
@@ -112,6 +116,7 @@ export function InstructorLoginForm({ instructors, escola, escolaNome }: Props) 
           </form>
         </div>
       </motion.div>
+      </div>
     </div>
   )
 }

@@ -8,14 +8,16 @@ import {
 } from '../actions/instrutores'
 import type { Instrutor } from '../types'
 
-const CATEGORIAS = ['CARRO', 'MOTO', 'AMBOS']
+const CATEGORIAS_FALLBACK = ['CARRO', 'MOTO', 'AMBOS']
 
 interface Props {
   instrutores: Instrutor[]
   autoescola_id: string
+  categoriasOpcoes?: string[]
 }
 
-export function InstrutoesTable({ instrutores: initial, autoescola_id }: Props) {
+export function InstrutoesTable({ instrutores: initial, autoescola_id, categoriasOpcoes }: Props) {
+  const CATEGORIAS = categoriasOpcoes ?? CATEGORIAS_FALLBACK
   const [instrutores, setInstrutores] = useState<Instrutor[]>(initial)
   const [filter, setFilter] = useState<'TODOS' | string>('TODOS')
   const [isPending, startTransition] = useTransition()
