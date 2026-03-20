@@ -31,7 +31,7 @@ function getDayInfo(dia: DiaCalendario, capacidade: number): DayInfo {
     color: 'bg-orange-100 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-500/20',
     label: `${dia.total} aulas`,
   }
-  if (pct >= 20) return {
+  if (pct >= 30) return {
     color: 'bg-yellow-100 dark:bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-500/20',
     label: `${dia.total} aulas`,
   }
@@ -51,7 +51,6 @@ interface Props {
   initialData: DiaCalendario[]
   initialYear: number
   initialMonth: number
-  capacidade: number
 }
 
 type AgendamentoDia = {
@@ -64,7 +63,7 @@ type AgendamentoDia = {
   cpf_cnh: string | null
 }
 
-export function Calendario({ autoescola_id, initialData, initialYear, initialMonth, capacidade }: Props) {
+export function Calendario({ autoescola_id, initialData, initialYear, initialMonth }: Props) {
   const [year, setYear] = useState(initialYear)
   const [month, setMonth] = useState(initialMonth) // 1-based
   const [dias, setDias] = useState<DiaCalendario[]>(initialData)
@@ -72,6 +71,9 @@ export function Calendario({ autoescola_id, initialData, initialYear, initialMon
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [agsDia, setAgsDia] = useState<AgendamentoDia[]>([])
   const [loadingDia, setLoadingDia] = useState(false)
+
+  // Capacidade relativa: usa o dia mais movimentado do mês como 100%
+  const capacidade = Math.max(1, ...dias.map(d => d.total))
 
   function navigate(delta: number) {
     const d = new Date(year, month - 1 + delta, 1)
@@ -146,8 +148,8 @@ export function Calendario({ autoescola_id, initialData, initialYear, initialMon
         <div className="flex items-center gap-5 px-6 py-2.5 border-b border-[--p-border] flex-wrap">
           {[
             { color: 'bg-red-400', label: 'Bloqueado' },
-            { color: 'bg-orange-400', label: 'Alta ocupação (≥70%)' },
-            { color: 'bg-yellow-400', label: 'Média ocupação (≥20%)' },
+            { color: 'bg-orange-400', label: 'Alta (≥70% do pico)' },
+            { color: 'bg-yellow-400', label: 'Média (≥30% do pico)' },
             { color: 'bg-emerald-400', label: 'Baixa / sem aulas' },
           ].map((l) => (
             <div key={l.label} className="flex items-center gap-1.5 text-xs text-[--p-text-3]">

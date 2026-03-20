@@ -59,9 +59,11 @@ export async function fetchDisponibilidade(
   const result = instructors.map(inst => {
     const nome = inst.name
     // Find all global times or specific times
-    const baseTimes = (timeSlots ?? [])
-      .filter(t => !t.instrutor || t.instrutor === nome)
-      .map(t => t.horario)
+    const baseTimes = [...new Set(
+      (timeSlots ?? [])
+        .filter(t => !t.instrutor || t.instrutor === nome)
+        .map(t => t.horario)
+    )]
     
     // Filter booked times
     const bookedForInst = (agendamentos ?? [])

@@ -30,7 +30,7 @@ export default async function PainelProtectedLayout({ children, params }: Props)
   }
 
   return (
-    <div className="min-h-screen bg-[--p-bg-base] flex">
+    <div className="min-h-screen bg-[--p-bg-base] flex flex-col lg:flex-row">
       <PainelNav
         escola={escola}
         escolaNome={autoescola?.nome ?? escola}

@@ -69,7 +69,8 @@ export function ClientesList({ clientes }: Props) {
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[560px]">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50">
                 <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-5 py-3.5">
@@ -166,6 +167,7 @@ export function ClientesList({ clientes }: Props) {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

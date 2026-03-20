@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getPainelSession } from '@/features/painel/actions/authPainel'
 import { getCalendarioData } from '@/features/painel/actions/calendario'
-import { listarHorarios } from '@/features/painel/actions/horarios'
 import { Calendario } from '@/features/painel/components/Calendario'
 
 interface Props {
@@ -17,12 +16,7 @@ export default async function CalendarioPage({ params }: Props) {
   const year = now.getFullYear()
   const month = now.getMonth() + 1
 
-  const [dias, horarios] = await Promise.all([
-    getCalendarioData(session.autoescola_id, year, month),
-    listarHorarios(session.autoescola_id),
-  ])
-
-  const capacidade = horarios.filter((h) => h.ativo).length
+  const dias = await getCalendarioData(session.autoescola_id, year, month)
 
   return (
     <Calendario
@@ -30,7 +24,6 @@ export default async function CalendarioPage({ params }: Props) {
       initialData={dias}
       initialYear={year}
       initialMonth={month}
-      capacidade={capacidade}
     />
   )
 }

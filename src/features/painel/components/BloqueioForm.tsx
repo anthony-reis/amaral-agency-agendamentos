@@ -308,7 +308,8 @@ export function BloqueioForm({ bloqueios: initial, instrutores, autoescola_id }:
         </div>
       ) : (
         <div className="bg-[--p-bg-card] rounded-2xl border border-[--p-border] overflow-hidden">
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[700px]">
             <thead className="sticky top-0 z-10 bg-[--p-bg-card]">
               <tr className="border-b border-[--p-border]">
                 <th className="text-left text-xs font-semibold text-[--p-text-3] uppercase px-6 py-3.5">Data</th>
@@ -350,6 +351,7 @@ export function BloqueioForm({ bloqueios: initial, instrutores, autoescola_id }:
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

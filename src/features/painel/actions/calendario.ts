@@ -16,13 +16,17 @@ export async function getCalendarioData(
   const supabase = createServiceClient()
   const monthStr = String(month).padStart(2, '0')
   const prefix = `${year}-${monthStr}`
+  const daysInMonthEarly = new Date(year, month, 0).getDate()
+  const dateFrom = `${prefix}-01`
+  const dateTo = `${prefix}-${String(daysInMonthEarly).padStart(2, '0')}`
 
   // Buscar agendamentos do mês (não cancelados)
   const { data: agendamentos } = await supabase
     .from('agendamentos')
     .select('date')
     .eq('autoescola_id', autoescola_id)
-    .like('date', `${prefix}%`)
+    .gte('date', dateFrom)
+    .lte('date', dateTo)
     .neq('status', 'cancelled')
 
   // Buscar bloqueios do mês
@@ -30,7 +34,8 @@ export async function getCalendarioData(
     .from('blockedTimeSlots')
     .select('date')
     .eq('autoescola_id', autoescola_id)
-    .like('date', `${prefix}%`)
+    .gte('date', dateFrom)
+    .lte('date', dateTo)
 
   // Contar agendamentos por dia
   const contagem = new Map<string, number>()
@@ -51,7 +56,7 @@ export async function getCalendarioData(
   const capacidade = Math.max(horarios?.length ?? 1, 1)
 
   // Montar todos os dias do mês
-  const daysInMonth = new Date(year, month, 0).getDate()
+  const daysInMonth = daysInMonthEarly
   const result: DiaCalendario[] = []
 
   for (let d = 1; d <= daysInMonth; d++) {

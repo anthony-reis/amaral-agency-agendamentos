@@ -59,6 +59,13 @@ export async function verificarCreditos(
     maxAge: 60 * 60 * 4,
     path: '/',
   })
+  cookieStore.set('student_document', student.document_id, {
+    httpOnly: false,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 60 * 60 * 4,
+    path: '/',
+  })
 
   return { success: true, student, credits }
 }
