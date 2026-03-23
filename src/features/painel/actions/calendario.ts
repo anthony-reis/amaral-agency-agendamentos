@@ -307,7 +307,7 @@ export async function atualizarStatusAgendamento(
 
   const { error } = await supabase
     .from('agendamentos')
-    .update({ status })
+    .update({ status, updated_at: new Date().toISOString() })
     .eq('id', id)
 
   if (error) return { error: error.message }

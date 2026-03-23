@@ -252,7 +252,7 @@ export async function atualizarStatusAula(
 
   const { error } = await supabase
     .from('agendamentos')
-    .update({ status })
+    .update({ status, updated_at: new Date().toISOString() })
     .eq('id', agendamento_id)
     .eq('autoescola_id', autoescola_id)
 

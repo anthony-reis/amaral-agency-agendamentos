@@ -411,7 +411,7 @@ export function HistoricoList({
                     {statusCfg.label}
                   </span>
                   <span className="text-xs text-slate-600">
-                    {getRelativeTime(a.created_at)}
+                    {getRelativeTime(a.updated_at ?? a.created_at)}
                   </span>
                   {a.status === 'completed' && (
                     <span className="flex items-center gap-1 text-[10px] text-emerald-400">

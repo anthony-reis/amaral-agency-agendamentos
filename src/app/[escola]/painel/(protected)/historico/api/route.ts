@@ -37,6 +37,7 @@ export async function GET(
     search: sp.get('search') ?? undefined,
     limit: Number(sp.get('limit') ?? 30),
     offset: Number(sp.get('offset') ?? 0),
+    sort_by: 'updated_at',
   })
 
   return NextResponse.json(result)
