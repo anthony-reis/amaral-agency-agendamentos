@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import {
   History,
@@ -83,6 +83,10 @@ export function HistoricoList({
     search: "",
   });
 
+  // Debounce search separately; other filters apply immediately
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isFirstRender = useRef(true);
+
   async function fetchPage(f: typeof filters, p: number) {
     const params = new URLSearchParams({
       autoescola_id,
@@ -104,11 +108,32 @@ export function HistoricoList({
     }
   }
 
-  function applyFilters() {
+  // Auto-apply on filter changes (except search which is debounced)
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
     startTransition(() => {
       fetchPage(filters, 0);
     });
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.dateStart, filters.dateEnd, filters.instructor, filters.category, filters.status]);
+
+  // Debounce search
+  useEffect(() => {
+    if (isFirstRender.current) return;
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      startTransition(() => {
+        fetchPage(filters, 0);
+      });
+    }, 400);
+    return () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.search]);
 
   function handleExportCSV() {
     const header = "Data,Horário,Instrutor,Aluno,Documento,Status,Categoria";
@@ -193,9 +218,17 @@ export function HistoricoList({
 
       {/* Filters */}
       <div className="bg-[--p-bg-card] rounded-2xl p-5 border border-[--p-border] space-y-3">
-        <div className="flex items-center gap-2 mb-2">
-          <Filter className="w-4 h-4 text-[--p-text-3]" />
-          <span className="text-sm font-medium text-slate-300">Filtros</span>
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-[--p-text-3]" />
+            <span className="text-sm font-medium text-slate-300">Filtros</span>
+          </div>
+          {isPending && (
+            <div className="flex items-center gap-1.5 text-xs text-[--p-text-3]">
+              <div className="w-3 h-3 border-2 border-[#0ea5e9] border-t-transparent rounded-full animate-spin" />
+              Carregando…
+            </div>
+          )}
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
           <div className="col-span-2 lg:col-span-1">
@@ -296,20 +329,13 @@ export function HistoricoList({
             </select>
           </div>
         </div>
-        <div className="flex items-center justify-between pt-1">
+        <div className="flex items-center pt-1">
           <button
             onClick={handleExportCSV}
             className="flex items-center gap-1.5 text-sm text-[--p-text-3] hover:text-[--p-text-1] transition-colors"
           >
             <Download className="w-4 h-4" />
             Exportar CSV
-          </button>
-          <button
-            onClick={applyFilters}
-            disabled={isPending}
-            className="px-4 py-2 bg-[#0ea5e9] text-white text-sm font-semibold rounded-xl hover:bg-[#0284c7] disabled:opacity-50"
-          >
-            {isPending ? "Carregando…" : "Aplicar"}
           </button>
         </div>
       </div>

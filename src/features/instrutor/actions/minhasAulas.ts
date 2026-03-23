@@ -158,26 +158,29 @@ export async function getMapaSemanal(
 
 export async function finalizarAula(
   agendamento_id: string,
-  fotoFormData: FormData,
+  photoDataURL: string,
   signatureDataURL: string,
   instructor_name: string,
   autoescola_id: string
 ): Promise<ActionResult> {
   const supabase = createServiceClient()
 
-  const fotoFile = fotoFormData.get('foto') as File | null
-  if (!fotoFile || fotoFile.size === 0) return { success: false, error: 'Foto obrigatória.' }
+  if (!photoDataURL || !photoDataURL.startsWith('data:image')) return { success: false, error: 'Foto obrigatória.' }
   if (!signatureDataURL || signatureDataURL === 'data:,') return { success: false, error: 'Assinatura obrigatória.' }
 
-  const ext = fotoFile.name.split('.').pop() ?? 'jpg'
+  // Detecta extensão/tipo a partir do data URL (ex: data:image/jpeg;base64,...)
+  const photoMime = photoDataURL.split(';')[0].replace('data:', '') || 'image/jpeg'
+  const ext = photoMime.split('/')[1]?.replace('jpeg', 'jpg') ?? 'jpg'
+
   const fotoPath = `${autoescola_id}/${agendamento_id}/foto.${ext}`
   const assinaturaPath = `${autoescola_id}/${agendamento_id}/assinatura.png`
 
-  // Upload da foto
-  const fotoBuffer = Buffer.from(await fotoFile.arrayBuffer())
+  // Upload da foto (base64 → buffer)
+  const photoBase64 = photoDataURL.replace(/^data:image\/[a-z]+;base64,/, '')
+  const fotoBuffer = Buffer.from(photoBase64, 'base64')
   const { error: fotoError } = await supabase.storage
     .from('aulas-finalizadas')
-    .upload(fotoPath, fotoBuffer, { contentType: fotoFile.type, upsert: true })
+    .upload(fotoPath, fotoBuffer, { contentType: photoMime, upsert: true })
 
   if (fotoError) return { success: false, error: 'Erro ao fazer upload da foto.' }
 
