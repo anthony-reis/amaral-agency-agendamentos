@@ -379,41 +379,20 @@ export function FinalizarAulaModal({
                         </button>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-2 gap-2">
-                        {/* Câmera */}
-                        <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-[--p-border] rounded-xl p-4 cursor-pointer hover:border-blue-400 hover:bg-blue-500/5 transition-colors">
-                          <Camera className="w-6 h-6 text-blue-400" />
-                          <span className="text-xs text-[--p-text-3] text-center leading-tight">
-                            Tirar foto
-                          </span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            capture="environment"
-                            onChange={handleFotoChange}
-                            disabled={isPending}
-                            className="hidden"
-                          />
-                        </label>
-                        {/* Galeria */}
-                        <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-[--p-border] rounded-xl p-4 cursor-pointer hover:border-indigo-400 hover:bg-indigo-500/5 transition-colors">
-                          <svg className="w-6 h-6 text-indigo-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
-                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                            <circle cx="8.5" cy="8.5" r="1.5"/>
-                            <polyline points="21 15 16 10 5 21"/>
-                          </svg>
-                          <span className="text-xs text-[--p-text-3] text-center leading-tight">
-                            Escolher da galeria
-                          </span>
-                          <input
-                            type="file"
-                            accept="image/*,image/heic,image/heif"
-                            onChange={handleFotoChange}
-                            disabled={isPending}
-                            className="hidden"
-                          />
-                        </label>
-                      </div>
+                      <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-[--p-border] rounded-xl p-5 cursor-pointer hover:border-blue-400 hover:bg-blue-500/5 transition-colors">
+                        <Camera className="w-6 h-6 text-[--p-text-3]" />
+                        <span className="text-xs text-[--p-text-3]">
+                          Toque para tirar foto
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          onChange={handleFotoChange}
+                          disabled={isPending}
+                          className="hidden"
+                        />
+                      </label>
                     )}
                   </div>
 

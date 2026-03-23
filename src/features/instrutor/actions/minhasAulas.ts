@@ -16,6 +16,7 @@ export interface AulaInstrutor {
   autoescola_id: string
   creditos_usados: number | null
   creditos_total: number | null
+  phone: string | null
 }
 
 export interface DiaSemana {
@@ -53,7 +54,7 @@ export async function getMinhasAulasHoje(
   const { data: students } = documentos.length
     ? await supabase
         .from('students')
-        .select('id, document_id')
+        .select('id, document_id, phone')
         .in('document_id', documentos)
         .eq('autoescola_id', autoescola_id)
     : { data: [] }
@@ -82,18 +83,19 @@ export async function getMinhasAulasHoje(
     ])
   )
 
-  const studentDocMap = new Map<string, string>(
-    (students ?? []).map((s) => [s.document_id, s.id])
+  const studentDocMap = new Map<string, { id: string; phone: string | null }>(
+    (students ?? []).map((s) => [s.document_id, { id: s.id, phone: s.phone ?? null }])
   )
 
   return data.map((a) => {
     const doc = a.cpf_cnh ?? a.student_document
-    const studentId = doc ? studentDocMap.get(doc) : undefined
-    const cred = studentId ? creditoMap.get(studentId) : undefined
+    const student = doc ? studentDocMap.get(doc) : undefined
+    const cred = student ? creditoMap.get(student.id) : undefined
     return {
       ...a,
       creditos_usados: cred ? cred.total - cred.disponiveis : null,
       creditos_total: cred ? cred.total : null,
+      phone: student?.phone ?? null,
     }
   })
 }
