@@ -72,6 +72,7 @@ export async function POST(req: NextRequest) {
       username: instructor_name,
       action_type: 'agendamento',
       description: `Instrutor ${instructor_name} finalizou a aula com evidências (foto + assinatura) — agendamento ${agendamento_id}`,
+      metadata: { agendamento_id: agendamento_id },
       autoescola_id,
     })
 

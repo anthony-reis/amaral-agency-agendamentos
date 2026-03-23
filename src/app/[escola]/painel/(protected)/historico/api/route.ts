@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { listarAgendamentos } from '@/features/painel/actions/agendamentos'
+import { listarHistoricoEnriquecido } from '@/features/painel/actions/agendamentos'
+import { createServiceClient } from '@/lib/supabase/server'
 import type { PainelSession } from '@/features/painel/types'
 
 export async function GET(
@@ -27,14 +28,11 @@ export async function GET(
   const today = new Date().toISOString().split('T')[0]
   const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]
 
-  const result = await listarAgendamentos({
+  const result = await listarHistoricoEnriquecido({
     autoescola_id: session.autoescola_id,
     date_start: sp.get('dateStart') ?? monthAgo,
     date_end: sp.get('dateEnd') ?? today,
-    instructor_name: sp.get('instructor') ?? undefined,
-    category: sp.get('category') ?? undefined,
     status: sp.get('status') ?? undefined,
-    search: sp.get('search') ?? undefined,
     limit: Number(sp.get('limit') ?? 30),
     offset: Number(sp.get('offset') ?? 0),
   })

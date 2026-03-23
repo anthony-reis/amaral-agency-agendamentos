@@ -344,7 +344,8 @@ export async function atualizarStatusAgendamento(
                       await supabase.from('activity_logs_painel').insert({
               username: 'painel',
               action_type: 'cancelamento',
-              description: `Cancelamento de aula pelo calendário: devolvido 1 crédito de ${trueCategory} para aluno com doc ${doc}`,
+              description: `Cancelamento de aula pelo calendário: devolvido 1 crédito de ${trueCategory} para aluno com doc ${doc}.`,
+              metadata: { agendamento_id: id },
               autoescola_id: ag.autoescola_id,
             })
         }
@@ -427,7 +428,7 @@ export async function agendarAulaCalendario(data: {
   if (conflict) return { error: 'Horário já ocupado.' }
 
   // Inserir agendamento
-  const { error: insertError } = await supabase.from('agendamentos').insert({
+  const { data: newAgendamento, error: insertError } = await supabase.from('agendamentos').insert({
     autoescola_id: data.autoescola_id,
     date: data.date,
     time_slot: data.time_slot,
@@ -437,9 +438,10 @@ export async function agendarAulaCalendario(data: {
     student_document: data.student_document,
     cpf_cnh: data.student_document,
     status: 'scheduled',
-  })
+  }).select('id').single()
 
   if (insertError) return { error: insertError.message }
+  const agendamentoId = newAgendamento?.id
 
   // Deduzir crédito
   await supabase
@@ -451,7 +453,8 @@ export async function agendarAulaCalendario(data: {
   await supabase.from('activity_logs_painel').insert({
     username: 'painel',
     action_type: 'agendamento',
-    description: `Aula agendada pelo calendário: ${data.student_name} com ${data.instructor_name} às ${data.time_slot} em ${data.date}`,
+    description: `Agendamento criado para aluno ${data.student_name} em ${data.date} ${data.time_slot}.`,
+    metadata: { agendamento_id: agendamentoId },
     autoescola_id: data.autoescola_id,
   })
 

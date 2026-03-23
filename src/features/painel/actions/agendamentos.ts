@@ -81,6 +81,92 @@ export async function listarAgendamentos(
   return { data: rows, total: count ?? 0 }
 }
 
+export interface HistoricoItem {
+  agendamento: Agendamento
+  log_timestamp: string
+  log_username: string
+  log_action_type: string
+  log_description: string
+}
+
+export async function listarHistoricoEnriquecido(filter: {
+  autoescola_id: string
+  date_start?: string
+  date_end?: string
+  limit?: number
+  offset?: number
+  status?: string
+}): Promise<{ data: HistoricoItem[]; total: number }> {
+  const supabase = createServiceClient()
+  const limit = filter.limit ?? 30
+  const offset = filter.offset ?? 0
+
+  // 1. Pegar logs de agendamento/cancelamento
+  let query = supabase
+    .from('activity_logs_painel')
+    .select('*', { count: 'exact' })
+    .eq('autoescola_id', filter.autoescola_id)
+    .in('action_type', ['agendamento', 'cancelamento'])
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1)
+
+  if (filter.date_start) query = query.gte('created_at', `${filter.date_start}T00:00:00`)
+  if (filter.date_end) query = query.lte('created_at', `${filter.date_end}T23:59:59`)
+
+  const { data: logs, error: logErr, count } = await query
+  if (logErr) throw new Error(logErr.message)
+
+  if (!logs || logs.length === 0) return { data: [], total: 0 }
+
+  // 2. Extrair IDs de agendamento (do metadata ou da descrição)
+  const ids = logs
+    .map((l) => {
+      if (l.metadata?.agendamento_id) return l.metadata.agendamento_id
+      const match = l.description.match(/agendamento ([a-f0-9-]{36})/)
+      return match ? match[1] : null
+    })
+    .filter(Boolean) as string[]
+
+  const uniqueIds = Array.from(new Set(ids))
+
+  // 3. Buscar os agendamentos correspondentes
+  let agMap = new Map<string, Agendamento>()
+  if (uniqueIds.length > 0) {
+    const { data: ags } = await supabase
+      .from('agendamentos')
+      .select('*')
+      .in('id', uniqueIds)
+
+    if (ags) {
+      ags.forEach((ag) => agMap.set(ag.id, ag))
+    }
+  }
+
+  // 4. Montar o resultado enriquecido
+  const results: HistoricoItem[] = []
+  for (const log of logs) {
+    const agId = log.metadata?.agendamento_id || log.description.match(/agendamento ([a-f0-9-]{36})/)?.[1]
+    const ag = agId ? agMap.get(agId) : null
+
+    if (ag) {
+      // Filtrar por status se solicitado
+      if (filter.status && filter.status !== 'TODOS' && ag.status !== filter.status) {
+        continue
+      }
+
+      results.push({
+        agendamento: ag,
+        log_timestamp: log.created_at,
+        log_username: log.username,
+        log_action_type: log.action_type,
+        log_description: log.description,
+      })
+    }
+  }
+
+  return { data: results, total: count ?? 0 }
+}
+
 export async function getAgendamentosStats(
   autoescola_id: string,
   date_start: string,
@@ -233,7 +319,8 @@ export async function cancelarAgendamento(
         await supabase.from('activity_logs_painel').insert({
           username: 'painel',
           action_type: 'cancelamento',
-          description: `Cancelamento de aula na listagem: devolvido 1 crédito de ${trueCategory} para aluno com doc ${doc}`,
+          description: `O agendamento ${id} foi cancelado e o crédito devolvido.`,
+          metadata: { agendamento_id: id },
           autoescola_id,
         })
       }

@@ -11,8 +11,9 @@ import {
   ChevronRight,
   Eye,
 } from "lucide-react";
-import type { Agendamento, AgendamentoStats } from "../types";
+import { type HistoricoItem } from "../actions/agendamentos";
 import { DetalheAulaModal } from "./DetalheAulaModal";
+import type { Agendamento, AgendamentoStats } from "../types";
 
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   scheduled: { label: "Agendado", className: "bg-[#0ea5e9]/10 text-[#0ea5e9]" },
@@ -45,7 +46,7 @@ function getRelativeTime(dateStr: string): string {
 }
 
 interface Props {
-  agendamentos: Agendamento[];
+  agendamentos: HistoricoItem[];
   stats: AgendamentoStats;
   instrutores: string[];
   total: number;
@@ -68,7 +69,7 @@ export function HistoricoList({
     .toISOString()
     .split("T")[0];
 
-  const [items, setItems] = useState<Agendamento[]>(initial);
+  const [items, setItems] = useState<HistoricoItem[]>(initial);
   const [totalCount, setTotalCount] = useState(initTotal);
   const [page, setPage] = useState(0);
   const [isPending, startTransition] = useTransition();
@@ -137,8 +138,9 @@ export function HistoricoList({
 
   function handleExportCSV() {
     const header = "Data,Horário,Instrutor,Aluno,Documento,Status,Categoria";
-    const rows = items.map((a) =>
-      [
+    const rows = items.map((item) => {
+      const a = item.agendamento;
+      return [
         a.date,
         a.time_slot,
         a.instructor_name,
@@ -146,8 +148,8 @@ export function HistoricoList({
         a.cpf_cnh ?? a.student_document ?? "",
         a.status,
         a.instructorCategory ?? "",
-      ].join(","),
-    );
+      ].join(",");
+    });
     const csv = [header, ...rows].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -350,7 +352,8 @@ export function HistoricoList({
         </div>
       ) : (
         <div className="space-y-2">
-          {items.map((a, idx) => {
+          {items.map((item, idx) => {
+            const a = item.agendamento;
             const statusCfg =
               STATUS_CONFIG[a.status] ?? STATUS_CONFIG.scheduled;
             const initials = (a.instructor_name ?? "IN")
@@ -411,7 +414,7 @@ export function HistoricoList({
                     {statusCfg.label}
                   </span>
                   <span className="text-xs text-slate-600">
-                    {getRelativeTime(a.created_at)}
+                    {getRelativeTime(item.log_timestamp)}
                   </span>
                   {a.status === 'completed' && (
                     <span className="flex items-center gap-1 text-[10px] text-emerald-400">
