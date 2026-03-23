@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
     // Atualiza agendamento
     const { error } = await supabase
       .from('agendamentos')
-      .update({ status: 'completed', photo_url: photoUrl, signature_url: signatureUrl, updated_at: new Date().toISOString() })
+      .update({ status: 'completed', photo_url: photoUrl, signature_url: signatureUrl })
       .eq('id', agendamento_id)
       .eq('autoescola_id', autoescola_id)
 

@@ -43,7 +43,6 @@ export interface Agendamento {
   status: AgendamentoStatus
   notes: string | null
   created_at: string
-  updated_at: string
   autoescola_id: string
   photo_url: string | null
   signature_url: string | null

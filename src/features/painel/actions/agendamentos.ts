@@ -14,7 +14,6 @@ export interface AgendamentosFilter {
   search?: string
   limit?: number
   offset?: number
-  sort_by?: 'date' | 'updated_at'
 }
 
 export async function listarAgendamentos(
@@ -28,15 +27,9 @@ export async function listarAgendamentos(
     .from('agendamentos')
     .select('*', { count: 'exact' })
     .eq('autoescola_id', filter.autoescola_id)
-
-  if (filter.sort_by === 'updated_at') {
-    query = query.order('updated_at', { ascending: false })
-  } else {
-    query = query.order('date', { ascending: false })
-    query = query.order('time_slot', { ascending: false })
-  }
-
-  query = query.range(offset, offset + limit - 1)
+    .order('date', { ascending: false })
+    .order('time_slot', { ascending: false })
+    .range(offset, offset + limit - 1)
 
   if (filter.date_start) query = query.gte('date', filter.date_start)
   if (filter.date_end) query = query.lte('date', filter.date_end)
@@ -205,7 +198,7 @@ export async function cancelarAgendamento(
 
   await supabase
     .from('agendamentos')
-    .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+    .update({ status: 'cancelled' })
     .eq('id', id)
     .eq('autoescola_id', autoescola_id)
 
@@ -314,7 +307,7 @@ export async function atualizarStatusAgendamentosEmMassa(
       // Atualiza o status
       await supabase
         .from('agendamentos')
-        .update({ status, updated_at: new Date().toISOString() })
+        .update({ status })
         .eq('id', id)
         .eq('autoescola_id', autoescola_id)
     }
