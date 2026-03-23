@@ -35,7 +35,7 @@ export async function getMinhasAulasHoje(
   const supabase = createServiceClient()
   const targetDate = date ?? new Date().toISOString().split('T')[0]
 
-  const { data } = await supabase
+  const { data: agendamentos } = await supabase
     .from('agendamentos')
     .select('id, date, time_slot, student_name, student_document, cpf_cnh, instructorCategory, status, notes, autoescola_id')
     .eq('autoescola_id', autoescola_id)
@@ -44,10 +44,19 @@ export async function getMinhasAulasHoje(
     .neq('status', 'cancelled')
     .order('time_slot')
 
-  if (!data) return []
+  if (!agendamentos) return []
+
+  const { data: inst } = await supabase
+    .from('instructors')
+    .select('category')
+    .eq('name', instructor_name)
+    .eq('autoescola_id', autoescola_id)
+    .single()
+
+  const trueCat = inst?.category ?? 'CARRO' // Default to 'CARRO' if category not found
 
   // Busca créditos dos alunos
-  const documentos = data
+  const documentos = agendamentos
     .map((a) => a.cpf_cnh ?? a.student_document)
     .filter(Boolean) as string[]
 
@@ -87,12 +96,13 @@ export async function getMinhasAulasHoje(
     (students ?? []).map((s) => [s.document_id, { id: s.id, phone: s.phone ?? null }])
   )
 
-  return data.map((a) => {
+  return agendamentos.map((a) => {
     const doc = a.cpf_cnh ?? a.student_document
     const student = doc ? studentDocMap.get(doc) : undefined
     const cred = student ? creditoMap.get(student.id) : undefined
     return {
       ...a,
+      instructorCategory: trueCat, // Use the true category from the instructors table
       creditos_usados: cred ? cred.total - cred.disponiveis : null,
       creditos_total: cred ? cred.total : null,
       phone: student?.phone ?? null,
@@ -233,7 +243,7 @@ export async function atualizarStatusAula(
   // Fetch agendamento to get student doc + category (needed for credit refund)
   const { data: agendamento, error: fetchError } = await supabase
     .from('agendamentos')
-    .select('cpf_cnh, student_document, instructorCategory')
+    .select('cpf_cnh, student_document, instructorCategory, instructor_name, autoescola_id')
     .eq('id', agendamento_id)
     .eq('autoescola_id', autoescola_id)
     .single()
@@ -251,7 +261,10 @@ export async function atualizarStatusAula(
   // Devolver crédito ao aluno quando a aula é desmarcada (cancelled)
   if (status === 'cancelled') {
     const doc = agendamento.cpf_cnh ?? agendamento.student_document
-    const creditCol = agendamento.instructorCategory === 'MOTO' ? 'aulas_cat_a' : 'aulas_cat_b'
+    const { data: inst } = agendamento.instructor_name ? await supabase.from('instructors').select('category').eq('name', agendamento.instructor_name).eq('autoescola_id', agendamento.autoescola_id).single() : { data: null }
+    const trueCat = inst?.category ?? agendamento.instructorCategory
+
+    const creditCol = trueCat === 'MOTO' ? 'aulas_cat_a' : 'aulas_cat_b'
 
     if (doc) {
       const { data: student } = await supabase

@@ -16,6 +16,9 @@ export async function detectarConflitos(autoescola_id: string): Promise<Conflito
   const conflitos: Conflito[] = []
 
   if (allActive) {
+    const { data: insts } = await supabase.from('instructors').select('name, category').eq('autoescola_id', autoescola_id)
+    const catMap = new Map((insts ?? []).map((i) => [i.name, i.category]))
+
     // Group by instrutor+date+time_slot
     const mapInst = new Map<string, {
       ids: string[]
@@ -27,6 +30,8 @@ export async function detectarConflitos(autoescola_id: string): Promise<Conflito
       time_slot: string
     }>()
     for (const row of allActive) {
+      if (!row.instructor_name) continue
+      const realCat = catMap.get(row.instructor_name) ?? row.instructorCategory ?? ''
       const key = `${row.instructor_name}|${row.date}|${row.time_slot}`
       if (!mapInst.has(key)) {
         mapInst.set(key, { ids: [], alunos: [], studentDocs: [], categories: [], instructor_name: row.instructor_name, date: row.date, time_slot: row.time_slot })
@@ -35,7 +40,9 @@ export async function detectarConflitos(autoescola_id: string): Promise<Conflito
       entry.ids.push(row.id)
       entry.alunos.push(row.student_name)
       entry.studentDocs.push(row.student_document ?? row.cpf_cnh ?? '')
-      entry.categories.push(row.instructorCategory ?? '')
+      if (realCat && !entry.categories.includes(realCat)) {
+        entry.categories.push(realCat)
+      }
     }
     for (const [, v] of mapInst) {
       if (v.ids.length > 1) {
@@ -62,16 +69,23 @@ export async function detectarConflitos(autoescola_id: string): Promise<Conflito
       instructorNames: string[]
       date: string
       time_slot: string
+      aulas: typeof allActive
     }>()
     for (const row of allActive) {
       const key = `${row.student_name}|${row.date}|${row.time_slot}`
       if (!mapAluno.has(key)) {
-        mapAluno.set(key, { ids: [], student_name: row.student_name, studentDocs: [], categories: [], instructorNames: [], date: row.date, time_slot: row.time_slot })
+        mapAluno.set(key, { ids: [], student_name: row.student_name, studentDocs: [], categories: [], instructorNames: [], date: row.date, time_slot: row.time_slot, aulas: [] })
       }
       const entry = mapAluno.get(key)!
       entry.ids.push(row.id)
       entry.studentDocs.push(row.student_document ?? row.cpf_cnh ?? '')
-      entry.categories.push(row.instructorCategory ?? '')
+      if (row.instructor_name) {
+        const realCat = catMap.get(row.instructor_name) ?? row.instructorCategory ?? ''
+        if (realCat && !entry.categories.includes(realCat)) {
+          entry.categories.push(realCat)
+        }
+      }
+      entry.aulas.push(row)
       entry.instructorNames.push(row.instructor_name)
     }
     for (const [, v] of mapAluno) {
@@ -95,7 +109,7 @@ export async function detectarConflitos(autoescola_id: string): Promise<Conflito
 }
 
 export async function resolverConflito(
-  idParaCancelar: string,
+  agendamentoId: string,
   autoescola_id: string
 ): Promise<void> {
   const supabase = createServiceClient()
@@ -103,8 +117,8 @@ export async function resolverConflito(
   // Fetch the agendamento to get student info for credit refund
   const { data: agendamento } = await supabase
     .from('agendamentos')
-    .select('student_document, cpf_cnh, instructorCategory')
-    .eq('id', idParaCancelar)
+    .select('student_document, cpf_cnh, instructorCategory, instructor_name, autoescola_id')
+    .eq('id', agendamentoId)
     .eq('autoescola_id', autoescola_id)
     .single()
 
@@ -112,14 +126,16 @@ export async function resolverConflito(
   await supabase
     .from('agendamentos')
     .update({ status: 'cancelled' })
-    .eq('id', idParaCancelar)
+    .eq('id', agendamentoId)
     .eq('autoescola_id', autoescola_id)
 
   // Refund credit to the student
   if (agendamento) {
     const doc = agendamento.student_document ?? agendamento.cpf_cnh
-    const cat = agendamento.instructorCategory
-    const rpcCat = cat === 'CARRO' ? 'aulas_cat_b' : 'aulas_cat_a'
+    const { data: inst } = agendamento.instructor_name ? await supabase.from('instructors').select('category').eq('name', agendamento.instructor_name).eq('autoescola_id', agendamento.autoescola_id).single() : { data: null }
+    const trueCat = inst?.category ?? agendamento.instructorCategory
+    const cat = trueCat
+    const creditField = cat === 'MOTO' ? 'aulas_cat_a' : 'aulas_cat_b'
 
     if (doc) {
       // Find student by document
@@ -134,15 +150,15 @@ export async function resolverConflito(
         // Fetch current credits
         const { data: creds } = await supabase
           .from('student_credits')
-          .select(rpcCat)
+          .select(creditField)
           .eq('student_id', student.id)
           .single()
 
         if (creds) {
-          const current = (creds as Record<string, number>)[rpcCat] ?? 0
+          const current = (creds as Record<string, number>)[creditField] ?? 0
           await supabase
             .from('student_credits')
-            .update({ [rpcCat]: current + 1 })
+            .update({ [creditField]: current + 1 })
             .eq('student_id', student.id)
         }
       }

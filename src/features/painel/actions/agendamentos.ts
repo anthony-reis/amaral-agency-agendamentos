@@ -1,7 +1,8 @@
 'use server'
 
 import { createServiceClient } from '@/lib/supabase/server'
-import type { Agendamento, AgendamentoStats, InstrutorDesempenho } from '../types'
+import { revalidatePath } from 'next/cache'
+import type { Agendamento, AgendamentoStats, InstrutorDesempenho, AgendamentoStatus } from '../types'
 
 export interface AgendamentosFilter {
   autoescola_id: string
@@ -36,7 +37,17 @@ export async function listarAgendamentos(
     query = query.eq('instructor_name', filter.instructor_name)
   }
   if (filter.category && filter.category !== 'TODAS') {
-    query = query.eq('instructorCategory', filter.category)
+    const { data: insts } = await supabase
+      .from('instructors')
+      .select('name')
+      .eq('category', filter.category)
+      .eq('autoescola_id', filter.autoescola_id)
+    const names = (insts ?? []).map((i) => i.name)
+    if (names.length > 0) {
+      query = query.in('instructor_name', names)
+    } else {
+      query = query.in('instructor_name', ['__NO_MATCH__'])
+    }
   }
   if (filter.status && filter.status !== 'TODOS') {
     query = query.eq('status', filter.status)
@@ -49,7 +60,25 @@ export async function listarAgendamentos(
 
   const { data, error, count } = await query
   if (error) throw new Error(error.message)
-  return { data: data ?? [], total: count ?? 0 }
+
+  const rows = data ?? []
+  if (rows.length > 0) {
+    const { data: insts } = await supabase
+      .from('instructors')
+      .select('name, category')
+      .eq('autoescola_id', filter.autoescola_id)
+    
+    if (insts) {
+      const catMap = new Map(insts.map((i) => [i.name, i.category]))
+      for (const row of rows) {
+        if (row.instructor_name && catMap.has(row.instructor_name)) {
+          row.instructorCategory = catMap.get(row.instructor_name)!
+        }
+      }
+    }
+  }
+
+  return { data: rows, total: count ?? 0 }
 }
 
 export async function getAgendamentosStats(
@@ -99,21 +128,39 @@ export async function getDesempenhoInstrutores(
     query = query.eq('instructor_name', instructor_name)
   }
   if (category && category !== 'TODAS') {
-    query = query.eq('instructorCategory', category)
+    const { data: insts } = await supabase
+      .from('instructors')
+      .select('name')
+      .eq('category', category)
+      .eq('autoescola_id', autoescola_id)
+    const names = (insts ?? []).map((i) => i.name)
+    if (names.length > 0) {
+      query = query.in('instructor_name', names)
+    } else {
+      query = query.in('instructor_name', ['__NO_MATCH__'])
+    }
   }
 
   const { data, error } = await query
   if (error) throw new Error(error.message)
 
+  const { data: insts } = await supabase
+    .from('instructors')
+    .select('name, category')
+    .eq('autoescola_id', autoescola_id)
+  
+  const catMap = new Map((insts ?? []).map((i) => [i.name, i.category]))
+
   // Group by instructor
   const map = new Map<string, { concluidas: number; agendadas: number; canceladas: number; categoria: string }>()
   for (const row of data ?? []) {
     const key = row.instructor_name!
+    const realCategory = catMap.get(key) ?? row.instructorCategory ?? 'CARRO'
+
     if (!map.has(key)) {
-      map.set(key, { concluidas: 0, agendadas: 0, canceladas: 0, categoria: row.instructorCategory ?? '' })
+      map.set(key, { concluidas: 0, agendadas: 0, canceladas: 0, categoria: realCategory })
     }
     const entry = map.get(key)!
-    if (!entry.categoria && row.instructorCategory) entry.categoria = row.instructorCategory
     if (row.status === 'completed') entry.concluidas++
     else if (row.status === 'scheduled' || row.status === 'confirmed') entry.agendadas++
     else if (row.status === 'cancelled' || row.status === 'absent') entry.canceladas++
@@ -138,9 +185,136 @@ export async function cancelarAgendamento(
   autoescola_id: string
 ): Promise<void> {
   const supabase = createServiceClient()
+
+  // Buscar o agendamento atual para dados do aluno
+  const { data: ag } = await supabase
+    .from('agendamentos')
+    .select('status, cpf_cnh, student_document, instructorCategory, instructor_name')
+    .eq('id', id)
+    .eq('autoescola_id', autoescola_id)
+    .single()
+
+  if (!ag || ag.status === 'cancelled') return
+
   await supabase
     .from('agendamentos')
     .update({ status: 'cancelled' })
     .eq('id', id)
     .eq('autoescola_id', autoescola_id)
+
+  const { data: inst } = ag.instructor_name ? await supabase.from('instructors').select('category').eq('name', ag.instructor_name).eq('autoescola_id', autoescola_id).single() : { data: null }
+  const trueCategory = inst?.category ?? ag.instructorCategory
+
+  const doc = ag.cpf_cnh ?? ag.student_document
+  const creditField = trueCategory === 'MOTO' ? 'aulas_cat_a' : 'aulas_cat_b'
+
+  if (doc) {
+    const { data: student } = await supabase
+      .from('students')
+      .select('id')
+      .eq('document_id', doc)
+      .eq('autoescola_id', autoescola_id)
+      .single()
+
+    if (student) {
+      const { data: creds } = await supabase
+        .from('student_credits')
+        .select(creditField)
+        .eq('student_id', student.id)
+        .single()
+
+      if (creds) {
+        const current = (creds as Record<string, number>)[creditField] ?? 0
+        await supabase
+          .from('student_credits')
+          .update({ [creditField]: current + 1 })
+          .eq('student_id', student.id)
+
+        await supabase.from('activity_logs_painel').insert({
+          username: 'painel',
+          action_type: 'cancelamento',
+          description: `Cancelamento de aula na listagem: devolvido 1 crédito de ${trueCategory} para aluno com doc ${doc}`,
+          autoescola_id,
+        })
+      }
+    }
+  }
+
+  revalidatePath('/', 'layout')
+}
+
+export async function atualizarStatusAgendamentosEmMassa(
+  ids: string[],
+  status: AgendamentoStatus,
+  autoescola_id: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!ids.length) return { success: true }
+  
+  const supabase = createServiceClient()
+
+  try {
+    for (const id of ids) {
+      const { data: ag } = await supabase
+        .from('agendamentos')
+        .select('status, cpf_cnh, student_document, instructorCategory, instructor_name')
+        .eq('id', id)
+        .eq('autoescola_id', autoescola_id)
+        .single()
+
+      if (!ag) continue
+
+      // Se for cancelar e ainda não estava cancelado, reembolsa crédito
+      if (status === 'cancelled' && ag.status !== 'cancelled') {
+        const { data: inst } = ag.instructor_name ? await supabase.from('instructors').select('category').eq('name', ag.instructor_name).eq('autoescola_id', autoescola_id).single() : { data: null }
+        const trueCategory = inst?.category ?? ag.instructorCategory
+        
+        const doc = ag.cpf_cnh ?? ag.student_document
+        const creditField = trueCategory === 'MOTO' ? 'aulas_cat_a' : 'aulas_cat_b'
+
+        if (doc) {
+          const { data: student } = await supabase
+            .from('students')
+            .select('id')
+            .eq('document_id', doc)
+            .eq('autoescola_id', autoescola_id)
+            .single()
+
+          if (student) {
+            const { data: creds } = await supabase
+              .from('student_credits')
+              .select(creditField)
+              .eq('student_id', student.id)
+              .single()
+
+            if (creds) {
+              const current = (creds as Record<string, number>)[creditField] ?? 0
+              await supabase
+                .from('student_credits')
+                .update({ [creditField]: current + 1 })
+                .eq('student_id', student.id)
+
+              await supabase.from('activity_logs_painel').insert({
+                username: 'painel',
+                action_type: 'cancelamento_massa',
+                description: `Cancelamento em lote: devolvido 1 crédito de ${trueCategory} para aluno com doc ${doc}`,
+                autoescola_id,
+              })
+            }
+          }
+        }
+      }
+
+      // Atualiza o status
+      await supabase
+        .from('agendamentos')
+        .update({ status })
+        .eq('id', id)
+        .eq('autoescola_id', autoescola_id)
+    }
+
+    revalidatePath('/', 'layout')
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Erro desconhecido' }
+  }
 }

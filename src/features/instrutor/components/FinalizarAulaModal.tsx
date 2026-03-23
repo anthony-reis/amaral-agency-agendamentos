@@ -198,11 +198,24 @@ export function FinalizarAulaModal({
   const [fotoFile, setFotoFile] = useState<File | null>(null);
   const [fotoPreview, setFotoPreview] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
+  const [isCompressing, setIsCompressing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const previewUrlRef = useRef<string | null>(null);
+
+  // Clear memory on unmount
+  useEffect(() => {
+    return () => {
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+    };
+  }, []);
 
   // Reset state quando modal abre/fecha
   useEffect(() => {
     if (open) {
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+        previewUrlRef.current = null;
+      }
       setFotoFile(null);
       setFotoPreview(null);
       setSignatureDataURL(null);
@@ -210,24 +223,99 @@ export function FinalizarAulaModal({
       setAssinaturaFullscreen(false);
       setError(null);
       setIsPending(false);
+      setIsCompressing(false);
     }
   }, [open]);
 
-  function handleFotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function compressImage(file: File): Promise<File> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const maxWidth = 1200;
+          const maxHeight = 1200;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > maxWidth) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width = Math.round((width * maxHeight) / height);
+              height = maxHeight;
+            }
+          }
+
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return reject("Sem contexto 2D");
+          ctx.drawImage(img, 0, 0, width, height);
+
+          canvas.toBlob(
+            (blob) => {
+              if (blob) {
+                const newFile = new File([blob], file.name.replace(/\.[^/.]+$/, ".jpg"), {
+                  type: "image/jpeg",
+                  lastModified: Date.now(),
+                });
+                resolve(newFile);
+              } else {
+                reject("Erro na compressão");
+              }
+            },
+            "image/jpeg",
+            0.7
+          );
+        };
+        img.onerror = (error) => reject(error);
+      };
+      reader.onerror = (error) => reject(error);
+    });
+  }
+
+  async function handleFotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null;
     if (!file) return;
-    if (file.size > 10 * 1024 * 1024) {
-      setError("Foto muito grande. Máximo 10MB.");
-      return;
+
+    try {
+      setError(null);
+      setIsCompressing(true);
+      
+      const compressedFile = await compressImage(file);
+      
+      setFotoFile(compressedFile);
+
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+      }
+      
+      const objectUrl = URL.createObjectURL(compressedFile);
+      previewUrlRef.current = objectUrl;
+      setFotoPreview(objectUrl);
+      
+    } catch (err) {
+      console.error(err);
+      setError("Erro ao processar a imagem. Tente novamente.");
+    } finally {
+      setIsCompressing(false);
     }
-    setError(null);
-    setFotoFile(file);
-    setFotoPreview(URL.createObjectURL(file));
   }
 
   function removerFoto() {
     setFotoFile(null);
     setFotoPreview(null);
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = null;
+    }
   }
 
   function handleSignatureConfirmed(dataURL: string) {
@@ -270,7 +358,7 @@ export function FinalizarAulaModal({
   }
 
   const canFinalizar =
-    fotoFile !== null && signatureDataURL !== null && !isPending;
+    fotoFile !== null && signatureDataURL !== null && !isPending && !isCompressing;
 
   const categoriaLabel =
     aula.instructorCategory === "MOTO" || aula.instructorCategory === "A"
@@ -380,16 +468,27 @@ export function FinalizarAulaModal({
                       </div>
                     ) : (
                       <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-[--p-border] rounded-xl p-5 cursor-pointer hover:border-blue-400 hover:bg-blue-500/5 transition-colors">
-                        <Camera className="w-6 h-6 text-[--p-text-3]" />
-                        <span className="text-xs text-[--p-text-3]">
-                          Toque para tirar foto
-                        </span>
+                        {isCompressing ? (
+                          <div className="flex flex-col items-center justify-center gap-2">
+                            <div className="w-5 h-5 rounded-full border-2 border-blue-400 border-t-transparent animate-spin" />
+                            <span className="text-xs text-[--p-text-3]">
+                              Processando imagem...
+                            </span>
+                          </div>
+                        ) : (
+                          <>
+                            <Camera className="w-6 h-6 text-[--p-text-3]" />
+                            <span className="text-xs text-[--p-text-3]">
+                              Toque para tirar foto
+                            </span>
+                          </>
+                        )}
                         <input
                           type="file"
                           accept="image/*"
                           capture="environment"
                           onChange={handleFotoChange}
-                          disabled={isPending}
+                          disabled={isPending || isCompressing}
                           className="hidden"
                         />
                       </label>
