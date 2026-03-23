@@ -17,7 +17,6 @@ import {
   Maximize2,
   Check,
 } from "lucide-react";
-import { finalizarAula } from "../actions/minhasAulas";
 import type { AulaInstrutor } from "../actions/minhasAulas";
 
 interface Props {
@@ -248,21 +247,15 @@ export function FinalizarAulaModal({
     setError(null);
 
     try {
-      // Converte arquivo para base64 data URL (compatível com iOS/Android)
-      const photoDataURL = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = () => reject(new Error('Erro ao ler foto'));
-        reader.readAsDataURL(fotoFile);
-      });
+      const formData = new FormData();
+      formData.append("agendamento_id", aula.id);
+      formData.append("instructor_name", instructorName);
+      formData.append("autoescola_id", aula.autoescola_id);
+      formData.append("signatureDataURL", signatureDataURL);
+      formData.append("foto", fotoFile);
 
-      const result = await finalizarAula(
-        aula.id,
-        photoDataURL,
-        signatureDataURL,
-        instructorName,
-        aula.autoescola_id,
-      );
+      const res = await fetch("/api/finalizar-aula", { method: "POST", body: formData });
+      const result = await res.json();
 
       if (result.success) {
         onSuccess(aula.id);
