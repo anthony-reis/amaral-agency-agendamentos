@@ -80,7 +80,24 @@ export function ListaAgendamentosView({ initialAgendamentos, total, filter, auto
 
   function handleBatchUpdate(newStatus: AgendamentoStatus) {
     if (selectedIds.size === 0) return
-    const ids = Array.from(selectedIds)
+
+    const idsToUpdate = Array.from(selectedIds).filter(id => {
+      const ag = initialAgendamentos.find(a => a.id === id)
+      if (!ag) return false
+      // Ignora se o status já é o desejado
+      if (ag.status === newStatus) return false
+      // Evita alterar aulas já canceladas para outro status em lote (para não bugar o reembolso)
+      if (ag.status === 'cancelled') return false
+      
+      return true
+    })
+
+    if (idsToUpdate.length === 0) {
+      alert(`Nenhuma aula válida para esta ação.\nAulas que já possuem este status ou que já foram canceladas são ignoradas.`)
+      return
+    }
+
+    const ids = idsToUpdate
     
     // Confirmação para cancelamento que devolve crédito
     if (newStatus === 'cancelled') {
