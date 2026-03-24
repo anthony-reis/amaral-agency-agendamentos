@@ -20,6 +20,7 @@ import {
   fetchDisponibilidade,
   criarAgendamento,
   atualizarTelefoneAluno,
+  reagendarAula,
 } from "@/features/aluno/actions/agendarAula";
 import type { StudentCredits } from "@/features/identificacao/types";
 
@@ -33,6 +34,9 @@ interface Props {
   studentDocument: string;
   studentPhone: string | null;
   credits: StudentCredits;
+  rescheduleMode?: boolean;
+  rescheduleClassId?: string;
+  rescheduleOldCategory?: "CARRO" | "MOTO";
 }
 
 // Brazilian national fixed holidays (MM-DD)
@@ -76,6 +80,9 @@ export function AgendamentoFlow({
   studentDocument,
   studentPhone,
   credits,
+  rescheduleMode,
+  rescheduleClassId,
+  rescheduleOldCategory,
 }: Props) {
   const router = useRouter();
   const [step, setStep] = useState(2);
@@ -86,6 +93,9 @@ export function AgendamentoFlow({
   const [phoneInput, setPhoneInput] = useState("");
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const needsPhone = !studentPhone;
+
+  const carroCredits = credits.aulas_cat_b + (rescheduleMode && rescheduleOldCategory === 'CARRO' ? 1 : 0);
+  const motoCredits = credits.aulas_cat_a + (rescheduleMode && rescheduleOldCategory === 'MOTO' ? 1 : 0);
 
   // Booking state
   const [date, setDate] = useState<Date | null>(null);
@@ -150,7 +160,11 @@ export function AgendamentoFlow({
   const goBack = () => {
     setError(null);
     if (step === 2) {
-      router.push(`/${escola}/aluno`);
+      router.push(rescheduleMode ? `/${escola}/aluno/minhas-aulas` : `/${escola}/aluno`);
+      return;
+    }
+    if (step === 4 && rescheduleMode) {
+      setStep(2);
       return;
     }
     // step 7 (confirmation): if no phone step, go back to step 5 (horário); if phone step, go to 6
@@ -162,30 +176,39 @@ export function AgendamentoFlow({
   };
   const goNext = () => setStep((s) => s + 1);
 
-  // Step handlers
-  const handleDateSelect = (d: Date) => {
-    if (d < today || isNonWorkday(d)) return;
-    setDate(d);
-    goNext();
-  };
-
-  const handleCategorySelect = (cat: "CARRO" | "MOTO") => {
+  const loadInstructors = (cat: "CARRO" | "MOTO", selectedDate: Date) => {
     setCategory(cat);
     startTransition(async () => {
       try {
         const data = await fetchDisponibilidade(
           autoescolaId,
-          dateStr(date!),
+          dateStr(selectedDate),
           cat,
         );
         setAvailableInstructors(data);
-        goNext();
+        setStep(4);
       } catch (err: unknown) {
         setError(
           err instanceof Error ? err.message : "Erro ao buscar disponibilidade",
         );
       }
     });
+  };
+
+  // Step handlers
+  const handleDateSelect = (d: Date) => {
+    if (d < today || isNonWorkday(d)) return;
+    setDate(d);
+    
+    if (rescheduleMode && rescheduleOldCategory) {
+      loadInstructors(rescheduleOldCategory, d);
+    } else {
+      goNext();
+    }
+  };
+
+  const handleCategorySelect = (cat: "CARRO" | "MOTO") => {
+    loadInstructors(cat, date!);
   };
 
   const handleInstructorSelect = (inst: {
@@ -219,20 +242,33 @@ export function AgendamentoFlow({
   const handleConfirm = () => {
     startTransition(async () => {
       try {
-        await criarAgendamento({
-          autoescola_id: autoescolaId,
-          date: dateStr(date!),
-          timeSlot: timeSlot!,
-          instructorName: instructor!.nome,
-          category: category!,
-          studentId,
-          studentName,
-          studentDocument,
-        });
+        if (rescheduleMode && rescheduleClassId) {
+          await reagendarAula(rescheduleClassId, {
+            autoescola_id: autoescolaId,
+            date: dateStr(date!),
+            timeSlot: timeSlot!,
+            instructorName: instructor!.nome,
+            category: category!,
+            studentId,
+            studentName,
+            studentDocument,
+          });
+        } else {
+          await criarAgendamento({
+            autoescola_id: autoescolaId,
+            date: dateStr(date!),
+            timeSlot: timeSlot!,
+            instructorName: instructor!.nome,
+            category: category!,
+            studentId,
+            studentName,
+            studentDocument,
+          });
+        }
         setStep(8);
       } catch (err: unknown) {
         setError(
-          err instanceof Error ? err.message : "Erro ao confirmar agendamento",
+          err instanceof Error ? err.message : `Erro ao confirmar ${rescheduleMode ? 'reagendamento' : 'agendamento'}`,
         );
       }
     });
@@ -263,7 +299,9 @@ export function AgendamentoFlow({
               {stepLabels[step - 2]}
             </span>
             <div className="flex items-center gap-1.5">
-              {(needsPhone ? [2, 3, 4, 5, 6, 7] : [2, 3, 4, 5, 7]).map((s) => (
+              {(needsPhone ? [2, 3, 4, 5, 6, 7] : [2, 3, 4, 5, 7])
+                .filter(s => !(rescheduleMode && s === 3))
+                .map((s) => (
                 <div
                   key={s}
                   className={`rounded-full transition-all duration-300 ${
@@ -491,7 +529,7 @@ export function AgendamentoFlow({
                   })}
                 </p>
                 <div className="space-y-3">
-                  {credits.aulas_cat_b > 0 && (
+                  {carroCredits > 0 && (
                     <button
                       onClick={() => handleCategorySelect("CARRO")}
                       disabled={isPending}
@@ -504,14 +542,14 @@ export function AgendamentoFlow({
                         <div className="text-left">
                           <p className="font-bold text-[--p-text-1]">Carro</p>
                           <p className="text-xs text-[--p-accent]">
-                            {credits.aulas_cat_b} créditos
+                            {carroCredits} crédito{carroCredits > 1 ? 's' : ''} {rescheduleMode && rescheduleOldCategory === 'CARRO' ? '(1 reagendamento)' : ''}
                           </p>
                         </div>
                       </div>
                       <ChevronRight className="w-5 h-5 text-[--p-text-3] shrink-0" />
                     </button>
                   )}
-                  {credits.aulas_cat_a > 0 && (
+                  {motoCredits > 0 && (
                     <button
                       onClick={() => handleCategorySelect("MOTO")}
                       disabled={isPending}
@@ -524,7 +562,7 @@ export function AgendamentoFlow({
                         <div className="text-left">
                           <p className="font-bold text-[--p-text-1]">Moto</p>
                           <p className="text-xs text-[--p-accent]">
-                            {credits.aulas_cat_a} créditos
+                            {motoCredits} crédito{motoCredits > 1 ? 's' : ''} {rescheduleMode && rescheduleOldCategory === 'MOTO' ? '(1 reagendamento)' : ''}
                           </p>
                         </div>
                       </div>
@@ -643,7 +681,18 @@ export function AgendamentoFlow({
                 </p>
                 <div className="bg-[--p-bg-card] border border-[--p-border] rounded-2xl p-4">
                   <div className="grid grid-cols-3 gap-2">
-                    {instructor?.horarios.map((time, i) => (
+                    {instructor?.horarios
+                      .filter(time => {
+                        if (!date) return true;
+                        const isToday = dateStr(date) === dateStr(getToday());
+                        if (!isToday) return true;
+                        const [th, tm] = time.split(":").map(Number);
+                        const slotMins = th * 60 + tm;
+                        const now = new Date();
+                        const nowMins = now.getHours() * 60 + now.getMinutes();
+                        return slotMins >= nowMins + 120; // 2 hours advance
+                      })
+                      .map((time, i) => (
                       <button
                         key={`time-${i}-${time}`}
                         onClick={() => handleTimeSelect(time)}
@@ -770,8 +819,9 @@ export function AgendamentoFlow({
                 <div className="mt-3 p-3 bg-[--p-accent]/5 rounded-xl border border-[--p-accent]/15 flex items-start gap-2">
                   <Info className="w-4 h-4 text-[--p-accent] shrink-0 mt-0.5" />
                   <p className="text-xs text-[--p-text-2]">
-                    1 crédito de {category === "CARRO" ? "Carro" : "Moto"} será
-                    debitado ao confirmar.
+                    {rescheduleMode 
+                      ? "Seu reagendamento substituirá a aula antiga. Nenhum crédito extra será consumido."
+                      : `1 crédito de ${category === "CARRO" ? "Carro" : "Moto"} será debitado ao confirmar.`}
                   </p>
                 </div>
                 {error && (
@@ -788,7 +838,7 @@ export function AgendamentoFlow({
                   {isPending ? (
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   ) : (
-                    "Confirmar Agendamento"
+                    rescheduleMode ? "Confirmar Reagendamento" : "Confirmar Agendamento"
                   )}
                 </button>
               </motion.div>
@@ -806,7 +856,7 @@ export function AgendamentoFlow({
                   <Check className="w-10 h-10 text-emerald-400" />
                 </div>
                 <h2 className="text-2xl font-bold text-[--p-text-1] mb-2">
-                  Agendado!
+                  {rescheduleMode ? "Reagendado!" : "Agendado!"}
                 </h2>
                 <p className="text-[--p-text-3] text-sm max-w-[240px] mx-auto mb-6">
                   Aula com{" "}
@@ -829,12 +879,16 @@ export function AgendamentoFlow({
                 <div className="space-y-3 max-w-xs mx-auto">
                   <button
                     onClick={() => {
-                      setStep(2);
-                      setDate(null);
-                      setCategory(null);
-                      setInstructor(null);
-                      setTimeSlot(null);
-                      setError(null);
+                      if (rescheduleMode) {
+                        router.push(`/${escola}/aluno/agendar`);
+                      } else {
+                        setStep(2);
+                        setDate(null);
+                        setCategory(null);
+                        setInstructor(null);
+                        setTimeSlot(null);
+                        setError(null);
+                      }
                     }}
                     className="w-full py-3.5 bg-[--p-accent] text-white font-semibold rounded-xl hover:opacity-90 transition-opacity"
                   >

@@ -5,10 +5,12 @@ import { AgendamentoFlow } from '@/features/identificacao/components/Agendamento
 
 interface Props {
   params: Promise<{ escola: string }>
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }
 
-export default async function EscolaAgendarPage({ params }: Props) {
+export default async function EscolaAgendarPage({ params, searchParams }: Props) {
   const { escola } = await params
+  const { reagendar } = await searchParams
   const cookieStore = await cookies()
   const studentId = cookieStore.get('student_id')?.value
   const studentName = cookieStore.get('student_name')?.value ?? ''
@@ -24,6 +26,20 @@ export default async function EscolaAgendarPage({ params }: Props) {
     supabase.from('autoescolas').select('id, nome, logo_url').eq('slug', escola).single(),
   ])
 
+  let rescheduleOldCategory: "CARRO" | "MOTO" | undefined = undefined;
+  if (reagendar && typeof reagendar === 'string') {
+    const { data: oldClass } = await supabase
+      .from('agendamentos')
+      .select('instructorCategory')
+      .eq('id', reagendar)
+      .eq('student_document', studentDocument)
+      .single()
+    
+    if (oldClass) {
+      rescheduleOldCategory = oldClass.instructorCategory as "CARRO" | "MOTO"
+    }
+  }
+
   if (!creditsResult.data) redirect(`/${escola}/aluno`)
   if (!autoescolaResult.data) redirect('/')
 
@@ -38,6 +54,9 @@ export default async function EscolaAgendarPage({ params }: Props) {
       studentDocument={studentDocument}
       studentPhone={studentResult.data?.phone ?? null}
       credits={creditsResult.data}
+      rescheduleMode={!!rescheduleOldCategory}
+      rescheduleClassId={typeof reagendar === 'string' ? reagendar : undefined}
+      rescheduleOldCategory={rescheduleOldCategory}
     />
   )
 }

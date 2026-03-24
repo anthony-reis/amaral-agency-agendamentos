@@ -1,7 +1,8 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import { createServiceClient } from '@/lib/supabase/server'
-import { Calendar, Clock, User, CheckCircle2, CalendarDays, Car, Bike, XCircle } from 'lucide-react'
+import { Calendar, Clock, User, CheckCircle2, CalendarDays, Car, Bike, XCircle, RefreshCw } from 'lucide-react'
 
 interface Props {
   params: Promise<{ escola: string }>
@@ -219,6 +220,17 @@ export default async function MinhasAulasPage({ params }: Props) {
                         <span className="uppercase text-xs truncate">{aula.instructor_name}</span>
                       </div>
                     </div>
+                    
+                    {/* Reagendar */}
+                    <Link
+                      href={`/${escola}/aluno/agendar?reagendar=${aula.id}`}
+                      className="block w-full"
+                    >
+                      <button className="w-full mt-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-[--p-border] bg-[--p-bg-input] hover:bg-[--p-hover] text-xs font-semibold text-[--p-text-2] hover:text-[--p-accent] hover:border-[--p-accent]/30 transition-all">
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        Reagendar Aula
+                      </button>
+                    </Link>
                   </div>
                 )
               })}
