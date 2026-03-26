@@ -2,7 +2,8 @@
 
 import { useRef } from 'react'
 import { motion, useInView } from 'framer-motion'
-import { ArrowRight, Sparkles } from 'lucide-react'
+import { ArrowRight, Sparkles, MessageSquare } from 'lucide-react'
+import { WHATSAPP_URL } from '../constants'
 
 export function FinalCtaSection() {
   const ref = useRef<HTMLDivElement>(null)
@@ -32,37 +33,37 @@ export function FinalCtaSection() {
           </div>
 
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white leading-tight tracking-tight mb-6">
-            Sua autoescola no{' '}
-            <span className="text-brand-teal">futuro</span>, agora.
+            O futuro da sua autoescola <span className="text-brand-teal">começa aqui</span>.
           </h2>
-
           <p className="text-slate-400 text-lg leading-relaxed max-w-2xl mx-auto mb-10">
-            Gestão inteligente, agendamentos automáticos e controle total em um só sistema. Implantação em até 48h.
+            Junte-se às autoescolas que estão evoluindo a gestão e encantando alunos com tecnologia de ponta.
           </p>
 
           <motion.a
-            href="#planos"
+            href={WHATSAPP_URL}
+            target="_blank"
+            rel="noopener noreferrer"
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
             transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-            className="inline-flex items-center gap-2 px-8 py-4 bg-brand-teal text-white font-semibold rounded-2xl shadow-lg hover:bg-brand-teal-dark transition-colors text-base"
+            className="inline-flex items-center gap-3 px-8 py-5 bg-brand-teal text-white font-black rounded-2xl shadow-xl shadow-brand-teal/30 hover:bg-brand-teal-dark transition-all text-base ring-4 ring-brand-teal/10"
           >
-            Quero transformar minha autoescola
-            <ArrowRight className="w-5 h-5" />
+            Começar Agora
+            <MessageSquare className="w-5 h-5" />
           </motion.a>
 
           {/* Trust signals */}
-          <div className="mt-10 flex flex-wrap items-center justify-center gap-6 text-sm text-slate-500">
-            <span className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-brand-teal" />
+          <div className="mt-12 flex flex-wrap items-center justify-center gap-8 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+            <span className="flex items-center gap-2">
+              <div className="w-1 h-1 rounded-full bg-brand-teal" />
               Sem taxa de adesão
             </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-brand-teal" />
-              Suporte na implantação
+            <span className="flex items-center gap-2">
+              <div className="w-1 h-1 rounded-full bg-brand-teal" />
+              Implantação assistida
             </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-brand-teal" />
+            <span className="flex items-center gap-2">
+              <div className="w-1 h-1 rounded-full bg-brand-teal" />
               Cancele quando quiser
             </span>
           </div>

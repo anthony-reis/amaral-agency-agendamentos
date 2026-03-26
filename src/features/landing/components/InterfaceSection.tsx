@@ -6,32 +6,30 @@ import { motion, useInView } from 'framer-motion'
 const panels = [
   {
     label: 'Painel Administrativo',
-    description: 'Visão completa da operação',
-    bg: 'bg-brand-navy',
+    description: 'Gestão completa e automatizada',
+    bg: 'bg-[#0B1221]',
     preview: (
       <div className="p-4 space-y-2">
         <div className="flex items-center justify-between mb-3">
-          <span className="text-xs text-slate-300 font-semibold">Dashboard</span>
-          <span className="text-[10px] text-brand-teal bg-brand-teal/20 px-2 py-0.5 rounded-full">Hoje</span>
+          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Dashboard</span>
+          <span className="text-[9px] text-white bg-brand-teal/30 px-2 py-0.5 rounded-full ring-1 ring-brand-teal/50">Admin</span>
         </div>
         <div className="grid grid-cols-2 gap-2">
           {[
-            { label: 'Aulas', value: '12' },
-            { label: 'Alunos', value: '239' },
-            { label: 'Instrutores', value: '6' },
-            { label: 'Concluídas', value: '9' },
+            { label: 'Aulas hoje', value: '14/32' },
+            { label: 'Ocupação', value: '92%' },
           ].map((s) => (
-            <div key={s.label} className="bg-white/10 rounded-lg p-2.5">
-              <div className="text-base font-bold text-white">{s.value}</div>
-              <div className="text-[9px] text-slate-400">{s.label}</div>
+            <div key={s.label} className="bg-white/5 border border-white/5 rounded-xl p-3">
+              <div className="text-sm font-bold text-white">{s.value}</div>
+              <div className="text-[8px] text-slate-500 uppercase font-semibold">{s.label}</div>
             </div>
           ))}
         </div>
-        <div className="space-y-1 mt-2">
-          {['08:00 — João Silva', '09:30 — Maria S.', '11:00 — Pedro L.'].map((item, i) => (
-            <div key={i} className="flex items-center gap-2 bg-white/5 rounded-md px-2 py-1.5">
-              <div className="w-1.5 h-1.5 rounded-full bg-brand-teal" />
-              <span className="text-[9px] text-slate-300">{item}</span>
+        <div className="space-y-1.5 mt-3">
+          {['Agenda confirmada', 'Créditos validados', 'Relatórios prontos'].map((item, i) => (
+            <div key={i} className="flex items-center gap-2 bg-white/5 border border-white/5 rounded-xl px-3 py-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-brand-teal ring-2 ring-brand-teal/20" />
+              <span className="text-[9px] text-slate-300 font-medium">{item}</span>
             </div>
           ))}
         </div>
@@ -40,50 +38,45 @@ const panels = [
   },
   {
     label: 'Painel do Aluno',
-    description: 'Agendamento fácil e intuitivo',
-    bg: 'bg-white',
+    description: 'Agendamento rápido e intuitivo',
+    bg: 'bg-[#0B1221]',
     preview: (
-      <div className="p-4 space-y-3">
-        <div className="text-center py-1">
-          <div className="w-10 h-10 rounded-full bg-brand-teal/10 mx-auto flex items-center justify-center mb-2">
-            <span className="text-lg">🎓</span>
+      <div className="p-4 space-y-4">
+        <div className="flex flex-col items-center py-2">
+          <div className="w-10 h-10 rounded-full bg-brand-teal/10 flex items-center justify-center mb-2 ring-1 ring-brand-teal/30">
+            <span className="text-lg">👤</span>
           </div>
-          <p className="text-xs font-semibold text-slate-700">João Silva</p>
-          <p className="text-[10px] text-slate-400">CPF: •••.•••.789-00</p>
+          <p className="text-[11px] font-bold text-white">João Silva</p>
+          <p className="text-[9px] text-slate-500 font-mono tracking-tighter mt-0.5">Cat. B • 20/20 aulas</p>
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          {[
-            { cat: 'Cat. A', aulas: 3 },
-            { cat: 'Cat. B', aulas: 7 },
-          ].map((c) => (
-            <div key={c.cat} className="bg-brand-teal/5 rounded-lg p-2.5 text-center border border-brand-teal/15">
-              <div className="text-base font-bold text-brand-teal">{c.aulas}</div>
-              <div className="text-[9px] text-slate-500">{c.cat} disponível</div>
-            </div>
-          ))}
+        <div className="bg-white/5 border border-white/5 rounded-2xl p-4 flex flex-col items-center text-center">
+          <div className="w-8 h-8 rounded-full bg-brand-teal/20 flex items-center justify-center mb-2">
+            <div className="w-2 h-2 rounded-full bg-brand-teal animate-pulse" />
+          </div>
+          <p className="text-[10px] text-slate-300 font-medium leading-tight">Você tem créditos<br/>disponíveis para agendar!</p>
         </div>
-        <div className="bg-brand-teal text-white rounded-lg py-2 text-center text-[10px] font-semibold">
-          Agendar Aula
+        <div className="bg-brand-teal text-white rounded-xl py-3 text-center text-[10px] font-bold shadow-lg shadow-brand-teal/20">
+          Agendar Minha Aula
         </div>
       </div>
     ),
   },
   {
     label: 'Painel do Instrutor',
-    description: 'Agenda e confirmações',
-    bg: 'bg-white',
+    description: 'Agenda e confirmações digitais',
+    bg: 'bg-[#0B1221]',
     preview: (
       <div className="p-4 space-y-2.5">
-        <p className="text-xs font-semibold text-slate-700 mb-1">Agenda de hoje</p>
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Minha Agenda</p>
         {[
-          { time: '08:00', student: 'João Silva', status: 'Confirmado', color: 'bg-green-100 text-green-700' },
-          { time: '09:30', student: 'Maria S.', status: 'Pendente', color: 'bg-yellow-100 text-yellow-700' },
-          { time: '11:00', student: 'Pedro L.', status: 'Confirmado', color: 'bg-green-100 text-green-700' },
+          { time: '08:00', student: 'Ana Paula', status: 'Aula Ok', color: 'bg-brand-teal/10 text-brand-teal ring-brand-teal/20' },
+          { time: '09:30', student: 'Marcos S.', status: 'Pendente', color: 'bg-white/10 text-slate-400 ring-white/5' },
+          { time: '11:00', student: 'Pedro L.', status: 'Aula Ok', color: 'bg-brand-teal/10 text-brand-teal ring-brand-teal/20' },
         ].map((item) => (
-          <div key={item.time} className="flex items-center gap-2 bg-slate-50 rounded-lg px-2.5 py-2">
-            <span className="text-[9px] font-bold text-slate-500 w-8">{item.time}</span>
-            <span className="text-[9px] text-slate-700 flex-1">{item.student}</span>
-            <span className={`text-[8px] font-semibold px-1.5 py-0.5 rounded-full ${item.color}`}>
+          <div key={item.time} className="flex items-center gap-3 bg-white/5 border border-white/5 rounded-xl px-3 py-2.5">
+            <span className="text-[10px] font-mono text-brand-teal w-8">{item.time}</span>
+            <span className="text-[10px] text-slate-200 font-medium flex-1">{item.student}</span>
+            <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-md ring-1 ${item.color}`}>
               {item.status}
             </span>
           </div>
@@ -132,10 +125,10 @@ export function InterfaceSection() {
             >
               <div className="rounded-2xl overflow-hidden shadow-card ring-1 ring-slate-200 group-hover:shadow-lg group-hover:ring-brand-teal/20 transition-all">
                 {/* Fake device bar */}
-                <div className="flex items-center gap-1 px-3 py-2 bg-slate-100 border-b border-slate-200">
-                  <div className="w-2 h-2 rounded-full bg-slate-300" />
-                  <div className="w-2 h-2 rounded-full bg-slate-300" />
-                  <div className="w-2 h-2 rounded-full bg-slate-300" />
+                <div className="flex items-center gap-1 px-3 py-2 bg-[#1C2539] border-b border-white/5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-white/10" />
+                  <div className="w-1.5 h-1.5 rounded-full bg-white/10" />
+                  <div className="w-1.5 h-1.5 rounded-full bg-white/10" />
                 </div>
 
                 {/* Content */}

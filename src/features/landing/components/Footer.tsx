@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { Car, Instagram, Linkedin, MessageCircle } from 'lucide-react'
+import { WHATSAPP_URL } from '../constants'
 
 const footerLinks = {
   Produto: [
@@ -9,7 +10,7 @@ const footerLinks = {
   ],
   Suporte: [
     { label: 'Ajuda', href: '#' },
-    { label: 'WhatsApp', href: '#' },
+    { label: 'WhatsApp', href: WHATSAPP_URL },
     { label: 'Contato', href: '#contato' },
   ],
   Legal: [
@@ -40,13 +41,15 @@ export function Footer() {
             {/* Social */}
             <div className="flex items-center gap-3 mt-5">
               {[
-                { Icon: Instagram, href: '#' },
-                { Icon: MessageCircle, href: '#' },
+                { Icon: Instagram, href: 'https://www.instagram.com/amaralagencyrp/' },
+                { Icon: MessageCircle, href: WHATSAPP_URL },
                 { Icon: Linkedin, href: '#' },
               ].map(({ Icon, href }, i) => (
                 <a
                   key={i}
                   href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center hover:bg-brand-teal hover:text-white transition-colors"
                 >
                   <Icon className="w-4 h-4" strokeWidth={1.75} />

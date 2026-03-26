@@ -2,7 +2,8 @@
 
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { GraduationCap, Building2 } from "lucide-react";
+import { GraduationCap, Building2, MessageSquare, ArrowRight } from "lucide-react";
+import { WHATSAPP_URL } from "../constants";
 
 export function HeroSection() {
   return (
@@ -26,7 +27,7 @@ export function HeroSection() {
             >
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-teal/10 text-brand-teal text-xs font-semibold rounded-full ring-1 ring-brand-teal/20">
                 <span className="w-1.5 h-1.5 rounded-full bg-brand-teal animate-pulse" />
-                Sistema para Autoescolas
+                Inovação para Autoescolas
               </span>
             </motion.div>
 
@@ -37,8 +38,7 @@ export function HeroSection() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.1 }}
             >
-              Automatize, agende e gerencie suas aulas de direção com um{" "}
-              <span className="text-brand-teal">clique.</span>
+              Leve sua autoescola para o <span className="text-brand-teal">Próximo Nível.</span>
             </motion.h1>
 
             {/* Subtitle */}
@@ -48,9 +48,7 @@ export function HeroSection() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
             >
-              Um sistema completo para autoescolas e instrutores, com
-              agendamentos inteligentes, controle total e integração com
-              WhatsApp.
+              A plataforma definitiva para automatizar agendamentos, eliminar erros manuais e oferecer uma experiência moderna aos seus alunos.
             </motion.p>
 
             {/* CTAs */}
@@ -125,60 +123,68 @@ export function HeroSection() {
             }}
           >
             {/* Main card / UI preview */}
-            <div className="relative bg-white rounded-2xl shadow-card-lg ring-1 ring-slate-100 overflow-hidden">
+            <div className="relative bg-[#0B1221] rounded-2xl shadow-2xl ring-1 ring-white/10 overflow-hidden">
               {/* Fake browser bar */}
-              <div className="flex items-center gap-1.5 px-4 py-3 bg-slate-50 border-b border-slate-100">
-                <div className="w-3 h-3 rounded-full bg-red-300" />
-                <div className="w-3 h-3 rounded-full bg-yellow-300" />
-                <div className="w-3 h-3 rounded-full bg-green-300" />
-                <div className="flex-1 mx-4 h-5 bg-white rounded border border-slate-200 flex items-center px-2">
-                  <span className="text-[10px] text-slate-400 truncate">
-                    amaralpro.com.br/agendamento
+              <div className="flex items-center gap-1.5 px-4 py-3 bg-[#151C2C] border-b border-white/5">
+                <div className="w-2.5 h-2.5 rounded-full bg-red-500/50" />
+                <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/50" />
+                <div className="w-2.5 h-2.5 rounded-full bg-green-500/50" />
+                <div className="flex-1 mx-4 h-5 bg-[#0B1221] rounded flex items-center px-2">
+                  <span className="text-[9px] text-slate-500 truncate">
+                    amaralpro.com.br/painel
                   </span>
                 </div>
               </div>
 
               {/* Dashboard preview */}
-              <div className="p-4 bg-gradient-navy">
-                <div className="text-white text-xs font-semibold mb-3 opacity-70">
-                  DASHBOARD — HOJE
+              <div className="p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="text-white text-[10px] font-bold tracking-wider uppercase opacity-50">
+                    Resumo do Dia
+                  </div>
+                  <div className="w-6 h-6 rounded-full bg-brand-teal/20 flex items-center justify-center">
+                    <div className="w-1.5 h-1.5 rounded-full bg-brand-teal animate-pulse" />
+                  </div>
                 </div>
-                <div className="grid grid-cols-3 gap-2 mb-3">
+                
+                <div className="grid grid-cols-3 gap-2.5 mb-5">
                   {[
-                    { label: "Aulas hoje", value: "12" },
-                    { label: "Confirmadas", value: "9" },
-                    { label: "Instrutores", value: "4" },
+                    { label: "Aulas", value: "14" },
+                    { label: "Próxima", value: "09s" },
+                    { label: "Créditos", value: "240" },
                   ].map((stat) => (
                     <div
                       key={stat.label}
-                      className="bg-white/10 rounded-xl p-3"
+                      className="bg-white/5 border border-white/5 rounded-xl p-3"
                     >
-                      <div className="text-lg font-bold text-white">
+                      <div className="text-sm font-bold text-white">
                         {stat.value}
                       </div>
-                      <div className="text-[10px] text-slate-300 mt-0.5">
+                      <div className="text-[9px] text-slate-400 mt-0.5">
                         {stat.label}
                       </div>
                     </div>
                   ))}
                 </div>
-                <div className="space-y-1.5">
+
+                <div className="space-y-2">
                   {[
-                    "08:00 — João Silva — Cat. B",
-                    "09:30 — Maria Santos — Cat. A",
-                    "11:00 — Pedro Lima — Cat. B",
+                    { time: "08:00", name: "Ana Paula", cat: "Cat. B", status: "Confirmado" },
+                    { time: "09:30", name: "Marcos Silva", cat: "Cat. A", status: "Em aula" },
                   ].map((item, i) => (
                     <div
                       key={i}
-                      className="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-2"
+                      className="flex items-center justify-between bg-white/5 border border-white/5 rounded-xl px-4 py-2.5"
                     >
-                      <div className="w-2 h-2 rounded-full bg-brand-teal shrink-0" />
-                      <span className="text-[11px] text-slate-200 truncate">
-                        {item}
-                      </span>
-                      <span className="ml-auto text-[10px] bg-brand-teal/20 text-brand-teal-light px-1.5 py-0.5 rounded-md shrink-0">
-                        OK
-                      </span>
+                      <div className="flex items-center gap-3">
+                        <div className="text-[10px] font-mono text-brand-teal">{item.time}</div>
+                        <div className="text-[11px] font-medium text-slate-200">{item.name}</div>
+                      </div>
+                      <div className={`text-[9px] px-2 py-0.5 rounded-full font-bold ${
+                        item.status === "Em aula" ? "bg-brand-teal/20 text-brand-teal" : "bg-white/10 text-slate-400"
+                      }`}>
+                        {item.status}
+                      </div>
                     </div>
                   ))}
                 </div>

@@ -7,50 +7,50 @@ export interface Feature {
 export const features: Feature[] = [
   {
     icon: 'Calendar',
-    title: 'Agendamentos em tempo real',
+    title: 'Agendamentos Inteligentes',
     description:
-      'Alunos agendam suas aulas diretamente pelo sistema, com disponibilidade atualizada em tempo real.',
+      'Elimine conflitos de horários e furos na agenda. Seus alunos agendam aulas de forma autônoma, respeitando as regras da sua autoescola.',
   },
   {
     icon: 'LayoutDashboard',
-    title: 'Painel Administrativo',
+    title: 'Gestão 360º da Operação',
     description:
-      'Visão completa da operação: instrutores, alunos, veículos e horários em um único painel.',
+      'Tenha o controle total de instrutores, veículos e alunos em um painel moderno e intuitivo, acessível de qualquer lugar.',
   },
   {
     icon: 'UserCheck',
-    title: 'Credenciamento intuitivo',
+    title: 'Controle de Créditos Preciso',
     description:
-      'Cadastro simplificado de alunos com validação por CPF ou CNH e controle de créditos por categoria.',
-  },
-  {
-    icon: 'User',
-    title: 'Perfil do Instrutor',
-    description:
-      'Cada instrutor tem acesso ao próprio painel com agenda, confirmações e histórico de aulas.',
-  },
-  {
-    icon: 'FileDigit',
-    title: 'Controle digital',
-    description:
-      'Registro de presença, assinaturas digitais e fotos das aulas práticas diretamente no app.',
+      'Gestão automatizada de créditos por categoria (A, B, D, E). Evite erros manuais e garanta que cada aula seja devidamente registrada.',
   },
   {
     icon: 'MessageSquare',
-    title: 'Integração WhatsApp',
+    title: 'Comunicação Automática',
     description:
-      'Notificações e confirmações automáticas via WhatsApp para alunos e instrutores.',
+      'Mantenha alunos e instrutores sempre informados com confirmações automáticas, reduzindo faltas e esquecimentos.',
+  },
+  {
+    icon: 'FileDigit',
+    title: 'Transformação Digital',
+    description:
+      'Diga adeus à papelada. Registre presença, assinaturas e fotos das aulas práticas de forma 100% digital e segura.',
+  },
+  {
+    icon: 'User',
+    title: 'Autonomia para Instrutores',
+    description:
+      'Cada instrutor gerencia sua própria agenda e confirmações, liberando a recepção para focar em novas vendas.',
   },
   {
     icon: 'RefreshCw',
-    title: 'Manutenção e integrações',
+    title: 'Evolução Contínua',
     description:
-      'Plataforma em constante evolução com atualizações automáticas e integrações futuras sem custo adicional.',
+      'Sua autoescola sempre atualizada com as melhores práticas do mercado e novas funcionalidades sem custos inesperados.',
   },
   {
     icon: 'GraduationCap',
-    title: 'Treinamento para alunos',
+    title: 'Experiência Premium para o Aluno',
     description:
-      'Guia de uso integrado para que os alunos aprendam a usar o sistema de forma autônoma e rápida.',
+      'Proporcione um diferencial competitivo para sua autoescola com uma interface moderna que encanta seus alunos desde o primeiro contato.',
   },
 ]

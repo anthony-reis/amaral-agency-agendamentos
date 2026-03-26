@@ -3,12 +3,13 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, Car, GraduationCap, Building2 } from "lucide-react";
+import { Menu, X, Car, GraduationCap, Building2, MessageSquare } from "lucide-react";
+import { WHATSAPP_URL } from "../constants";
 
 const navLinks = [
   { label: "Recursos", href: "#recursos" },
+  { label: "Como Funciona", href: "#como-funciona" },
   { label: "Planos", href: "#planos" },
-  { label: "Contato", href: "#contato" },
 ];
 
 export function Header() {

@@ -9,29 +9,29 @@ export const steps: Step[] = [
   {
     number: 1,
     icon: 'UserPlus',
-    title: 'Aluno se cadastra e agenda',
+    title: 'Identificação Rápida',
     description:
-      'O aluno acessa o sistema, informa seu CPF ou CNH, verifica os créditos disponíveis e escolhe o horário ideal.',
+      'O aluno acessa o portal, informa os dados e já visualiza instantaneamente sua carga horária e créditos.',
   },
   {
     number: 2,
     icon: 'CheckCircle',
-    title: 'Instrutor confirma',
+    title: 'Agendamento Autônomo',
     description:
-      'O instrutor recebe a notificação, confirma o agendamento e a aula fica registrada na agenda do dia.',
+      'O próprio aluno escolhe o melhor horário e instrutor, respeitando as disponibilidade em tempo real.',
   },
   {
     number: 3,
     icon: 'ClipboardCheck',
-    title: 'Aula realizada com registro digital',
+    title: 'Execução com Tecnologia',
     description:
-      'Durante a aula, o instrutor registra a presença, tira foto e coleta a assinatura digital do aluno.',
+      'Sua autoescola coleta assinaturas e confirma presenças digitalmente, sem erros e sem complicação.',
   },
   {
     number: 4,
     icon: 'BarChart3',
-    title: 'Autoescola acompanha tudo',
+    title: 'Monitoramento Gerencial',
     description:
-      'A gestão tem visão completa de todas as aulas, créditos consumidos, desempenho e histórico em tempo real.',
+      'Você acompanha o crescimento da sua autoescola com relatórios precisos do que acontece a cada segundo.',
   },
 ]
