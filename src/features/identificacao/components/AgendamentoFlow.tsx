@@ -21,6 +21,7 @@ import {
   criarAgendamento,
   atualizarTelefoneAluno,
   reagendarAula,
+  verificarAulaExistente,
 } from "@/features/aluno/actions/agendarAula";
 import type { StudentCredits } from "@/features/identificacao/types";
 
@@ -199,12 +200,36 @@ export function AgendamentoFlow({
   const handleDateSelect = (d: Date) => {
     if (d < today || isNonWorkday(d)) return;
     setDate(d);
+    setError(null);
     
-    if (rescheduleMode && rescheduleOldCategory) {
-      loadInstructors(rescheduleOldCategory, d);
-    } else {
-      goNext();
-    }
+    // Check if student already has a class on this date
+    startTransition(async () => {
+      try {
+        const result = await verificarAulaExistente(
+          autoescolaId,
+          studentDocument,
+          dateStr(d),
+          rescheduleMode && rescheduleClassId ? rescheduleClassId : undefined
+        );
+        
+        if (result.exists) {
+          setError(
+            `Você já tem uma aula neste dia às ${result.time_slot?.substring(0, 5) ?? '—'} com ${result.instructor_name ?? 'instrutor'}. Cada aluno pode ter apenas 1 aula por dia.`
+          );
+          return;
+        }
+        
+        if (rescheduleMode && rescheduleOldCategory) {
+          loadInstructors(rescheduleOldCategory, d);
+        } else {
+          goNext();
+        }
+      } catch (err: unknown) {
+        setError(
+          err instanceof Error ? err.message : 'Erro ao verificar disponibilidade'
+        );
+      }
+    });
   };
 
   const handleCategorySelect = (cat: "CARRO" | "MOTO") => {
@@ -505,6 +530,20 @@ export function AgendamentoFlow({
                     </button>
                   )}
                 </div>
+
+                {/* Loading/error for date check */}
+                {isPending && step === 2 && (
+                  <div className="flex items-center justify-center gap-2 py-4 text-[--p-text-3] text-sm mt-3">
+                    <div className="w-4 h-4 border-2 border-[--p-accent] border-t-transparent rounded-full animate-spin" />
+                    Verificando disponibilidade...
+                  </div>
+                )}
+                {error && step === 2 && (
+                  <div className="mt-3 flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-xl">
+                    <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
+                    <p className="text-sm text-red-400">{error}</p>
+                  </div>
+                )}
               </motion.div>
             )}
 

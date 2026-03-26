@@ -174,6 +174,15 @@ export default async function MinhasAulasPage({ params }: Props) {
                 const isToday = daysUntil === 0
                 const isTomorrow = daysUntil === 1
                 const isCarro = aula.instructorCategory === 'CARRO'
+                
+                // Check if rescheduling is allowed (at least 2h before class)
+                const now = new Date()
+                const classDateTime = new Date(`${aula.date}T${aula.time_slot}`)
+                const diffMs = classDateTime.getTime() - now.getTime()
+                const diffHours = diffMs / (1000 * 60 * 60)
+                const canReschedule = diffHours >= 2
+                const isPastClass = diffMs <= 0
+
                 return (
                   <div
                     key={aula.id}
@@ -222,15 +231,32 @@ export default async function MinhasAulasPage({ params }: Props) {
                     </div>
                     
                     {/* Reagendar */}
-                    <Link
-                      href={`/${escola}/aluno/agendar?reagendar=${aula.id}`}
-                      className="block w-full"
-                    >
-                      <button className="w-full mt-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-[--p-border] bg-[--p-bg-input] hover:bg-[--p-hover] text-xs font-semibold text-[--p-text-2] hover:text-[--p-accent] hover:border-[--p-accent]/30 transition-all">
+                    {isPastClass ? (
+                      <div className="w-full mt-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-[--p-border] bg-[--p-bg-input] text-xs text-[--p-text-3] opacity-50 cursor-not-allowed">
                         <RefreshCw className="w-3.5 h-3.5" />
-                        Reagendar Aula
-                      </button>
-                    </Link>
+                        Aula já ocorrida
+                      </div>
+                    ) : canReschedule ? (
+                      <Link
+                        href={`/${escola}/aluno/agendar?reagendar=${aula.id}`}
+                        className="block w-full"
+                      >
+                        <button className="w-full mt-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-[--p-border] bg-[--p-bg-input] hover:bg-[--p-hover] text-xs font-semibold text-[--p-text-2] hover:text-[--p-accent] hover:border-[--p-accent]/30 transition-all">
+                          <RefreshCw className="w-3.5 h-3.5" />
+                          Reagendar Aula
+                        </button>
+                      </Link>
+                    ) : (
+                      <div className="w-full mt-1 flex flex-col items-center gap-1 py-2.5 rounded-xl border border-amber-500/20 bg-amber-500/5">
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-400">
+                          <Clock className="w-3.5 h-3.5" />
+                          Prazo para reagendar encerrado
+                        </div>
+                        <p className="text-[10px] text-[--p-text-3]">
+                          Mínimo de 2h de antecedência
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )
               })}

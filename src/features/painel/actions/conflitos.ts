@@ -60,7 +60,7 @@ export async function detectarConflitos(autoescola_id: string): Promise<Conflito
       }
     }
 
-    // Group by aluno+date+time_slot
+    // Group by aluno+date+time_slot (duplicate same-slot)
     const mapAluno = new Map<string, {
       ids: string[]
       student_name: string
@@ -101,6 +101,64 @@ export async function detectarConflitos(autoescola_id: string): Promise<Conflito
           categories: v.categories,
           instructorNames: v.instructorNames,
         })
+      }
+    }
+
+    // Group by aluno+date (2+ classes on the same DAY, regardless of time_slot)
+    const mapAlunoDia = new Map<string, {
+      ids: string[]
+      student_name: string
+      studentDocs: string[]
+      categories: string[]
+      instructorNames: string[]
+      timeSlots: string[]
+      date: string
+    }>()
+    for (const row of allActive) {
+      const doc = row.student_document ?? row.cpf_cnh ?? row.student_name
+      const key = `${doc}|${row.date}`
+      if (!mapAlunoDia.has(key)) {
+        mapAlunoDia.set(key, {
+          ids: [],
+          student_name: row.student_name,
+          studentDocs: [],
+          categories: [],
+          instructorNames: [],
+          timeSlots: [],
+          date: row.date,
+        })
+      }
+      const entry = mapAlunoDia.get(key)!
+      entry.ids.push(row.id)
+      entry.studentDocs.push(row.student_document ?? row.cpf_cnh ?? '')
+      entry.timeSlots.push(row.time_slot)
+      const realCat = row.instructor_name
+        ? (catMap.get(row.instructor_name) ?? row.instructorCategory ?? '')
+        : (row.instructorCategory ?? '')
+      entry.categories.push(realCat)
+      entry.instructorNames.push(row.instructor_name ?? '')
+    }
+    for (const [, v] of mapAlunoDia) {
+      if (v.ids.length > 1) {
+        // Only add if not already captured as same-slot duplicate
+        const alreadyCaptured = conflitos.some(
+          c => c.type === 'aluno' && c.student_name === v.student_name && c.date === v.date
+            && c.ids.length === v.ids.length && c.ids.every(id => v.ids.includes(id))
+        )
+        if (!alreadyCaptured) {
+          conflitos.push({
+            type: 'aluno_dia',
+            student_name: v.student_name,
+            date: v.date,
+            time_slot: v.timeSlots.join(', '),
+            total: v.ids.length,
+            ids: v.ids,
+            studentDocs: v.studentDocs,
+            categories: v.categories,
+            instructorNames: v.instructorNames,
+            timeSlots: v.timeSlots,
+          })
+        }
       }
     }
   }

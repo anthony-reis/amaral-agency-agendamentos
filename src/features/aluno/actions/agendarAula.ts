@@ -3,6 +3,65 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { getDisponibilidade } from '@/lib/getDisponibilidade'
 
+/**
+ * Returns current date/time in São Paulo timezone (UTC-3).
+ */
+function getNowBRT(): Date {
+  return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }))
+}
+
+/**
+ * Validates that a date string (YYYY-MM-DD) is not in the past,
+ * and if it's today, the time slot is at least in the future.
+ */
+function validateNotInPast(dateStr: string, timeSlot: string) {
+  const now = getNowBRT()
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+
+  if (dateStr < todayStr) {
+    throw new Error('Não é possível agendar aulas no passado.')
+  }
+
+  if (dateStr === todayStr) {
+    const [slotH, slotM] = timeSlot.split(':').map(Number)
+    const slotMins = slotH * 60 + slotM
+    const nowMins = now.getHours() * 60 + now.getMinutes()
+    if (slotMins <= nowMins) {
+      throw new Error('Não é possível agendar um horário que já passou.')
+    }
+  }
+}
+
+/**
+ * Checks that the student doesn't already have a class on the given date.
+ * For rescheduling, excludes the agendamento being rescheduled.
+ */
+async function validateOneClassPerDay(
+  supabase: ReturnType<typeof createServiceClient>,
+  autoescolaId: string,
+  studentDocument: string,
+  dateStr: string,
+  excludeAgendamentoId?: string
+) {
+  let query = supabase
+    .from('agendamentos')
+    .select('id')
+    .eq('autoescola_id', autoescolaId)
+    .eq('date', dateStr)
+    .neq('status', 'cancelled')
+    .or(`student_document.eq.${studentDocument},cpf_cnh.eq.${studentDocument}`)
+
+  if (excludeAgendamentoId) {
+    query = query.neq('id', excludeAgendamentoId)
+  }
+
+  const { data: existing } = await query
+
+  if (existing && existing.length > 0) {
+    throw new Error('Você já possui uma aula agendada neste dia. Cada aluno pode ter apenas 1 aula por dia.')
+  }
+}
+
 export async function fetchDisponibilidade(
   autoescolaId: string,
   date: string,
@@ -11,8 +70,46 @@ export async function fetchDisponibilidade(
   return getDisponibilidade(autoescolaId, date, category)
 }
 
+/**
+ * Checks if a student already has a (non-cancelled) class on the given date.
+ * Returns the existing class info if found, null otherwise.
+ */
+export async function verificarAulaExistente(
+  autoescolaId: string,
+  studentDocument: string,
+  date: string,
+  excludeAgendamentoId?: string
+): Promise<{ exists: boolean; time_slot?: string; instructor_name?: string }> {
+  const supabase = createServiceClient()
+
+  let query = supabase
+    .from('agendamentos')
+    .select('id, time_slot, instructor_name')
+    .eq('autoescola_id', autoescolaId)
+    .eq('date', date)
+    .neq('status', 'cancelled')
+    .or(`student_document.eq.${studentDocument},cpf_cnh.eq.${studentDocument}`)
+    .limit(1)
+
+  if (excludeAgendamentoId) {
+    query = query.neq('id', excludeAgendamentoId)
+  }
+
+  const { data: existing } = await query
+
+  if (existing && existing.length > 0) {
+    return {
+      exists: true,
+      time_slot: existing[0].time_slot,
+      instructor_name: existing[0].instructor_name,
+    }
+  }
+
+  return { exists: false }
+}
+
 export async function criarAgendamento(data: {
-  autoescola_id: string; // Add this since we need to bypass the null constraint
+  autoescola_id: string;
   date: string;
   timeSlot: string;
   instructorName: string;
@@ -22,12 +119,16 @@ export async function criarAgendamento(data: {
   studentDocument: string;
 }) {
   const supabase = createServiceClient()
+
+  // ── Validations ──
+  validateNotInPast(data.date, data.timeSlot)
+  await validateOneClassPerDay(supabase, data.autoescola_id, data.studentDocument, data.date)
   
   // Insert agendamento
   const { error: insertError } = await supabase
     .from('agendamentos')
     .insert({
-      autoescola_id: data.autoescola_id, // include autoescola_id to fix constraint!
+      autoescola_id: data.autoescola_id,
       date: data.date,
       time_slot: data.timeSlot,
       instructor_name: data.instructorName,
@@ -46,8 +147,6 @@ export async function criarAgendamento(data: {
   // Deduct credit
   const rpcCat = data.category === 'CARRO' ? 'aulas_cat_b' : 'aulas_cat_a'
   
-  // Note: we might need to decrement using RPC or 2-step since there's no RLS.
-  // 2-step:
   const { data: currentCreds } = await supabase
     .from('student_credits')
     .select(rpcCat)
@@ -82,16 +181,32 @@ export async function reagendarAula(agendamentoId: string, data: {
 }) {
   const supabase = createServiceClient()
 
-  // 1. Fetch old agendamento to get existing category
+  // 1. Fetch old agendamento to get existing category + date/time for 2h rule
   const { data: oldAgendamento, error: fetchError } = await supabase
     .from('agendamentos')
-    .select('instructorCategory')
+    .select('instructorCategory, date, time_slot')
     .eq('id', agendamentoId)
     .single()
 
   if (fetchError || !oldAgendamento) {
     throw new Error('Agendamento original não encontrado.')
   }
+
+  // ── Validate: rescheduling must be at least 2h before original class ──
+  const now = getNowBRT()
+  const classDateTime = new Date(`${oldAgendamento.date}T${oldAgendamento.time_slot}`)
+  const diffMs = classDateTime.getTime() - now.getTime()
+  const diffHours = diffMs / (1000 * 60 * 60)
+
+  if (diffHours < 2) {
+    throw new Error('O reagendamento só pode ser feito com pelo menos 2 horas de antecedência do horário da aula.')
+  }
+
+  // ── Validate: new date/time not in the past ──
+  validateNotInPast(data.date, data.timeSlot)
+
+  // ── Validate: 1 class per day (excluding the current agendamento) ──
+  await validateOneClassPerDay(supabase, data.autoescola_id, data.studentDocument, data.date, agendamentoId)
 
   const oldCategory = oldAgendamento.instructorCategory
 

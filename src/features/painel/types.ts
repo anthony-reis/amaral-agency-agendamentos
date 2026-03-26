@@ -96,7 +96,7 @@ export type NovoBloqueioInput = {
 // ─── Conflito ─────────────────────────────────────────────────────────────────
 
 export interface Conflito {
-  type: 'instrutor' | 'aluno'
+  type: 'instrutor' | 'aluno' | 'aluno_dia'
   instructor_name?: string
   student_name?: string
   date: string
@@ -107,6 +107,7 @@ export interface Conflito {
   studentDocs?: string[]      // student documents (for credit refund)
   categories?: string[]       // instructorCategory per agendamento
   instructorNames?: string[]  // instructor names (for aluno conflicts)
+  timeSlots?: string[]        // individual time slots per agendamento (for aluno_dia)
 }
 
 // ─── Auth Painel ──────────────────────────────────────────────────────────────
