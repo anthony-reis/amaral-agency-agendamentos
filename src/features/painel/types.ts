@@ -188,6 +188,7 @@ export interface LogStats {
   creditos: number
   alunos: number
   bloqueios: number
+  cancelamentos: number
 }
 
 // ─── Instrutor Session ────────────────────────────────────────────────────────
@@ -205,3 +206,18 @@ export interface InstructorSession {
 export type ActionResult<T = void> =
   | { success: true; data: T }
   | { success: false; error: string }
+
+// ─── Comunicado ───────────────────────────────────────────────────────────────
+
+export interface Comunicado {
+  id: string
+  autoescola_id: string
+  titulo: string
+  descricao: string
+  created_by: string
+  created_at: string
+}
+
+export interface ComunicadoComLidos extends Comunicado {
+  total_lidos: number
+}

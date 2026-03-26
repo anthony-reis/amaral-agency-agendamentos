@@ -1,6 +1,7 @@
 'use server'
 
 import { createServiceClient } from '@/lib/supabase/server'
+import { getCurrentUsername } from './authPainel'
 import type { HorarioDisponivel, ActionResult } from '../types'
 
 export async function listarHorarios(autoescola_id: string): Promise<HorarioDisponivel[]> {
@@ -49,6 +50,15 @@ export async function criarHorario(
     .single()
 
   if (error) return { success: false, error: 'Erro ao criar horário.' }
+
+  const userAct = await getCurrentUsername()
+  await supabase.from('activity_logs_painel').insert({
+    username: userAct,
+    action_type: 'usuarios',
+    description: `Horário criado: ${horario.trim()} para ${instrutor || 'GERAL'}`,
+    autoescola_id,
+  })
+
   return { success: true, data }
 }
 
@@ -65,6 +75,15 @@ export async function toggleHorario(
     .eq('autoescola_id', autoescola_id)
 
   if (error) return { success: false, error: 'Erro ao atualizar horário.' }
+
+  const userAct = await getCurrentUsername()
+  await supabase.from('activity_logs_painel').insert({
+    username: userAct,
+    action_type: 'usuarios',
+    description: `Horário (ID: ${id}) ${ativo ? 'ativado' : 'desativado'}`,
+    autoescola_id,
+  })
+
   return { success: true, data: undefined }
 }
 
@@ -80,5 +99,14 @@ export async function excluirHorario(
     .eq('autoescola_id', autoescola_id)
 
   if (error) return { success: false, error: 'Erro ao excluir horário.' }
+
+  const userAct = await getCurrentUsername()
+  await supabase.from('activity_logs_painel').insert({
+    username: userAct,
+    action_type: 'usuarios',
+    description: `Horário excluído (ID: ${id})`,
+    autoescola_id,
+  })
+
   return { success: true, data: undefined }
 }

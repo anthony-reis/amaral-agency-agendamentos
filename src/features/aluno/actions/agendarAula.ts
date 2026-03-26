@@ -1,6 +1,7 @@
 'use server'
 
 import { createServiceClient } from '@/lib/supabase/server'
+import { revalidatePath } from 'next/cache'
 import { getDisponibilidade } from '@/lib/getDisponibilidade'
 
 /**
@@ -154,13 +155,14 @@ export async function criarAgendamento(data: {
     .single()
     
   if (currentCreds) {
-    const credsAny = currentCreds as any
+    const credsTyped = currentCreds as Record<string, number>
     await supabase
       .from('student_credits')
-      .update({ [rpcCat]: Math.max(0, credsAny[rpcCat] - 1) })
+      .update({ [rpcCat]: Math.max(0, (credsTyped[rpcCat] ?? 0) - 1) })
       .eq('student_id', data.studentId)
   }
 
+  revalidatePath('/', 'layout')
   return { success: true }
 }
 
@@ -223,9 +225,9 @@ export async function reagendarAula(agendamentoId: string, data: {
       .single()
 
     if (currentCreds) {
-      const credsAny = currentCreds as any
-      const currentNewCatAmount = credsAny[rpcNewCat] ?? 0
-      
+      const credsTyped = currentCreds as Record<string, number>
+      const currentNewCatAmount = credsTyped[rpcNewCat] ?? 0
+
       if (currentNewCatAmount < 1) {
         throw new Error(`Créditos insuficientes para reagendar como ${data.category === 'CARRO' ? 'Carro' : 'Moto'}.`)
       }
@@ -233,7 +235,7 @@ export async function reagendarAula(agendamentoId: string, data: {
       await supabase
         .from('student_credits')
         .update({
-          [rpcOldCat]: (credsAny[rpcOldCat] ?? 0) + 1,
+          [rpcOldCat]: (credsTyped[rpcOldCat] ?? 0) + 1,
           [rpcNewCat]: Math.max(0, currentNewCatAmount - 1)
         })
         .eq('student_id', data.studentId)
@@ -257,5 +259,6 @@ export async function reagendarAula(agendamentoId: string, data: {
     throw new Error(updateError.message)
   }
 
+  revalidatePath('/', 'layout')
   return { success: true }
 }

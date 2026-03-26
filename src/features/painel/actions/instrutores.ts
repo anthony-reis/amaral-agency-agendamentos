@@ -1,6 +1,7 @@
 'use server'
 
 import { createServiceClient } from '@/lib/supabase/server'
+import { getCurrentUsername } from './authPainel'
 import type { Instrutor, NovoInstrutorInput, ActionResult } from '../types'
 
 export async function listarInstrutores(autoescola_id: string): Promise<Instrutor[]> {
@@ -34,6 +35,14 @@ export async function criarInstrutor(
 
   if (error) return { success: false, error: 'Erro ao criar instrutor.' }
 
+  const userAct = await getCurrentUsername()
+  await supabase.from('activity_logs_painel').insert({
+    username: userAct,
+    action_type: 'usuarios',
+    description: `Instrutor criado: ${name.trim()} (${category})`,
+    autoescola_id,
+  })
+
   // Sync instructor_passwords table (legacy)
   await supabase.from('instructor_passwords').insert({
     instructor_name: name.trim(),
@@ -59,6 +68,14 @@ export async function atualizarInstrutor(
     .single()
 
   if (error) return { success: false, error: 'Erro ao atualizar instrutor.' }
+
+  const userAct = await getCurrentUsername()
+  await supabase.from('activity_logs_painel').insert({
+    username: userAct,
+    action_type: 'usuarios',
+    description: `Instrutor atualizado (ID: ${id})`,
+    autoescola_id,
+  })
   return { success: true, data }
 }
 
@@ -83,6 +100,14 @@ export async function excluirInstrutor(
     .eq('autoescola_id', autoescola_id)
 
   if (error) return { success: false, error: 'Erro ao excluir instrutor.' }
+
+  const userAct = await getCurrentUsername()
+  await supabase.from('activity_logs_painel').insert({
+    username: userAct,
+    action_type: 'usuarios',
+    description: `Instrutor excluído (ID: ${id}, Nome: ${inst?.name || '?'})`,
+    autoescola_id,
+  })
 
   // Null out horarios linked to this instructor's name
   if (inst?.name) {

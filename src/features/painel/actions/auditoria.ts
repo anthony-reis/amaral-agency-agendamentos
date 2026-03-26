@@ -63,6 +63,7 @@ export async function getLogStats(
     creditos: rows.filter((r) => r.action_type === 'creditos' || r.action_type === 'credito').length,
     alunos: rows.filter((r) => r.action_type === 'aluno' || r.action_type === 'alunos').length,
     bloqueios: rows.filter((r) => r.action_type === 'bloqueio' || r.action_type === 'bloqueios').length,
+    cancelamentos: rows.filter((r) => r.action_type === 'cancelamento' || r.action_type === 'cancelamento_massa').length,
   }
 }
 

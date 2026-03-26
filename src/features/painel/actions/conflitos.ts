@@ -1,6 +1,8 @@
 'use server'
 
 import { createServiceClient } from '@/lib/supabase/server'
+import { revalidatePath } from 'next/cache'
+import { getCurrentUsername } from './authPainel'
 import type { Conflito } from '../types'
 
 export async function detectarConflitos(autoescola_id: string): Promise<Conflito[]> {
@@ -175,7 +177,7 @@ export async function resolverConflito(
   // Fetch the agendamento to get student info for credit refund
   const { data: agendamento } = await supabase
     .from('agendamentos')
-    .select('student_document, cpf_cnh, instructorCategory, instructor_name, autoescola_id')
+    .select('student_document, cpf_cnh, instructorCategory, instructor_name, autoescola_id, date, time_slot')
     .eq('id', agendamentoId)
     .eq('autoescola_id', autoescola_id)
     .single()
@@ -212,14 +214,28 @@ export async function resolverConflito(
           .eq('student_id', student.id)
           .single()
 
-        if (creds) {
-          const current = (creds as Record<string, number>)[creditField] ?? 0
-          await supabase
-            .from('student_credits')
-            .update({ [creditField]: current + 1 })
-            .eq('student_id', student.id)
+          if (creds) {
+            const current = (creds as Record<string, number>)[creditField] ?? 0
+            await supabase
+              .from('student_credits')
+              .update({ [creditField]: current + 1 })
+              .eq('student_id', student.id)
+
+            // Registrar log de atividade
+            const userAct = await getCurrentUsername()
+            const dateBR = agendamento.date.split('-').reverse().join('/')
+            await supabase.from('activity_logs_painel').insert({
+              username: userAct,
+              action_type: 'cancelamento',
+              description: `Conflito resolvido: agendamento em ${dateBR} às ${agendamento.time_slot} foi cancelado e 1 crédito de ${trueCat} devolvido ao aluno.`,
+              metadata: { agendamento_id: agendamentoId },
+              autoescola_id,
+            })
+          }
         }
       }
     }
-  }
+
+  // ESSENCIAL: Revalidar o cache para que o calendário e a disponibilidade reflitam a liberação do horário
+  revalidatePath('/', 'layout')
 }

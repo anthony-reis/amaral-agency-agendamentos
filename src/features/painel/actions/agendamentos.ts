@@ -2,7 +2,10 @@
 
 import { createServiceClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { getCurrentUsername } from './authPainel'
 import type { Agendamento, AgendamentoStats, InstrutorDesempenho, AgendamentoStatus } from '../types'
+
+const AG_ID_REGEX = /agendamento ([a-f0-9-]{36})/
 
 export interface AgendamentosFilter {
   autoescola_id: string
@@ -122,7 +125,7 @@ export async function listarHistoricoEnriquecido(filter: {
   const ids = logs
     .map((l) => {
       if (l.metadata?.agendamento_id) return l.metadata.agendamento_id
-      const match = l.description.match(/agendamento ([a-f0-9-]{36})/)
+      const match = l.description.match(AG_ID_REGEX)
       return match ? match[1] : null
     })
     .filter(Boolean) as string[]
@@ -145,7 +148,7 @@ export async function listarHistoricoEnriquecido(filter: {
   // 4. Montar o resultado enriquecido
   const results: HistoricoItem[] = []
   for (const log of logs) {
-    const agId = log.metadata?.agendamento_id || log.description.match(/agendamento ([a-f0-9-]{36})/)?.[1]
+    const agId = log.metadata?.agendamento_id || log.description.match(AG_ID_REGEX)?.[1]
     const ag = agId ? agMap.get(agId) : null
 
     if (ag) {
@@ -316,8 +319,9 @@ export async function cancelarAgendamento(
           .update({ [creditField]: current + 1 })
           .eq('student_id', student.id)
 
+        const userAct = await getCurrentUsername()
         await supabase.from('activity_logs_painel').insert({
-          username: 'painel',
+          username: userAct,
           action_type: 'cancelamento',
           description: `O agendamento ${id} foi cancelado e o crédito devolvido.`,
           metadata: { agendamento_id: id },
@@ -380,8 +384,9 @@ export async function atualizarStatusAgendamentosEmMassa(
                 .update({ [creditField]: current + 1 })
                 .eq('student_id', student.id)
 
+              const userAct = await getCurrentUsername()
               await supabase.from('activity_logs_painel').insert({
-                username: 'painel',
+                username: userAct,
                 action_type: 'cancelamento_massa',
                 description: `Cancelamento em lote: devolvido 1 crédito de ${trueCategory} para aluno com doc ${doc}`,
                 autoescola_id,

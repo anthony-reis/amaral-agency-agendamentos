@@ -2,6 +2,9 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createServiceClient } from '@/lib/supabase/server'
 import { AlunoSidebar } from '@/features/aluno/components/AlunoSidebar'
+import { ComunicadosModalWrapper } from '@/features/aluno/components/ComunicadosModalWrapper'
+import { buscarComunicadosNaoLidos } from '@/features/aluno/actions/comunicados'
+import type { Comunicado } from '@/features/painel/types'
 
 interface Props {
   children: React.ReactNode
@@ -12,16 +15,22 @@ export default async function AlunoLayout({ children, params }: Props) {
   const { escola } = await params
   const cookieStore = await cookies()
   const studentName = cookieStore.get('student_name')?.value ?? ''
+  const studentDocument = cookieStore.get('student_document')?.value ?? ''
   const isIdentified = !!cookieStore.get('student_id')?.value
 
   const supabase = createServiceClient()
   const { data: autoescola } = await supabase
     .from('autoescolas')
-    .select('nome, logo_url')
+    .select('id, nome, logo_url')
     .eq('slug', escola)
     .single()
 
   if (!autoescola) redirect('/')
+
+  let unreadComunicados: Comunicado[] = []
+  if (isIdentified && studentDocument) {
+    unreadComunicados = await buscarComunicadosNaoLidos(autoescola.id, studentDocument)
+  }
 
   async function handleLogout() {
     'use server'
@@ -45,6 +54,14 @@ export default async function AlunoLayout({ children, params }: Props) {
       <main className="flex-1 min-w-0">
         {children}
       </main>
+      {isIdentified && unreadComunicados.length > 0 && (
+        <ComunicadosModalWrapper
+          comunicados={unreadComunicados}
+          studentDocument={studentDocument}
+          autoescolaId={autoescola.id}
+          escola={escola}
+        />
+      )}
     </div>
   )
 }

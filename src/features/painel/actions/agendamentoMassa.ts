@@ -2,6 +2,7 @@
 
 import { getDisponibilidade } from '@/lib/getDisponibilidade'
 import { createServiceClient } from '@/lib/supabase/server'
+import { getCurrentUsername } from './authPainel'
 
 // Feriados nacionais fixos (MM-DD)
 const FERIADOS_FIXOS = new Set([
@@ -118,9 +119,10 @@ export async function criarAgendamentosMassa(data: {
     .update({ [rpcCat]: newValue })
     .eq('student_id', data.studentId)
 
+  const userAct = await getCurrentUsername()
   // Log de auditoria
   await supabase.from('activity_logs_painel').insert({
-    username: 'painel',
+    username: userAct,
     action_type: 'agendamento',
     description: `Agendamento em massa: ${data.agendamentos.length} aulas para ${data.studentName} (${data.category})`,
     autoescola_id: data.autoescola_id,

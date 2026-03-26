@@ -2,6 +2,7 @@
 
 import { createServiceClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { getCurrentUsername } from './authPainel'
 
 export interface DiaCalendario {
   date: string          // 'YYYY-MM-DD'
@@ -341,8 +342,10 @@ export async function atualizarStatusAgendamento(
             .from('student_credits')
             .update({ [creditField]: current + 1 })
             .eq('student_id', student.id)
-                      await supabase.from('activity_logs_painel').insert({
-              username: 'painel',
+          
+          const userAct = await getCurrentUsername()
+          await supabase.from('activity_logs_painel').insert({
+              username: userAct,
               action_type: 'cancelamento',
               description: `Cancelamento de aula pelo calendário: devolvido 1 crédito de ${trueCategory} para aluno com doc ${doc}.`,
               metadata: { agendamento_id: id },
@@ -449,11 +452,13 @@ export async function agendarAulaCalendario(data: {
     .update({ [creditField]: Math.max(0, available - 1) })
     .eq('student_id', data.student_id)
 
+  const userAct = await getCurrentUsername()
+  const dateBR = data.date.split('-').reverse().join('/')
   // Log
   await supabase.from('activity_logs_painel').insert({
-    username: 'painel',
+    username: userAct,
     action_type: 'agendamento',
-    description: `Agendamento criado para aluno ${data.student_name} em ${data.date} ${data.time_slot}.`,
+    description: `Agendamento criado para aluno ${data.student_name} em ${dateBR} ${data.time_slot}.`,
     metadata: { agendamento_id: agendamentoId },
     autoescola_id: data.autoescola_id,
   })

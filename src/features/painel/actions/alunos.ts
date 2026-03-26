@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createServiceClient } from '@/lib/supabase/server'
+import { getCurrentUsername } from './authPainel'
 import type { AlunoComCreditos, AlunoCreditos, NovoAlunoInput, ActionResult } from '../types'
 
 export async function listarAlunos(
@@ -76,6 +77,14 @@ export async function criarAluno(input: NovoAlunoInput): Promise<ActionResult<Al
     .select()
     .single()
 
+  const userAct = await getCurrentUsername()
+  await supabase.from('activity_logs_painel').insert({
+    username: userAct,
+    action_type: 'aluno',
+    description: `Aluno criado: ${aluno.name} (Doc: ${aluno.document_id})`,
+    autoescola_id: input.autoescola_id,
+  })
+
   return { success: true, data: { ...aluno, creditos: creditos ?? null } as AlunoComCreditos }
 }
 
@@ -96,6 +105,15 @@ export async function editarAluno(
     .eq('autoescola_id', autoescola_id)
 
   if (error) return { success: false, error: 'Erro ao editar aluno.' }
+
+  const userAct = await getCurrentUsername()
+  await supabase.from('activity_logs_painel').insert({
+    username: userAct,
+    action_type: 'aluno',
+    description: `Aluno editado (ID: ${id})`,
+    autoescola_id,
+  })
+
   return { success: true, data: undefined }
 }
 
@@ -154,6 +172,15 @@ export async function excluirAluno(
 
   const { error } = await supabase.from('students').delete().eq('id', id).eq('autoescola_id', autoescola_id)
   if (error) return { success: false, error: 'Erro ao excluir aluno.' }
+
+  const userAct = await getCurrentUsername()
+  await supabase.from('activity_logs_painel').insert({
+    username: userAct,
+    action_type: 'aluno',
+    description: `Aluno excluído (ID: ${id}, Doc: ${student?.document_id || '?'})`,
+    autoescola_id,
+  })
+
   return { success: true, data: undefined }
 }
 
@@ -189,11 +216,11 @@ export async function ajustarCredito(
 
   if (error || !updated) return { success: false, error: 'Erro ao ajustar crédito.' }
 
-  // Registrar log de auditoria
+  const userAct = await getCurrentUsername()
   await supabase.from('activity_logs_painel').insert({
-    username: 'sistema',
+    username: userAct,
     action_type: 'creditos',
-    description: `Crédito Cat. ${categoria.toUpperCase()} ${delta > 0 ? 'adicionado' : 'removido'} (novo total: ${newVal})`,
+    description: `Crédito Cat. ${categoria.toUpperCase()} ${delta > 0 ? 'adicionado' : 'removido'} para aluno (ID: ${student_id}, novo total: ${newVal})`,
     autoescola_id,
   })
 

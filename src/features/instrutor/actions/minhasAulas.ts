@@ -1,6 +1,7 @@
 'use server'
 
 import { createServiceClient } from '@/lib/supabase/server'
+import { revalidatePath } from 'next/cache'
 import type { ActionResult } from '@/features/painel/types'
 
 export interface AulaInstrutor {
@@ -229,6 +230,7 @@ export async function finalizarAula(
     autoescola_id,
   })
 
+  revalidatePath('/', 'layout')
   return { success: true, data: undefined }
 }
 
@@ -305,5 +307,6 @@ export async function atualizarStatusAula(
     autoescola_id,
   })
 
+  revalidatePath('/', 'layout')
   return { success: true, data: undefined }
 }

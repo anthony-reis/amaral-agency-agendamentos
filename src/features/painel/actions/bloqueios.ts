@@ -1,6 +1,7 @@
 'use server'
 
 import { createServiceClient } from '@/lib/supabase/server'
+import { getCurrentUsername } from './authPainel'
 import type { BloqueioTimeSlot, NovoBloqueioInput, ActionResult } from '../types'
 
 export async function listarBloqueios(autoescola_id: string): Promise<BloqueioTimeSlot[]> {
@@ -80,6 +81,15 @@ export async function criarBloqueio(
     .select()
 
   if (error) return { success: false, error: 'Erro ao criar bloqueio.' }
+
+  const userAct = await getCurrentUsername()
+  await supabase.from('activity_logs_painel').insert({
+    username: userAct,
+    action_type: 'bloqueio',
+    description: `Bloqueio criado: ${tipo.toUpperCase()} (${input.date || `${input.date_start} até ${input.date_end}`}) para ${instructor || vehicle_type || 'TODOS'}`,
+    autoescola_id,
+  })
+
   return { success: true, data: data ?? [] }
 }
 
@@ -95,5 +105,14 @@ export async function excluirBloqueio(
     .eq('autoescola_id', autoescola_id)
 
   if (error) return { success: false, error: 'Erro ao excluir bloqueio.' }
+
+  const userAct = await getCurrentUsername()
+  await supabase.from('activity_logs_painel').insert({
+    username: userAct,
+    action_type: 'bloqueio',
+    description: `Bloqueio removido (ID: ${id})`,
+    autoescola_id,
+  })
+
   return { success: true, data: undefined }
 }

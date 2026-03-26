@@ -74,6 +74,14 @@ export async function loginPainel(
     path: '/',
   })
 
+  // Log de auditoria para o login
+  await supabase.from('activity_logs_painel').insert({
+    username: user.username,
+    action_type: 'login',
+    description: `Usuário ${user.full_name} (@${user.username}) fez login no painel`,
+    autoescola_id: user.autoescola_id,
+  })
+
   return { success: true, data: session }
 }
 
@@ -94,5 +102,18 @@ export async function getPainelSession(slug: string): Promise<PainelSession | nu
     return session
   } catch {
     return null
+  }
+}
+
+export async function getCurrentUsername(): Promise<string> {
+  const cookieStore = await cookies()
+  const raw = cookieStore.get(COOKIE_NAME)?.value
+  if (!raw) return 'sistema'
+
+  try {
+    const session = JSON.parse(raw) as PainelSession
+    return session.username || 'sistema'
+  } catch {
+    return 'sistema'
   }
 }

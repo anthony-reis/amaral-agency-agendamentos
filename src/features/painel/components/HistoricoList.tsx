@@ -375,22 +375,28 @@ export function HistoricoList({
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-[--p-text-1]">
-                    <span className="font-semibold">
-                      {a.instructor_name ?? "Instrutor"}
-                    </span>{" "}
-                    <span className="text-[--p-text-3]">
-                      {a.status === "completed"
-                        ? "concluiu"
-                        : a.status === "cancelled"
-                          ? "desmarcou"
-                          : "agendou"}{" "}
-                      uma aula de{" "}
-                    </span>
-                    <span
-                      className={`font-semibold ${a.instructorCategory === "MOTO" ? "text-purple-300" : "text-[#0ea5e9]"}`}
-                    >
-                      {a.instructorCategory ?? "CARRO"}
-                    </span>
+                    {item.log_description.startsWith('Conflito resolvido') ? (
+                      <span className="text-rose-400 font-medium">{item.log_description}</span>
+                    ) : (
+                      <>
+                        <span className="font-semibold">
+                          {a.instructor_name ?? "Instrutor"}
+                        </span>{" "}
+                        <span className="text-[--p-text-3]">
+                          {a.status === "completed"
+                            ? "concluiu"
+                            : a.status === "cancelled"
+                              ? "desmarcou"
+                              : "agendou"}{" "}
+                          uma aula de{" "}
+                        </span>
+                        <span
+                          className={`font-semibold ${a.instructorCategory === "MOTO" ? "text-purple-300" : "text-[#0ea5e9]"}`}
+                        >
+                          {a.instructorCategory ?? "CARRO"}
+                        </span>
+                      </>
+                    )}
                   </p>
                   <p className="text-xs text-[--p-text-3] mt-0.5 flex items-center gap-2">
                     <span>{a.student_name}</span>

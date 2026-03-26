@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, Users, Clock, Ban, History,
   AlertTriangle, LogOut, Car, Menu, X, ChevronRight,
-  Calendar, GraduationCap, Activity, CalendarPlus, ClipboardList,
+  Calendar, GraduationCap, Activity, CalendarPlus, ClipboardList, Megaphone,
 } from 'lucide-react'
 import { ThemeToggle } from '@/components/ThemeToggle'
 
@@ -24,6 +24,7 @@ function buildNavItems(escola: string): NavItem[] {
     { label: 'Calendário', href: `${base}/calendario`, icon: Calendar },
     { label: 'Instrutores', href: `${base}/instrutores`, icon: Users },
     { label: 'Alunos', href: `${base}/alunos`, icon: GraduationCap },
+    { label: 'Comunicados', href: `${base}/comunicados`, icon: Megaphone },
     { label: 'Agend. em Massa', href: `${base}/agendamento-massa`, icon: CalendarPlus },
     { label: 'Lista', href: `${base}/lista`, icon: ClipboardList },
     { label: 'Horários', href: `${base}/horarios`, icon: Clock },
