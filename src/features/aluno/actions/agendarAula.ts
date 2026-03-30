@@ -5,10 +5,12 @@ import { revalidatePath } from 'next/cache'
 import { getDisponibilidade } from '@/lib/getDisponibilidade'
 
 /**
- * Returns current date/time in São Paulo timezone (UTC-3).
+ * Returns current date string (YYYY-MM-DD) in São Paulo timezone (UTC-3).
  */
-function getNowBRT(): Date {
-  return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }))
+function getTodayBRTStr(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo'
+  }).format(new Date());
 }
 
 /**
@@ -16,18 +18,15 @@ function getNowBRT(): Date {
  * and if it's today, the time slot is at least in the future.
  */
 function validateNotInPast(dateStr: string, timeSlot: string) {
-  const now = getNowBRT()
-  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  const todayStr = getTodayBRTStr()
 
   if (dateStr < todayStr) {
     throw new Error('Não é possível agendar aulas no passado.')
   }
 
   if (dateStr === todayStr) {
-    const [slotH, slotM] = timeSlot.split(':').map(Number)
-    const slotMins = slotH * 60 + slotM
-    const nowMins = now.getHours() * 60 + now.getMinutes()
-    if (slotMins <= nowMins) {
+    const classDateTime = new Date(`${dateStr}T${timeSlot}:00-03:00`)
+    if (classDateTime.getTime() <= Date.now()) {
       throw new Error('Não é possível agendar um horário que já passou.')
     }
   }
@@ -195,9 +194,8 @@ export async function reagendarAula(agendamentoId: string, data: {
   }
 
   // ── Validate: rescheduling must be at least 2h before original class ──
-  const now = getNowBRT()
-  const classDateTime = new Date(`${oldAgendamento.date}T${oldAgendamento.time_slot}`)
-  const diffMs = classDateTime.getTime() - now.getTime()
+  const classDateTime = new Date(`${oldAgendamento.date}T${oldAgendamento.time_slot}:00-03:00`)
+  const diffMs = classDateTime.getTime() - Date.now()
   const diffHours = diffMs / (1000 * 60 * 60)
 
   if (diffHours < 2) {

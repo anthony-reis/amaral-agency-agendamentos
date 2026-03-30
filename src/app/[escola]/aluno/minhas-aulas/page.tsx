@@ -9,10 +9,17 @@ interface Props {
 }
 
 function getDaysUntil(dateStr: string): number {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const target = new Date(dateStr + 'T12:00:00')
-  return Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+  const todayBRT = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(new Date());
+  
+  const todayDate = new Date(`${todayBRT}T12:00:00-03:00`);
+  const targetDate = new Date(`${dateStr}T12:00:00-03:00`);
+  
+  return Math.round((targetDate.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 function groupByMonth<T extends { date: string }>(items: T[]): { label: string; items: T[] }[] {
@@ -177,7 +184,7 @@ export default async function MinhasAulasPage({ params }: Props) {
                 
                 // Check if rescheduling is allowed (at least 2h before class)
                 const now = new Date()
-                const classDateTime = new Date(`${aula.date}T${aula.time_slot}`)
+                const classDateTime = new Date(`${aula.date}T${aula.time_slot}:00-03:00`)
                 const diffMs = classDateTime.getTime() - now.getTime()
                 const diffHours = diffMs / (1000 * 60 * 60)
                 const canReschedule = diffHours >= 2

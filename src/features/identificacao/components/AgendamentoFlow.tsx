@@ -70,7 +70,10 @@ function getToday() {
 }
 
 function dateStr(d: Date) {
-  return d.toISOString().split("T")[0];
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 export function AgendamentoFlow({
@@ -312,6 +315,22 @@ export function AgendamentoFlow({
       {label}
     </button>
   );
+
+  const validInstructors = availableInstructors
+    .map(inst => {
+      const validTimes = inst.horarios.filter(time => {
+        if (!date) return true;
+        const isToday = dateStr(date) === dateStr(getToday());
+        if (!isToday) return true;
+        const [th, tm] = time.split(":").map(Number);
+        const slotMins = th * 60 + tm;
+        const now = new Date();
+        const nowMins = now.getHours() * 60 + now.getMinutes();
+        return slotMins >= nowMins + 120; // 2 hours advance
+      });
+      return { ...inst, validTimes };
+    })
+    .filter(inst => inst.validTimes.length > 0);
 
   return (
     <div className="flex flex-col min-h-full">
@@ -651,11 +670,11 @@ export function AgendamentoFlow({
                       Buscando disponibilidade...
                     </p>
                   </div>
-                ) : availableInstructors.length === 0 ? (
+                ) : validInstructors.length === 0 ? (
                   <div className="bg-[--p-bg-card] border border-[--p-border] rounded-2xl p-6 text-center space-y-3">
                     <AlertCircle className="w-8 h-8 text-[--p-text-3] mx-auto" />
                     <p className="text-sm text-[--p-text-2]">
-                      Sem instrutores disponíveis nesta data.
+                      Sem horários disponíveis nesta data.
                     </p>
                     <button
                       onClick={goBack}
@@ -666,10 +685,13 @@ export function AgendamentoFlow({
                   </div>
                 ) : (
                   <div className="space-y-2.5">
-                    {availableInstructors.map((inst, i) => (
+                    {validInstructors.map((inst, i) => (
                       <button
                         key={i}
-                        onClick={() => handleInstructorSelect(inst)}
+                        onClick={() => handleInstructorSelect({ 
+                          ...inst, 
+                          horarios: inst.validTimes // pass only valid times forward
+                        })}
                         className="w-full bg-[--p-bg-card] border border-[--p-border] p-4 rounded-2xl flex items-center justify-between hover:border-[--p-accent]/40 hover:bg-[--p-hover] transition-all text-left"
                       >
                         <div className="flex items-center gap-3">
@@ -687,7 +709,7 @@ export function AgendamentoFlow({
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           <span className="text-xs text-[--p-accent] font-semibold bg-[--p-accent]/10 px-2 py-0.5 rounded-md">
-                            {inst.horarios.length} vagas
+                            {inst.validTimes.length} vagas
                           </span>
                           <ChevronRight className="w-4 h-4 text-[--p-text-3]" />
                         </div>
@@ -720,18 +742,7 @@ export function AgendamentoFlow({
                 </p>
                 <div className="bg-[--p-bg-card] border border-[--p-border] rounded-2xl p-4">
                   <div className="grid grid-cols-3 gap-2">
-                    {instructor?.horarios
-                      .filter(time => {
-                        if (!date) return true;
-                        const isToday = dateStr(date) === dateStr(getToday());
-                        if (!isToday) return true;
-                        const [th, tm] = time.split(":").map(Number);
-                        const slotMins = th * 60 + tm;
-                        const now = new Date();
-                        const nowMins = now.getHours() * 60 + now.getMinutes();
-                        return slotMins >= nowMins + 120; // 2 hours advance
-                      })
-                      .map((time, i) => (
+                    {instructor?.horarios.map((time, i) => (
                       <button
                         key={`time-${i}-${time}`}
                         onClick={() => handleTimeSelect(time)}
