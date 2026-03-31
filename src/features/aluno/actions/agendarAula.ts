@@ -132,7 +132,7 @@ export async function criarAgendamento(data: {
       date: data.date,
       time_slot: data.timeSlot,
       instructor_name: data.instructorName,
-      instructorCategory: data.category,
+      instructorCategory: data.category?.toUpperCase(),
       student_name: data.studentName,
       student_document: data.studentDocument,
       cpf_cnh: data.studentDocument,
@@ -247,7 +247,7 @@ export async function reagendarAula(agendamentoId: string, data: {
       date: data.date,
       time_slot: data.timeSlot,
       instructor_name: data.instructorName,
-      instructorCategory: data.category,
+      instructorCategory: data.category?.toUpperCase(),
       status: 'scheduled',
       notes: 'Reagendado pelo app do aluno'
     })

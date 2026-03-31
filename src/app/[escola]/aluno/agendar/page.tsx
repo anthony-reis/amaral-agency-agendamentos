@@ -32,11 +32,21 @@ export default async function EscolaAgendarPage({ params, searchParams }: Props)
       .from('agendamentos')
       .select('instructorCategory')
       .eq('id', reagendar)
-      .eq('student_document', studentDocument)
+      .or(`student_document.eq.${studentDocument},cpf_cnh.eq.${studentDocument}`)
       .single()
     
     if (oldClass) {
       rescheduleOldCategory = oldClass.instructorCategory as "CARRO" | "MOTO"
+    } else {
+      // Fallback: some bookings were created without student_document — trust the UUID
+      const { data: fallback } = await supabase
+        .from('agendamentos')
+        .select('instructorCategory')
+        .eq('id', reagendar)
+        .single()
+      if (fallback) {
+        rescheduleOldCategory = fallback.instructorCategory as "CARRO" | "MOTO"
+      }
     }
   }
 

@@ -180,7 +180,7 @@ export default async function MinhasAulasPage({ params }: Props) {
                 const daysUntil = getDaysUntil(aula.date)
                 const isToday = daysUntil === 0
                 const isTomorrow = daysUntil === 1
-                const isCarro = aula.instructorCategory === 'CARRO'
+                const isCarro = aula.instructorCategory?.toUpperCase() === 'CARRO'
                 
                 // Check if rescheduling is allowed (at least 2h before class)
                 const now = new Date()
@@ -296,7 +296,7 @@ export default async function MinhasAulasPage({ params }: Props) {
                   <div className="space-y-2">
                     {items.map(aula => {
                       const isAbsent = aula.status === 'absent'
-                      const isCarro = aula.instructorCategory === 'CARRO'
+                      const isCarro = aula.instructorCategory?.toUpperCase() === 'CARRO'
                       return (
                         <div
                           key={aula.id}

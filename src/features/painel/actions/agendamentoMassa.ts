@@ -101,7 +101,7 @@ export async function criarAgendamentosMassa(data: {
     date: a.date,
     time_slot: a.timeSlot,
     instructor_name: a.instructorName,
-    instructorCategory: data.category,
+    instructorCategory: data.category?.toUpperCase(),
     student_name: data.studentName,
     student_document: data.studentDocument,
     cpf_cnh: data.studentDocument,
