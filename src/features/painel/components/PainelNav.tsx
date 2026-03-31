@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, Users, Clock, Ban, History,
   AlertTriangle, LogOut, Car, Menu, X, ChevronRight,
-  Calendar, GraduationCap, Activity, CalendarPlus, ClipboardList, Megaphone,
+  Calendar, GraduationCap, Activity, CalendarPlus, ClipboardList, Megaphone, UploadCloud
 } from 'lucide-react'
 import { ThemeToggle } from '@/components/ThemeToggle'
 
@@ -31,6 +31,7 @@ function buildNavItems(escola: string): NavItem[] {
     { label: 'Bloqueios', href: `${base}/bloqueios`, icon: Ban },
     { label: 'Histórico', href: `${base}/historico`, icon: History },
     { label: 'Conflitos', href: `${base}/conflitos`, icon: AlertTriangle },
+    { label: 'Importação', href: `${base}/importacao`, icon: UploadCloud },
     { label: 'Auditoria', href: `${base}/auditoria`, icon: Activity },
   ]
 }

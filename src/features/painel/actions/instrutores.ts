@@ -59,6 +59,15 @@ export async function atualizarInstrutor(
   autoescola_id: string
 ): Promise<ActionResult<Instrutor>> {
   const supabase = createServiceClient()
+
+  // Fetch current name before update to detect renames
+  const { data: current } = await supabase
+    .from('instructors')
+    .select('name')
+    .eq('id', id)
+    .eq('autoescola_id', autoescola_id)
+    .single()
+
   const { data, error } = await supabase
     .from('instructors')
     .update(input)
@@ -68,6 +77,29 @@ export async function atualizarInstrutor(
     .single()
 
   if (error) return { success: false, error: 'Erro ao atualizar instrutor.' }
+
+  // Cascade name change to all related tables
+  if (input.name && current?.name && input.name !== current.name) {
+    const oldName = current.name
+    const newName = input.name
+    await Promise.all([
+      supabase
+        .from('horarios_disponiveis')
+        .update({ instrutor: newName })
+        .eq('instrutor', oldName)
+        .eq('autoescola_id', autoescola_id),
+      supabase
+        .from('agendamentos')
+        .update({ instructor_name: newName })
+        .eq('instructor_name', oldName)
+        .eq('autoescola_id', autoescola_id),
+      supabase
+        .from('instructor_passwords')
+        .update({ instructor_name: newName })
+        .eq('instructor_name', oldName)
+        .eq('autoescola_id', autoescola_id),
+    ])
+  }
 
   const userAct = await getCurrentUsername()
   await supabase.from('activity_logs_painel').insert({
