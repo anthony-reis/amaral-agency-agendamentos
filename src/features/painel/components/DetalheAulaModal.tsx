@@ -17,7 +17,6 @@ interface Props {
   aula: Agendamento | null;
   onClose: () => void;
 }
-
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   scheduled: { label: "Agendado", className: "bg-blue-500/10 text-blue-400" },
   confirmed: {
