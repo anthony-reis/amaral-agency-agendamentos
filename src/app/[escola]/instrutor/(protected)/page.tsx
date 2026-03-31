@@ -1,6 +1,7 @@
 import { getInstructorSession } from '@/features/instrutor/actions/authInstrutor'
 import { getMinhasAulasHoje, getMapaSemanal } from '@/features/instrutor/actions/minhasAulas'
 import { InstructorPainel } from '@/features/instrutor/components/InstructorPainel'
+import { getInstructorConfig } from '@/features/painel/actions/configuracoes'
 import { redirect } from 'next/navigation'
 
 interface Props {
@@ -25,9 +26,10 @@ export default async function InstructorPage({ params }: Props) {
   const hoje = new Date().toISOString().split('T')[0]
   const weekStart = getMondayOfCurrentWeek()
 
-  const [aulas, mapaSemanal] = await Promise.all([
+  const [aulas, mapaSemanal, instructorConfig] = await Promise.all([
     getMinhasAulasHoje(session.name, session.autoescola_id, hoje),
     getMapaSemanal(session.name, session.autoescola_id, weekStart),
+    getInstructorConfig(session.autoescola_id),
   ])
 
   return (
@@ -38,6 +40,7 @@ export default async function InstructorPage({ params }: Props) {
       autoescola_id={session.autoescola_id}
       hoje={hoje}
       weekStart={weekStart}
+      instructorConfig={instructorConfig}
     />
   )
 }

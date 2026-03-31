@@ -360,12 +360,7 @@ export function FinalizarAulaModal({
   const canFinalizar =
     fotoFile !== null && signatureDataURL !== null && !isPending && !isCompressing;
 
-  const categoriaLabel =
-    aula.instructorCategory === "MOTO" || aula.instructorCategory === "A"
-      ? "MOTOCICLETA"
-      : aula.instructorCategory === "CARRO" || aula.instructorCategory === "B"
-        ? "AUTOMÓVEL"
-        : (aula.instructorCategory ?? "—");
+  const categoriaLabel = aula.instructorCategory ?? "—";
 
   return (
     <>

@@ -5,6 +5,7 @@ import { motion } from 'framer-motion'
 import { Clock, Car, User, FileText, BarChart2, Calendar } from 'lucide-react'
 import { atualizarStatusAula } from '../actions/minhasAulas'
 import type { AulaInstrutor } from '../actions/minhasAulas'
+import type { InstructorConfig } from '@/features/painel/actions/configuracoes'
 import { ConfirmarAcaoModal } from './ConfirmarAcaoModal'
 import { FinalizarAulaModal } from './FinalizarAulaModal'
 
@@ -12,6 +13,7 @@ interface Props {
   aula: AulaInstrutor
   instructorName: string
   onUpdate: (id: string, status: string) => void
+  instructorConfig: InstructorConfig
 }
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -24,7 +26,7 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
 
 type ModalAberto = 'falta' | 'desmarcar' | 'finalizar' | null
 
-export function InstructorAulaCard({ aula, instructorName, onUpdate }: Props) {
+export function InstructorAulaCard({ aula, instructorName, onUpdate, instructorConfig }: Props) {
   const [isPending, startTransition] = useTransition()
   const [modalAberto, setModalAberto] = useState<ModalAberto>(null)
 
@@ -97,7 +99,7 @@ export function InstructorAulaCard({ aula, instructorName, onUpdate }: Props) {
           {aula.instructorCategory && (
             <div className="flex items-center gap-1.5">
               <Car className="w-3.5 h-3.5" />
-              <span>{aula.instructorCategory === 'A' || aula.instructorCategory === 'MOTO' ? 'MOTORCYCLE' : 'AUTOMÓVEL'}</span>
+              <span>{aula.instructorCategory}</span>
             </div>
           )}
           {(aula.cpf_cnh ?? aula.student_document) && (
@@ -106,7 +108,7 @@ export function InstructorAulaCard({ aula, instructorName, onUpdate }: Props) {
               <span>CPF: {aula.cpf_cnh ?? aula.student_document}</span>
             </div>
           )}
-          {aula.phone && (
+          {instructorConfig.mostrar_telefone && aula.phone && (
             <div className="col-span-2 flex items-center gap-1.5">
               <a
                 href={`https://wa.me/55${aula.phone.replace(/\D/g, '')}`}
@@ -132,29 +134,39 @@ export function InstructorAulaCard({ aula, instructorName, onUpdate }: Props) {
         </div>
 
         {/* Action buttons */}
-        {!isDone && (
+        {!isDone && (instructorConfig.pode_dar_falta || instructorConfig.pode_desmarcar || instructorConfig.pode_finalizar) && (
           <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => setModalAberto('falta')}
-              disabled={isPending}
-              className="py-2 px-3 text-xs font-semibold rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 disabled:opacity-50 transition-colors"
-            >
-              Dar Falta
-            </button>
-            <button
-              onClick={() => setModalAberto('desmarcar')}
-              disabled={isPending}
-              className="py-2 px-3 text-xs font-semibold rounded-xl bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 disabled:opacity-50 transition-colors"
-            >
-              Desmarcar
-            </button>
-            <button
-              onClick={() => setModalAberto('finalizar')}
-              disabled={isPending}
-              className="col-span-2 py-2.5 px-3 text-sm font-bold rounded-xl bg-emerald-500 text-white hover:bg-emerald-400 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
-            >
-              Finalizar Aula ✓
-            </button>
+            {instructorConfig.pode_dar_falta && (
+              <button
+                onClick={() => setModalAberto('falta')}
+                disabled={isPending}
+                className="py-2 px-3 text-xs font-semibold rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 disabled:opacity-50 transition-colors"
+              >
+                Dar Falta
+              </button>
+            )}
+            {instructorConfig.pode_desmarcar && (
+              <button
+                onClick={() => setModalAberto('desmarcar')}
+                disabled={isPending}
+                className={`py-2 px-3 text-xs font-semibold rounded-xl bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 disabled:opacity-50 transition-colors ${
+                  !instructorConfig.pode_dar_falta ? 'col-span-2' : ''
+                }`}
+              >
+                Desmarcar
+              </button>
+            )}
+            {instructorConfig.pode_finalizar && (
+              <button
+                onClick={() => setModalAberto('finalizar')}
+                disabled={isPending}
+                className={`py-2.5 px-3 text-sm font-bold rounded-xl bg-emerald-500 text-white hover:bg-emerald-400 disabled:opacity-50 transition-colors flex items-center justify-center gap-2 ${
+                  !instructorConfig.pode_dar_falta && !instructorConfig.pode_desmarcar ? 'col-span-2' : 'col-span-2'
+                }`}
+              >
+                Finalizar Aula ✓
+              </button>
+            )}
           </div>
         )}
       </motion.div>

@@ -36,12 +36,7 @@ export function DetalheAulaModal({ aula, onClose }: Props) {
   if (!aula) return null;
 
   const statusCfg = STATUS_CONFIG[aula.status] ?? STATUS_CONFIG.scheduled;
-  const categoriaLabel =
-    aula.instructorCategory === "MOTO" || aula.instructorCategory === "A"
-      ? "MOTOCICLETA"
-      : aula.instructorCategory === "CARRO" || aula.instructorCategory === "B"
-        ? "AUTOMÓVEL"
-        : (aula.instructorCategory ?? "—");
+  const categoriaLabel = aula.instructorCategory ?? "—";
 
   return (
     <AnimatePresence>

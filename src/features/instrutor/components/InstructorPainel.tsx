@@ -6,6 +6,7 @@ import { Clock, CheckCircle2, UserX, CalendarDays, ChevronUp, ChevronDown, Chevr
 import { InstructorAulaCard } from './InstructorAulaCard'
 import { getMinhasAulasHoje, getMapaSemanal } from '../actions/minhasAulas'
 import type { AulaInstrutor, DiaSemana } from '../actions/minhasAulas'
+import type { InstructorConfig } from '@/features/painel/actions/configuracoes'
 
 interface Props {
   aulas: AulaInstrutor[]
@@ -14,6 +15,7 @@ interface Props {
   autoescola_id: string
   hoje: string
   weekStart: string
+  instructorConfig: InstructorConfig
 }
 
 function getMondayOfWeek(offsetWeeks: number): string {
@@ -40,6 +42,7 @@ export function InstructorPainel({
   autoescola_id,
   hoje,
   weekStart: initialWeekStart,
+  instructorConfig,
 }: Props) {
   const [aulas, setAulas] = useState(initialAulas)
   const [mapa, setMapa] = useState(initialMapa)
@@ -260,6 +263,7 @@ export function InstructorPainel({
                 aula={aula}
                 instructorName={instructorName}
                 onUpdate={handleUpdate}
+                instructorConfig={instructorConfig}
               />
             ))}
           </div>
