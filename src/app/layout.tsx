@@ -7,6 +7,11 @@ export const metadata: Metadata = {
   description:
     'Automatize, agende e gerencie suas aulas de direção com um clique. Sistema completo para autoescolas com agendamentos inteligentes e integração WhatsApp.',
   keywords: 'autoescola, agendamento de aulas, gestão autoescola, sistema autoescola, CNH',
+  icons: {
+    icon: '/logo.png',
+    shortcut: '/logo.png',
+    apple: '/logo.png',
+  },
 }
 
 export default function RootLayout({
