@@ -99,6 +99,9 @@ export async function listarHistoricoEnriquecido(filter: {
   limit?: number
   offset?: number
   status?: string
+  instructor?: string
+  category?: string
+  search?: string
 }): Promise<{ data: HistoricoItem[]; total: number }> {
   const supabase = createServiceClient()
   const limit = filter.limit ?? 30
@@ -146,15 +149,46 @@ export async function listarHistoricoEnriquecido(filter: {
   }
 
   // 4. Montar o resultado enriquecido
+  // Pré-computar nomes de instrutores da categoria selecionada
+  let categoryInstructorNames: Set<string> | null = null
+  if (filter.category && filter.category !== 'TODAS') {
+    const supabase2 = createServiceClient()
+    const { data: catInsts } = await supabase2
+      .from('instructors')
+      .select('name')
+      .eq('category', filter.category)
+      .eq('autoescola_id', filter.autoescola_id)
+    categoryInstructorNames = new Set((catInsts ?? []).map((i) => i.name))
+  }
+
+  const searchLower = filter.search?.toLowerCase().trim()
+
   const results: HistoricoItem[] = []
   for (const log of logs) {
     const agId = log.metadata?.agendamento_id || log.description.match(AG_ID_REGEX)?.[1]
     const ag = agId ? agMap.get(agId) : null
 
     if (ag) {
-      // Filtrar por status se solicitado
+      // Filtrar por status
       if (filter.status && filter.status !== 'TODOS' && ag.status !== filter.status) {
         continue
+      }
+      // Filtrar por instrutor
+      if (filter.instructor && filter.instructor !== 'TODOS' && ag.instructor_name !== filter.instructor) {
+        continue
+      }
+      // Filtrar por categoria
+      if (categoryInstructorNames && !categoryInstructorNames.has(ag.instructor_name ?? '')) {
+        continue
+      }
+      // Filtrar por busca (nome ou documento)
+      if (searchLower) {
+        const haystack = [
+          ag.student_name ?? '',
+          ag.cpf_cnh ?? '',
+          ag.student_document ?? '',
+        ].join(' ').toLowerCase()
+        if (!haystack.includes(searchLower)) continue
       }
 
       results.push({

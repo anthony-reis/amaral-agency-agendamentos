@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Car, Instagram, Linkedin, MessageCircle } from 'lucide-react'
+import { Instagram, Linkedin, MessageCircle } from 'lucide-react'
 import { WHATSAPP_URL } from '../constants'
 
 const footerLinks = {
@@ -27,9 +27,7 @@ export function Footer() {
           {/* Brand */}
           <div className="col-span-2">
             <Link href="/" className="flex items-center gap-2 mb-4 group">
-              <div className="w-8 h-8 rounded-lg bg-brand-teal flex items-center justify-center">
-                <Car className="w-4 h-4 text-white" strokeWidth={2} />
-              </div>
+              <img src="/logo.png" alt="AmaralPro" className="w-8 h-8 object-cover rounded-xl" />
               <span className="font-bold text-lg text-white tracking-tight">
                 Amaral<span className="text-brand-teal">Pro</span>
               </span>

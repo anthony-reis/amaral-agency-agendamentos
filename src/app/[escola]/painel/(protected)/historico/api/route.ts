@@ -33,6 +33,9 @@ export async function GET(
     date_start: sp.get('dateStart') ?? monthAgo,
     date_end: sp.get('dateEnd') ?? today,
     status: sp.get('status') ?? undefined,
+    instructor: sp.get('instructor') ?? undefined,
+    category: sp.get('category') ?? undefined,
+    search: sp.get('search') ?? undefined,
     limit: Number(sp.get('limit') ?? 30),
     offset: Number(sp.get('offset') ?? 0),
   })

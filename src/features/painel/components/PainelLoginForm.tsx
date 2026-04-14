@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Car, ChevronDown, Lock, AlertCircle, ArrowRight, User } from 'lucide-react'
+import { ChevronDown, Lock, AlertCircle, ArrowRight, User } from 'lucide-react'
 import { loginPainel } from '../actions/authPainel'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import type { PainelUser } from '../types'
@@ -52,9 +52,7 @@ export function PainelLoginForm({ users, escola, escolaNome }: Props) {
       >
         {/* Logo */}
         <div className="flex items-center justify-center gap-3 mb-8">
-          <div className="w-11 h-11 rounded-xl bg-[#0ea5e9] flex items-center justify-center shadow-lg">
-            <Car className="w-5 h-5 text-[--p-text-1]" strokeWidth={2} />
-          </div>
+          <img src="/logo.png" alt="AmaralPro" className="w-11 h-11 object-cover rounded-2xl shadow-lg" />
           <div>
             <p className="text-lg font-bold text-[--p-text-1] leading-none">{escolaNome}</p>
             <p className="text-[11px] text-[--p-text-3] mt-0.5 tracking-wide uppercase">

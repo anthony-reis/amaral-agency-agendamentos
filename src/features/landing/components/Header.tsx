@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, Car, GraduationCap, Building2, MessageSquare } from "lucide-react";
+import { Menu, X, GraduationCap, Building2 } from "lucide-react";
 import { WHATSAPP_URL } from "../constants";
 
 const navLinks = [
@@ -32,9 +32,7 @@ export function Header() {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 group">
-            <div className="w-8 h-8 rounded-lg bg-brand-teal flex items-center justify-center">
-              <Car className="w-4 h-4 text-white" strokeWidth={2} />
-            </div>
+            <img src="/logo.png" alt="AmaralPro" className="w-8 h-8 object-cover rounded-xl" />
             <span className="font-bold text-lg text-slate-900 tracking-tight">
               Amaral<span className="text-brand-teal">Pro</span>
             </span>
