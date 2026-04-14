@@ -86,10 +86,12 @@ export function PainelNav({
           <img
             src={logoUrl}
             alt={escolaNome}
-            className="h-8 w-8 object-contain rounded-xl shrink-0"
+            className="h-8 w-8 object-contain rounded-lg shrink-0"
           />
         ) : (
-          <img src="/logo.png" alt="AmaralPro" className="h-8 w-8 object-cover rounded-xl shrink-0" />
+          <div className="w-8 h-8 rounded-lg bg-[#0ea5e9]/20 flex items-center justify-center shrink-0">
+            <Car className="w-4 h-4 text-[#0ea5e9]" />
+          </div>
         )}
         <div className="min-w-0 flex-1">
           <p className="text-sm font-bold text-[--p-text-1] truncate leading-tight">
@@ -173,10 +175,10 @@ export function PainelNav({
             <img
               src={logoUrl}
               alt={escolaNome}
-              className="h-6 w-6 object-contain rounded-lg"
+              className="h-6 w-6 object-contain rounded"
             />
           ) : (
-            <img src="/logo.png" alt="AmaralPro" className="h-6 w-6 object-cover rounded-lg" />
+            <Car className="w-5 h-5 text-[#0ea5e9]" />
           )}
           <span className="text-sm font-semibold text-[--p-text-1]">
             {escolaNome}
