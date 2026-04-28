@@ -246,17 +246,25 @@ export async function getSlotsDoDia(
     }
   }
 
-  // 5. União de slots: base + agendamentos existentes (que podem estar fora do base por edição manual)
+  // 5. União de slots: base + agendamentos ativos fora do base
+  // Com horários específicos: mostra apenas esses slots + agendamentos ativos fora deles (booking real não pode sumir)
+  // Com horários globais: agendamentos em qualquer horário aparecem (edição manual / migração)
   const allSlots = new Set<string>(baseSet)
   for (const ag of agsRaw ?? []) {
-    allSlots.add(ag.time_slot)
-    if (!slotOrdem.has(ag.time_slot)) slotOrdem.set(ag.time_slot, 9999)
+    if (allSlots.has(ag.time_slot)) continue
+    // Só adiciona slots fora do base se: não há específicos (usa global) OU o agendamento está ativo
+    if (especificos.length === 0 || ag.status !== 'cancelled') {
+      allSlots.add(ag.time_slot)
+      if (!slotOrdem.has(ag.time_slot)) slotOrdem.set(ag.time_slot, 9999)
+    }
   }
 
   const sorted = Array.from(allSlots).sort((a, b) => {
     const oa = slotOrdem.get(a) ?? 9999
     const ob = slotOrdem.get(b) ?? 9999
-    return oa !== ob ? oa - ob : a.localeCompare(b)
+    if (oa !== ob) return oa - ob
+    // Mesma ordem (ou ambos sem ordem): ordena cronologicamente pelo horário
+    return a.localeCompare(b)
   })
 
   return sorted.map((horario) => {
