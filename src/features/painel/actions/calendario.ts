@@ -259,13 +259,7 @@ export async function getSlotsDoDia(
     }
   }
 
-  const sorted = Array.from(allSlots).sort((a, b) => {
-    const oa = slotOrdem.get(a) ?? 9999
-    const ob = slotOrdem.get(b) ?? 9999
-    if (oa !== ob) return oa - ob
-    // Mesma ordem (ou ambos sem ordem): ordena cronologicamente pelo horário
-    return a.localeCompare(b)
-  })
+  const sorted = Array.from(allSlots).sort((a, b) => a.localeCompare(b))
 
   return sorted.map((horario) => {
     const ag = agBySlot.get(horario)
