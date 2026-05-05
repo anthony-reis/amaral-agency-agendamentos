@@ -3,7 +3,7 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { getCurrentUsername } from './authPainel'
-import type { Agendamento, AgendamentoStats, InstrutorDesempenho, AgendamentoStatus } from '../types'
+import type { Agendamento, AgendamentoStats, InstrutorDesempenho, AgendamentoStatus, ActionResult } from '../types'
 
 const AG_ID_REGEX = /agendamento ([a-f0-9-]{36})/
 
@@ -312,7 +312,7 @@ export async function cancelarAgendamentoComOpcoes(
     blockSlot: boolean
     reason?: string
   }
-): Promise<{ success: boolean; error?: string }> {
+): Promise<ActionResult> {
   const supabase = createServiceClient()
 
   try {
@@ -325,7 +325,7 @@ export async function cancelarAgendamentoComOpcoes(
       .single()
 
     if (fetchErr || !ag) throw new Error('Agendamento não encontrado.')
-    if (ag.status === 'cancelled') return { success: true }
+    if (ag.status === 'cancelled') return { success: true, data: undefined }
 
     // 2. Atualizar o agendamento com o status e a justificativa
     const { error: updateErr } = await supabase
@@ -402,7 +402,7 @@ export async function cancelarAgendamentoComOpcoes(
     }
 
     revalidatePath('/', 'layout')
-    return { success: true }
+    return { success: true, data: undefined }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : 'Erro ao cancelar agendamento' }
   }
@@ -420,8 +420,8 @@ export async function atualizarStatusAgendamentosEmMassa(
   ids: string[],
   status: AgendamentoStatus,
   autoescola_id: string
-): Promise<{ success: boolean; error?: string }> {
-  if (!ids.length) return { success: true }
+): Promise<ActionResult> {
+  if (!ids.length) return { success: true, data: undefined }
   
   const supabase = createServiceClient()
 
@@ -487,7 +487,7 @@ export async function atualizarStatusAgendamentosEmMassa(
     }
 
     revalidatePath('/', 'layout')
-    return { success: true }
+    return { success: true, data: undefined }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : 'Erro desconhecido' }
   }

@@ -269,39 +269,7 @@ export async function atualizarStatusAula(
 
   if (error) return { success: false, error: error.message }
 
-  // Devolver crédito ao aluno quando a aula é desmarcada (cancelled)
-  if (status === 'cancelled') {
-    const doc = agendamento.cpf_cnh ?? agendamento.student_document
-    const { data: inst } = agendamento.instructor_name ? await supabase.from('instructors').select('category').eq('name', agendamento.instructor_name).eq('autoescola_id', agendamento.autoescola_id).single() : { data: null }
-    const trueCat = inst?.category ?? agendamento.instructorCategory
 
-    const creditCol = trueCat === 'MOTO' ? 'aulas_cat_a' : 'aulas_cat_b'
-
-    if (doc) {
-      const { data: student } = await supabase
-        .from('students')
-        .select('id')
-        .eq('document_id', doc)
-        .eq('autoescola_id', autoescola_id)
-        .single()
-
-      if (student) {
-        const { data: creds } = await supabase
-          .from('student_credits')
-          .select(creditCol)
-          .eq('student_id', student.id)
-          .single()
-
-        if (creds) {
-          const current = (creds as Record<string, number>)[creditCol] ?? 0
-          await supabase
-            .from('student_credits')
-            .update({ [creditCol]: current + 1 })
-            .eq('student_id', student.id)
-        }
-      }
-    }
-  }
 
   const actionLabels: Record<string, string> = {
     completed: 'finalizou a aula',
