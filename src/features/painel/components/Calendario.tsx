@@ -15,6 +15,8 @@ import {
   type SlotDia,
   type AlunoParaAgendar,
 } from '../actions/calendario'
+import { cancelarAgendamentoComOpcoes } from '../actions/agendamentos'
+import { ModalCancelamentoAula } from '@/features/shared/components/ModalCancelamentoAula'
 
 const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -415,6 +417,15 @@ function DayPanel({
   const [alunos, setAlunos] = useState<AlunoParaAgendar[]>([])
   const [loadingInst, setLoadingInst] = useState(true)
   const [loadingSlots, setLoadingSlots] = useState(false)
+  const [isPending, startTransition] = useTransition()
+
+  // Controle do modal de cancelamento
+  const [modalCancel, setModalCancel] = useState<{
+    open: boolean
+    id: string
+    studentName: string
+    timeSlot: string
+  }>({ open: false, id: '', studentName: '', timeSlot: '' })
 
   useEffect(() => {
     setInstrutores(null)
@@ -447,6 +458,18 @@ function DayPanel({
   }
 
   function handleStatusChange(id: string, status: string) {
+    const slot = slots.find(s => s.agendamento?.id === id)
+    
+    if (status === 'cancelled' && slot?.agendamento) {
+      setModalCancel({
+        open: true,
+        id,
+        studentName: slot.agendamento.student_name,
+        timeSlot: slot.horario
+      })
+      return
+    }
+
     setSlots((prev) =>
       prev.map((s) =>
         s.agendamento?.id === id
@@ -455,6 +478,26 @@ function DayPanel({
       )
     )
     atualizarStatusAgendamento(id, status as Parameters<typeof atualizarStatusAgendamento>[1])
+  }
+
+  async function onConfirmCancel(options: { blockSlot: boolean; reason?: string }) {
+    if (!modalCancel.id) return
+
+    startTransition(async () => {
+      const result = await cancelarAgendamentoComOpcoes(modalCancel.id, autoescola_id, options)
+      if (result.success) {
+        setSlots((prev) =>
+          prev.map((s) =>
+            s.agendamento?.id === modalCancel.id
+              ? { ...s, agendamento: null, bloqueado: options.blockSlot }
+              : s
+          )
+        )
+        setModalCancel(prev => ({ ...prev, open: false }))
+      } else {
+        alert(result.error || 'Erro ao cancelar')
+      }
+    })
   }
 
   function handleBooked(updated: SlotDia) {
@@ -560,6 +603,18 @@ function DayPanel({
           </div>
         </div>
       )}
+      
+      <ModalCancelamentoAula
+        open={modalCancel.open}
+        isPending={isPending}
+        onClose={() => setModalCancel(prev => ({ ...prev, open: false }))}
+        onConfirm={onConfirmCancel}
+        aulaInfo={{
+          studentName: modalCancel.studentName,
+          date: date,
+          timeSlot: modalCancel.timeSlot
+        }}
+      />
     </div>
   )
 }

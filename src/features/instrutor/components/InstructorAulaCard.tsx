@@ -8,6 +8,7 @@ import type { AulaInstrutor } from '../actions/minhasAulas'
 import type { InstructorConfig } from '@/features/painel/actions/configuracoes'
 import { ConfirmarAcaoModal } from './ConfirmarAcaoModal'
 import { FinalizarAulaModal } from './FinalizarAulaModal'
+import { ModalCancelamentoAula } from '@/features/shared/components/ModalCancelamentoAula'
 
 interface Props {
   aula: AulaInstrutor
@@ -30,12 +31,24 @@ export function InstructorAulaCard({ aula, instructorName, onUpdate, instructorC
   const [isPending, startTransition] = useTransition()
   const [modalAberto, setModalAberto] = useState<ModalAberto>(null)
 
-  function handleConfirmarAcao(status: 'absent' | 'cancelled') {
+  function handleConfirmarAcao(status: 'absent') {
     startTransition(async () => {
       const result = await atualizarStatusAula(aula.id, status, instructorName, aula.autoescola_id)
       if (result.success) {
         onUpdate(aula.id, status)
         setModalAberto(null)
+      }
+    })
+  }
+
+  function handleConfirmarCancelamento(options: { blockSlot: boolean; reason?: string }) {
+    startTransition(async () => {
+      const result = await atualizarStatusAula(aula.id, 'cancelled', instructorName, aula.autoescola_id, options)
+      if (result.success) {
+        onUpdate(aula.id, 'cancelled')
+        setModalAberto(null)
+      } else {
+        alert(result.error || 'Erro ao desmarcar aula')
       }
     })
   }
@@ -187,18 +200,16 @@ export function InstructorAulaCard({ aula, instructorName, onUpdate, instructorC
       />
 
       {/* Modal: Desmarcar */}
-      <ConfirmarAcaoModal
+      <ModalCancelamentoAula
         open={modalAberto === 'desmarcar'}
-        titulo="Desmarcar Aula"
-        descricao="A aula será cancelada e o crédito devolvido ao aluno."
-        nomeAluno={aula.student_name}
-        data={aula.date}
-        horario={aula.time_slot}
-        confirmLabel="Desmarcar Aula"
-        confirmClass="bg-orange-500 hover:bg-orange-400"
         isPending={isPending}
-        onConfirm={() => handleConfirmarAcao('cancelled')}
-        onCancel={() => setModalAberto(null)}
+        onClose={() => setModalAberto(null)}
+        onConfirm={handleConfirmarCancelamento}
+        aulaInfo={{
+          studentName: aula.student_name,
+          date: aula.date,
+          timeSlot: aula.time_slot
+        }}
       />
 
       {/* Modal: Finalizar com foto + assinatura */}

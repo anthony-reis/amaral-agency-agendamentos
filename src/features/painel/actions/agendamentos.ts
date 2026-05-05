@@ -85,6 +85,7 @@ export async function listarAgendamentos(
 }
 
 export interface HistoricoItem {
+  id: string
   agendamento: Agendamento
   log_timestamp: string
   log_username: string
@@ -192,6 +193,7 @@ export async function listarHistoricoEnriquecido(filter: {
       }
 
       results.push({
+        id: log.id,
         agendamento: ag,
         log_timestamp: log.created_at,
         log_username: log.username,
@@ -303,69 +305,115 @@ export async function getDesempenhoInstrutores(
     .sort((a, b) => b.concluidas - a.concluidas)
 }
 
+export async function cancelarAgendamentoComOpcoes(
+  id: string,
+  autoescola_id: string,
+  options: {
+    blockSlot: boolean
+    reason?: string
+  }
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = createServiceClient()
+
+  try {
+    // 1. Buscar o agendamento atual
+    const { data: ag, error: fetchErr } = await supabase
+      .from('agendamentos')
+      .select('status, cpf_cnh, student_document, instructorCategory, instructor_name, date, time_slot')
+      .eq('id', id)
+      .eq('autoescola_id', autoescola_id)
+      .single()
+
+    if (fetchErr || !ag) throw new Error('Agendamento não encontrado.')
+    if (ag.status === 'cancelled') return { success: true }
+
+    // 2. Atualizar o agendamento com o status e a justificativa
+    const { error: updateErr } = await supabase
+      .from('agendamentos')
+      .update({ 
+        status: 'cancelled',
+        cancel_reason: options.reason || null,
+        is_blocked_on_cancel: options.blockSlot
+      })
+      .eq('id', id)
+
+    if (updateErr) throw new Error(updateErr.message)
+
+    // 3. Se solicitado, criar o bloqueio no horário
+    if (options.blockSlot) {
+      const { error: blockErr } = await supabase
+        .from('blockedTimeSlots')
+        .insert({
+          autoescola_id,
+          date: ag.date,
+          time_slot: ag.time_slot,
+          instructor: ag.instructor_name,
+          vehicle_type: ag.instructorCategory || 'CARRO',
+          reason: options.reason || 'Cancelamento com bloqueio',
+          status: 'Bloqueado',
+          weekdays: []
+        })
+      
+      if (blockErr) console.error('Erro ao criar bloqueio:', blockErr.message)
+    }
+
+    // 4. Devolver crédito ao aluno
+    const { data: inst } = ag.instructor_name ? await supabase.from('instructors').select('category').eq('name', ag.instructor_name).eq('autoescola_id', autoescola_id).single() : { data: null }
+    const trueCategory = inst?.category ?? ag.instructorCategory
+    const doc = ag.cpf_cnh ?? ag.student_document
+    const creditField = trueCategory === 'MOTO' ? 'aulas_cat_a' : 'aulas_cat_b'
+
+    if (doc) {
+      const { data: student } = await supabase
+        .from('students')
+        .select('id')
+        .eq('document_id', doc)
+        .eq('autoescola_id', autoescola_id)
+        .single()
+
+      if (student) {
+        const { data: creds } = await supabase
+          .from('student_credits')
+          .select(creditField)
+          .eq('student_id', student.id)
+          .single()
+
+        if (creds) {
+          const current = (creds as Record<string, number>)[creditField] ?? 0
+          await supabase
+            .from('student_credits')
+            .update({ [creditField]: current + 1 })
+            .eq('student_id', student.id)
+
+          const userAct = await getCurrentUsername()
+          await supabase.from('activity_logs_painel').insert({
+            username: userAct,
+            action_type: 'cancelamento',
+            description: `Agendamento ${id} cancelado${options.blockSlot ? ' e horário bloqueado' : ''}. Motivo: ${options.reason || 'Não informado'}. Crédito devolvido.`,
+            metadata: { 
+              agendamento_id: id,
+              reason: options.reason,
+              blocked: options.blockSlot
+            },
+            autoescola_id,
+          })
+        }
+      }
+    }
+
+    revalidatePath('/', 'layout')
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Erro ao cancelar agendamento' }
+  }
+}
+
 export async function cancelarAgendamento(
   id: string,
   autoescola_id: string
 ): Promise<void> {
-  const supabase = createServiceClient()
-
-  // Buscar o agendamento atual para dados do aluno
-  const { data: ag } = await supabase
-    .from('agendamentos')
-    .select('status, cpf_cnh, student_document, instructorCategory, instructor_name')
-    .eq('id', id)
-    .eq('autoescola_id', autoescola_id)
-    .single()
-
-  if (!ag || ag.status === 'cancelled') return
-
-  await supabase
-    .from('agendamentos')
-    .update({ status: 'cancelled' })
-    .eq('id', id)
-    .eq('autoescola_id', autoescola_id)
-
-  const { data: inst } = ag.instructor_name ? await supabase.from('instructors').select('category').eq('name', ag.instructor_name).eq('autoescola_id', autoescola_id).single() : { data: null }
-  const trueCategory = inst?.category ?? ag.instructorCategory
-
-  const doc = ag.cpf_cnh ?? ag.student_document
-  const creditField = trueCategory === 'MOTO' ? 'aulas_cat_a' : 'aulas_cat_b'
-
-  if (doc) {
-    const { data: student } = await supabase
-      .from('students')
-      .select('id')
-      .eq('document_id', doc)
-      .eq('autoescola_id', autoescola_id)
-      .single()
-
-    if (student) {
-      const { data: creds } = await supabase
-        .from('student_credits')
-        .select(creditField)
-        .eq('student_id', student.id)
-        .single()
-
-      if (creds) {
-        const current = (creds as Record<string, number>)[creditField] ?? 0
-        await supabase
-          .from('student_credits')
-          .update({ [creditField]: current + 1 })
-          .eq('student_id', student.id)
-
-        const userAct = await getCurrentUsername()
-        await supabase.from('activity_logs_painel').insert({
-          username: userAct,
-          action_type: 'cancelamento',
-          description: `O agendamento ${id} foi cancelado e o crédito devolvido.`,
-          metadata: { agendamento_id: id },
-          autoescola_id,
-        })
-      }
-    }
-  }
-
-  revalidatePath('/', 'layout')
+  // Mantém compatibilidade chamando a nova função com opções padrão
+  await cancelarAgendamentoComOpcoes(id, autoescola_id, { blockSlot: false })
 }
 
 export async function atualizarStatusAgendamentosEmMassa(

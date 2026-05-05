@@ -3,6 +3,7 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import type { ActionResult } from '@/features/painel/types'
+import { cancelarAgendamentoComOpcoes } from '@/features/painel/actions/agendamentos'
 
 export interface AulaInstrutor {
   id: string
@@ -238,9 +239,17 @@ export async function atualizarStatusAula(
   agendamento_id: string,
   status: 'completed' | 'absent' | 'cancelled',
   instructor_name: string,
-  autoescola_id: string
+  autoescola_id: string,
+  options?: { reason?: string; blockSlot?: boolean }
 ): Promise<ActionResult> {
   const supabase = createServiceClient()
+
+  if (status === 'cancelled') {
+    return cancelarAgendamentoComOpcoes(agendamento_id, autoescola_id, {
+      blockSlot: options?.blockSlot || false,
+      reason: options?.reason
+    })
+  }
 
   // Fetch agendamento to get student doc + category (needed for credit refund)
   const { data: agendamento, error: fetchError } = await supabase

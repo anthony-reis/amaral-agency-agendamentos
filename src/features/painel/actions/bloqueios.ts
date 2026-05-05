@@ -10,10 +10,26 @@ export async function listarBloqueios(autoescola_id: string): Promise<BloqueioTi
     .from('blockedTimeSlots')
     .select('*')
     .eq('autoescola_id', autoescola_id)
-    .order('date', { ascending: false })
 
   if (error) throw new Error(error.message)
-  return data ?? []
+  if (!data) return []
+
+  // Ordenar: primeiro os semanais (RECORRENTE_DIA_SEMANA), depois por data crescente
+  return data.sort((a, b) => {
+    const isRecurrentA = a.date === 'RECORRENTE_DIA_SEMANA'
+    const isRecurrentB = b.date === 'RECORRENTE_DIA_SEMANA'
+
+    if (isRecurrentA && !isRecurrentB) return -1
+    if (!isRecurrentA && isRecurrentB) return 1
+    
+    // Se ambos forem recorrentes ou ambos forem datas, ordena por data
+    // Nota: 'RECORRENTE_DIA_SEMANA' será igual se ambos forem recorrentes,
+    // então a comparação de data funcionará para os outros casos.
+    const dateA = a.date || ''
+    const dateB = b.date || ''
+    
+    return dateA.localeCompare(dateB)
+  })
 }
 
 export async function criarBloqueio(

@@ -10,6 +10,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Eye,
+  ShieldAlert,
 } from "lucide-react";
 import { type HistoricoItem } from "../actions/agendamentos";
 import { DetalheAulaModal } from "./DetalheAulaModal";
@@ -361,7 +362,7 @@ export function HistoricoList({
               .toUpperCase();
             return (
               <motion.div
-                key={a.id}
+                key={item.id}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: idx * 0.02 }}
@@ -412,6 +413,15 @@ export function HistoricoList({
                       </>
                     )}
                   </p>
+                  {a.status === 'cancelled' && a.cancel_reason && (
+                    <div className="mt-2 p-2 rounded-lg bg-red-500/5 border border-red-500/10 flex items-start gap-2">
+                      <ShieldAlert className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
+                      <p className="text-[11px] text-red-300 leading-relaxed">
+                        {a.is_blocked_on_cancel && <span className="font-bold mr-1">HORÁRIO BLOQUEADO:</span>}
+                        {a.cancel_reason}
+                      </p>
+                    </div>
+                  )}
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">
                   <span

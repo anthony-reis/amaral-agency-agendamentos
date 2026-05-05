@@ -42,6 +42,8 @@ export interface Agendamento {
   cpf_cnh: string | null
   status: AgendamentoStatus
   notes: string | null
+  cancel_reason: string | null
+  is_blocked_on_cancel: boolean | null
   created_at: string
   autoescola_id: string
   photo_url: string | null
