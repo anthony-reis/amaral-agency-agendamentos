@@ -47,7 +47,8 @@ export function InstrutoesTable({ instrutores: initial, autoescola_id, categoria
 
   function startEdit(instrutor: Instrutor) {
     setEditingId(instrutor.id)
-    setEditForm({ name: instrutor.name, category: instrutor.category })
+    const validCategory = CATEGORIAS.includes(instrutor.category) ? instrutor.category : CATEGORIAS[0]
+    setEditForm({ name: instrutor.name, category: validCategory })
   }
 
   function handleEdit(id: string) {
