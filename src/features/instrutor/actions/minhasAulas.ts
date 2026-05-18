@@ -16,7 +16,9 @@ export interface AulaInstrutor {
   status: string
   notes: string | null
   autoescola_id: string
-  creditos_usados: number | null
+  aulas_concluidas: number
+  aulas_agendadas: number
+  creditos_disponiveis: number | null
   creditos_total: number | null
   phone: string | null
 }
@@ -57,11 +59,33 @@ export async function getMinhasAulasHoje(
 
   const trueCat = inst?.category ?? 'CARRO' // Default to 'CARRO' if category not found
 
-  // Busca créditos dos alunos
   const documentos = agendamentos
     .map((a) => a.cpf_cnh ?? a.student_document)
     .filter(Boolean) as string[]
 
+  // Busca aulas concluídas e agendadas diretamente em agendamentos (sem depender da tabela students)
+  const concluidasMap = new Map<string, number>()
+  const agendadasMap = new Map<string, number>()
+  if (documentos.length) {
+    const docList = documentos.join(',')
+    const { data: histData } = await supabase
+      .from('agendamentos')
+      .select('cpf_cnh, student_document, status')
+      .eq('autoescola_id', autoescola_id)
+      .or(`cpf_cnh.in.(${docList}),student_document.in.(${docList})`)
+      .in('status', ['completed', 'scheduled', 'confirmed'])
+    for (const row of histData ?? []) {
+      const doc = row.cpf_cnh ?? row.student_document
+      if (!doc) continue
+      if (row.status === 'completed') {
+        concluidasMap.set(doc, (concluidasMap.get(doc) ?? 0) + 1)
+      } else {
+        agendadasMap.set(doc, (agendadasMap.get(doc) ?? 0) + 1)
+      }
+    }
+  }
+
+  // Busca créditos via students → student_credits
   const { data: students } = documentos.length
     ? await supabase
         .from('students')
@@ -104,8 +128,10 @@ export async function getMinhasAulasHoje(
     const cred = student ? creditoMap.get(student.id) : undefined
     return {
       ...a,
-      instructorCategory: trueCat, // Use the true category from the instructors table
-      creditos_usados: cred ? cred.total - cred.disponiveis : null,
+      instructorCategory: trueCat,
+      aulas_concluidas: doc ? (concluidasMap.get(doc) ?? 0) : 0,
+      aulas_agendadas: doc ? (agendadasMap.get(doc) ?? 0) : 0,
+      creditos_disponiveis: cred != null ? cred.disponiveis : null,
       creditos_total: cred ? cred.total : null,
       phone: student?.phone ?? null,
     }

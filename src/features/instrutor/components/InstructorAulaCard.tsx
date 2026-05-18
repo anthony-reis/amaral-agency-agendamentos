@@ -56,10 +56,6 @@ export function InstructorAulaCard({ aula, instructorName, onUpdate, instructorC
   const isDone = ['completed', 'absent', 'cancelled'].includes(aula.status)
   const statusInfo = STATUS_LABELS[aula.status] ?? { label: aula.status, color: 'bg-slate-500/20 text-slate-300' }
 
-  const creditoPct =
-    aula.creditos_total && aula.creditos_usados != null && aula.creditos_total > 0
-      ? Math.round((aula.creditos_usados / aula.creditos_total) * 100)
-      : null
 
   return (
     <>
@@ -80,17 +76,19 @@ export function InstructorAulaCard({ aula, instructorName, onUpdate, instructorC
                 {aula.student_name}
               </p>
               <div className="flex items-center gap-2 flex-wrap mt-0.5">
-                {creditoPct != null && (
-                  <span className="inline-flex items-center gap-1 text-xs text-[--p-text-3]">
-                    <BarChart2 className="w-3 h-3" />
-                    {aula.creditos_usados}/{aula.creditos_total} ({creditoPct}%)
-                    {aula.instructorCategory && (
-                      <span className="ml-1 px-1.5 py-0.5 bg-purple-500/20 text-purple-300 text-[10px] font-bold rounded">
-                        CAT {aula.instructorCategory}
-                      </span>
-                    )}
-                  </span>
-                )}
+                <span className="inline-flex items-center gap-1 text-xs text-[--p-text-3]">
+                  <BarChart2 className="w-3 h-3" />
+                  {aula.aulas_concluidas} concluídas
+                  · {aula.aulas_agendadas} agendadas
+                  {aula.creditos_disponiveis != null && (
+                    <span>/ {aula.creditos_disponiveis} créditos</span>
+                  )}
+                  {aula.instructorCategory && (
+                    <span className="ml-1 px-1.5 py-0.5 bg-purple-500/20 text-purple-300 text-[10px] font-bold rounded">
+                      CAT {aula.instructorCategory}
+                    </span>
+                  )}
+                </span>
                 <span className={`px-2 py-0.5 text-[10px] font-bold rounded ${statusInfo.color}`}>
                   {statusInfo.label}
                 </span>
