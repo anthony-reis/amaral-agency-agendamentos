@@ -130,11 +130,15 @@ function isoWeekdayToJs(iso: number): number {
 }
 
 function parseWeekdays(weekdays: unknown): number[] {
-  if (Array.isArray(weekdays)) return weekdays as number[]
-  if (typeof weekdays === 'string') {
-    try { return JSON.parse(weekdays) as number[] } catch { return [] }
+  let arr: unknown[]
+  if (Array.isArray(weekdays)) {
+    arr = weekdays
+  } else if (typeof weekdays === 'string') {
+    try { arr = JSON.parse(weekdays) } catch { return [] }
+  } else {
+    return []
   }
-  return []
+  return arr.map((v) => Number(v)).filter((v) => !isNaN(v))
 }
 
 function normalizeVehicleType(vt: string): string {
@@ -201,7 +205,14 @@ export async function getSlotsDoDia(
   const diaInteiroBloqueado = blocksForInst.some(
     (b) => b.time_slot === 'TODOS' || b.time_slot === 'DIA_INTEIRO'
   )
-  const blockedSlots = new Set(blocksForInst.map((b) => b.time_slot))
+
+  // APOS_HH:MM — bloqueia todos os slots >= corte
+  const aposBlock = blocksForInst.find((b) => b.time_slot?.startsWith('APOS_'))
+  const aposCorte = aposBlock ? aposBlock.time_slot.replace('APOS_', '') : null
+
+  const blockedSlots = new Set(
+    blocksForInst.filter((b) => !b.time_slot?.startsWith('APOS_')).map((b) => b.time_slot)
+  )
 
   // 3. Agendamentos existentes do instrutor nesse dia (todos os status para exibir)
   const { data: agsRaw } = await supabase
@@ -264,11 +275,12 @@ export async function getSlotsDoDia(
   return sorted.map((horario) => {
     const ag = agBySlot.get(horario)
 
-    // Bloqueado (dia inteiro ou slot específico) — mas se há agendamento ativo, mostra mesmo assim
+    // Bloqueado (dia inteiro, slot específico ou APOS_) — mas se há agendamento ativo, mostra mesmo assim
+    const slotBloqueado = blockedSlots.has(horario) || (aposCorte !== null && horario >= aposCorte)
     const isBloqueado =
       diaInteiroBloqueado
         ? !ag || ag.status === 'cancelled'
-        : blockedSlots.has(horario) && (!ag || ag.status === 'cancelled')
+        : slotBloqueado && (!ag || ag.status === 'cancelled')
 
     if (!ag || ag.status === 'cancelled') {
       return { horario, bloqueado: isBloqueado, agendamento: null }

@@ -2,7 +2,7 @@
 
 import { createServiceClient } from '@/lib/supabase/server'
 import { getCurrentUsername } from './authPainel'
-import type { BloqueioTimeSlot, NovoBloqueioInput, ActionResult } from '../types'
+import type { BloqueioTimeSlot, NovoBloqueioInput, NovoBloqueioSemanalInput, ActionResult } from '../types'
 
 export async function listarBloqueios(autoescola_id: string): Promise<BloqueioTimeSlot[]> {
   const supabase = createServiceClient()
@@ -107,6 +107,82 @@ export async function criarBloqueio(
   })
 
   return { success: true, data: data ?? [] }
+}
+
+export async function criarBloqueioSemanais(
+  input: NovoBloqueioSemanalInput
+): Promise<ActionResult<{ total: number }>> {
+  const supabase = createServiceClient()
+  const { dia_semana, grupos, vehicle_type, reason, autoescola_id } = input
+
+  // Uma linha recorrente por instructor por grupo — sem explodir em datas
+  const rows: Omit<BloqueioTimeSlot, 'id' | 'created_at' | 'status'>[] = []
+  const weekdays = [dia_semana] as unknown as string[]
+
+  for (const grupo of grupos) {
+    const instrutores = grupo.instrutores.length > 0 ? grupo.instrutores : [null]
+    const time_slot = grupo.tipo === 'dia_inteiro'
+      ? 'DIA_INTEIRO'
+      : `APOS_${grupo.horario_corte}`
+
+    for (const instructor of instrutores) {
+      rows.push({
+        date: 'RECORRENTE_DIA_SEMANA',
+        time_slot,
+        vehicle_type,
+        instructor,
+        reason,
+        weekdays,
+        autoescola_id,
+      })
+    }
+  }
+
+  if (rows.length === 0) return { success: false, error: 'Nenhum registro para inserir.' }
+
+  const { error } = await supabase.from('blockedTimeSlots').insert(rows)
+  if (error) return { success: false, error: `Erro ao criar bloqueios: ${error.message}` }
+
+  const userAct = await getCurrentUsername()
+  await supabase.from('activity_logs_painel').insert({
+    username: userAct,
+    action_type: 'bloqueio',
+    description: `Bloqueio recorrente criado: dia ${dia_semana} — ${rows.length} instrutor(es)`,
+    autoescola_id,
+  })
+
+  return { success: true, data: { total: rows.length } }
+}
+
+export async function editarBloqueio(
+  id: string,
+  patch: {
+    time_slot?: string
+    vehicle_type?: string
+    instructor?: string | null
+    reason?: string
+    weekdays?: string[]
+  },
+  autoescola_id: string
+): Promise<ActionResult> {
+  const supabase = createServiceClient()
+  const { error } = await supabase
+    .from('blockedTimeSlots')
+    .update(patch)
+    .eq('id', id)
+    .eq('autoescola_id', autoescola_id)
+
+  if (error) return { success: false, error: 'Erro ao editar bloqueio.' }
+
+  const userAct = await getCurrentUsername()
+  await supabase.from('activity_logs_painel').insert({
+    username: userAct,
+    action_type: 'bloqueio',
+    description: `Bloqueio editado (ID: ${id})`,
+    autoescola_id,
+  })
+
+  return { success: true, data: undefined }
 }
 
 export async function excluirBloqueio(

@@ -22,12 +22,17 @@ function normalizeVehicleType(vt: string): string {
 }
 
 // Suporta weekdays como array JSON ou string JSON (ex: "[1,2,3,4,5]")
+// Normaliza strings numéricas para número (ex: ["6"] → [6])
 function parseWeekdays(weekdays: unknown): number[] {
-  if (Array.isArray(weekdays)) return weekdays as number[]
-  if (typeof weekdays === 'string') {
-    try { return JSON.parse(weekdays) as number[] } catch { return [] }
+  let arr: unknown[]
+  if (Array.isArray(weekdays)) {
+    arr = weekdays
+  } else if (typeof weekdays === 'string') {
+    try { arr = JSON.parse(weekdays) } catch { return [] }
+  } else {
+    return []
   }
-  return []
+  return arr.map((v) => Number(v)).filter((v) => !isNaN(v))
 }
 
 /**
@@ -129,10 +134,20 @@ export async function getDisponibilidade(
       )
       if (dayBlocked) return { nome, aulasMinistradas: instructorStats[nome] || 0, horarios: [] }
 
-      const blockedTimes = blocksForInst.map((b) => b.time_slot)
-      const availableTimes = baseTimes.filter(
-        (t) => !bookedForInst.includes(t) && !blockedTimes.includes(t)
-      )
+      // APOS_HH:MM — block all slots >= that time
+      const aposBlock = blocksForInst.find((b) => b.time_slot?.startsWith('APOS_'))
+      const aposCorte = aposBlock ? aposBlock.time_slot.replace('APOS_', '') : null
+
+      const exactBlockedTimes = blocksForInst
+        .filter((b) => !b.time_slot?.startsWith('APOS_'))
+        .map((b) => b.time_slot)
+
+      const availableTimes = baseTimes.filter((t) => {
+        if (bookedForInst.includes(t)) return false
+        if (exactBlockedTimes.includes(t)) return false
+        if (aposCorte && t >= aposCorte) return false
+        return true
+      })
 
       return { nome, aulasMinistradas: instructorStats[nome] || 0, horarios: availableTimes.sort() }
     })

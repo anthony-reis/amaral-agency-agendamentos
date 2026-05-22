@@ -95,6 +95,20 @@ export type NovoBloqueioInput = {
   autoescola_id: string
 }
 
+export type GrupoBloqueioSemanal = {
+  instrutores: string[]  // vazio = todos
+  tipo: 'dia_inteiro' | 'apos_horario'
+  horario_corte?: string
+}
+
+export type NovoBloqueioSemanalInput = {
+  dia_semana: number  // 0=Dom … 6=Sáb (JS getDay())
+  grupos: GrupoBloqueioSemanal[]
+  vehicle_type: string
+  reason: string
+  autoescola_id: string
+}
+
 // ─── Conflito ─────────────────────────────────────────────────────────────────
 
 export interface Conflito {
