@@ -53,7 +53,7 @@ function buildNavItems(escola: string): NavItem[] {
     { label: "Conflitos", href: `${base}/conflitos`, icon: AlertTriangle },
     { label: "Importação", href: `${base}/importacao`, icon: UploadCloud },
     { label: "Auditoria", href: `${base}/auditoria`, icon: Activity },
-    { label: "Ações Instrutor", href: `${base}/configuracoes`, icon: Settings },
+    { label: "Configurações", href: `${base}/configuracoes`, icon: Settings },
   ];
 }
 

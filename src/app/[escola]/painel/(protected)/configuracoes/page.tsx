@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getPainelSession } from '@/features/painel/actions/authPainel'
-import { getInstructorConfig } from '@/features/painel/actions/configuracoes'
+import { getInstructorConfig, getReagendamentoMinHoras } from '@/features/painel/actions/configuracoes'
 import { ConfiguracoesInstrutor } from '@/features/painel/components/ConfiguracoesInstrutor'
 
 interface Props {
@@ -12,13 +12,17 @@ export default async function ConfiguracoesPage({ params }: Props) {
   const session = await getPainelSession(escola)
   if (!session) redirect(`/${escola}/painel/login`)
 
-  const config = await getInstructorConfig(session.autoescola_id)
+  const [config, reagendamentoMinHoras] = await Promise.all([
+    getInstructorConfig(session.autoescola_id),
+    getReagendamentoMinHoras(session.autoescola_id),
+  ])
 
   return (
     <ConfiguracoesInstrutor
       autoescola_id={session.autoescola_id}
       escola={escola}
       initialConfig={config}
+      initialReagendamentoMinHoras={reagendamentoMinHoras}
     />
   )
 }

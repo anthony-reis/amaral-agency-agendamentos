@@ -23,7 +23,7 @@ export default async function EscolaAgendarPage({ params, searchParams }: Props)
   const [creditsResult, studentResult, autoescolaResult] = await Promise.all([
     supabase.from('student_credits').select('*').eq('student_id', studentId).single(),
     supabase.from('students').select('phone').eq('id', studentId).single(),
-    supabase.from('autoescolas').select('id, nome, logo_url').eq('slug', escola).single(),
+    supabase.from('autoescolas').select('id, nome, logo_url, reagendamento_min_horas').eq('slug', escola).single(),
   ])
 
   let rescheduleOldCategory: "CARRO" | "MOTO" | undefined = undefined;
@@ -67,6 +67,7 @@ export default async function EscolaAgendarPage({ params, searchParams }: Props)
       rescheduleMode={!!rescheduleOldCategory}
       rescheduleClassId={typeof reagendar === 'string' ? reagendar : undefined}
       rescheduleOldCategory={rescheduleOldCategory}
+      rescheduleLimitHours={autoescolaResult.data.reagendamento_min_horas ?? 2}
     />
   )
 }

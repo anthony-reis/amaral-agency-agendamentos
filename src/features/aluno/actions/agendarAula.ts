@@ -182,7 +182,7 @@ export async function reagendarAula(agendamentoId: string, data: {
 }) {
   const supabase = createServiceClient()
 
-  // 1. Fetch old agendamento to get existing category + date/time for 2h rule
+  // 1. Fetch old agendamento to get existing category + date/time for dynamic rule
   const { data: oldAgendamento, error: fetchError } = await supabase
     .from('agendamentos')
     .select('instructorCategory, date, time_slot')
@@ -193,13 +193,21 @@ export async function reagendarAula(agendamentoId: string, data: {
     throw new Error('Agendamento original não encontrado.')
   }
 
-  // ── Validate: rescheduling must be at least 2h before original class ──
+  // ── Fetch configured minimum hours for this school ──
+  const { data: autoescolaConfig } = await supabase
+    .from('autoescolas')
+    .select('reagendamento_min_horas')
+    .eq('id', data.autoescola_id)
+    .single()
+  const minHoras = autoescolaConfig?.reagendamento_min_horas ?? 2
+
+  // ── Validate: rescheduling must be at least minHoras before original class ──
   const classDateTime = new Date(`${oldAgendamento.date}T${oldAgendamento.time_slot}:00-03:00`)
   const diffMs = classDateTime.getTime() - Date.now()
   const diffHours = diffMs / (1000 * 60 * 60)
 
-  if (diffHours < 2) {
-    throw new Error('O reagendamento só pode ser feito com pelo menos 2 horas de antecedência do horário da aula.')
+  if (diffHours < minHoras) {
+    throw new Error(`O reagendamento só pode ser feito com pelo menos ${minHoras} hora${minHoras !== 1 ? 's' : ''} de antecedência do horário da aula.`)
   }
 
   // ── Validate: new date/time not in the past ──

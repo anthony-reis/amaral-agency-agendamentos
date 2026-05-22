@@ -38,6 +38,7 @@ interface Props {
   rescheduleMode?: boolean;
   rescheduleClassId?: string;
   rescheduleOldCategory?: "CARRO" | "MOTO";
+  rescheduleLimitHours?: number;
 }
 
 // Brazilian national fixed holidays (MM-DD)
@@ -87,6 +88,7 @@ export function AgendamentoFlow({
   rescheduleMode,
   rescheduleClassId,
   rescheduleOldCategory,
+  rescheduleLimitHours = 2,
 }: Props) {
   const router = useRouter();
   const [step, setStep] = useState(2);
@@ -316,6 +318,7 @@ export function AgendamentoFlow({
     </button>
   );
 
+  const limitMinutes = rescheduleLimitHours * 60
   const validInstructors = availableInstructors
     .map(inst => {
       const validTimes = inst.horarios.filter(time => {
@@ -326,7 +329,7 @@ export function AgendamentoFlow({
         const slotMins = th * 60 + tm;
         const now = new Date();
         const nowMins = now.getHours() * 60 + now.getMinutes();
-        return slotMins >= nowMins + 120; // 2 hours advance
+        return slotMins >= nowMins + limitMinutes;
       });
       return { ...inst, validTimes };
     })

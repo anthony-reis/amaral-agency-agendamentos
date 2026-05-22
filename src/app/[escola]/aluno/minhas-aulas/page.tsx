@@ -51,10 +51,13 @@ export default async function MinhasAulasPage({ params }: Props) {
 
   if (!autoescola) redirect('/')
 
-  const [{ data: credits }, { data: student }] = await Promise.all([
+  const [{ data: credits }, { data: student }, { data: autoescolaFull }] = await Promise.all([
     supabase.from('student_credits').select('*').eq('student_id', studentId).single(),
     supabase.from('students').select('document_id').eq('id', studentId).single(),
+    supabase.from('autoescolas').select('id, reagendamento_min_horas').eq('slug', escola).single(),
   ])
+
+  const minHorasReagendar = autoescolaFull?.reagendamento_min_horas ?? 2
 
   const doc = student?.document_id ?? ''
 
@@ -182,12 +185,12 @@ export default async function MinhasAulasPage({ params }: Props) {
                 const isTomorrow = daysUntil === 1
                 const isCarro = aula.instructorCategory?.toUpperCase() === 'CARRO'
                 
-                // Check if rescheduling is allowed (at least 2h before class)
+                // Check if rescheduling is allowed based on school's configured minimum
                 const now = new Date()
                 const classDateTime = new Date(`${aula.date}T${aula.time_slot}:00-03:00`)
                 const diffMs = classDateTime.getTime() - now.getTime()
                 const diffHours = diffMs / (1000 * 60 * 60)
-                const canReschedule = diffHours >= 2
+                const canReschedule = diffHours >= minHorasReagendar
                 const isPastClass = diffMs <= 0
 
                 return (
@@ -260,7 +263,7 @@ export default async function MinhasAulasPage({ params }: Props) {
                           Prazo para reagendar encerrado
                         </div>
                         <p className="text-[10px] text-[--p-text-3]">
-                          Mínimo de 2h de antecedência
+                          Mínimo de {minHorasReagendar}h de antecedência
                         </p>
                       </div>
                     )}
