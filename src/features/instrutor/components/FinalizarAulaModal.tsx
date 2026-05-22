@@ -39,28 +39,30 @@ function SignatureFullscreen({
   const [isDrawing, setIsDrawing] = useState(false);
   const [isEmpty, setIsEmpty] = useState(true);
 
-  // Ajusta canvas ao tamanho do container
+  // Ajusta canvas ao tamanho do container — sem salvar getImageData (evita cópia extra em memória)
   useEffect(() => {
     function resize() {
       const canvas = canvasRef.current;
       const container = containerRef.current;
       if (!canvas || !container) return;
       const { width, height } = container.getBoundingClientRect();
-      // Salva conteúdo atual antes de redimensionar
+      // Limita a 600×300 para poupar RAM em dispositivos entry-level
+      canvas.width = Math.min(width, 600);
+      canvas.height = Math.min(height, 300);
       const ctx = canvas.getContext("2d");
-      const imageData = ctx?.getImageData(0, 0, canvas.width, canvas.height);
-      canvas.width = width;
-      canvas.height = height;
-      // Fundo branco
       if (ctx) {
         ctx.fillStyle = "#ffffff";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        if (imageData) ctx.putImageData(imageData, 0, 0);
       }
     }
     resize();
     window.addEventListener("resize", resize);
-    return () => window.removeEventListener("resize", resize);
+    return () => {
+      window.removeEventListener("resize", resize);
+      // Destrói o canvas ao desmontar para liberar memória imediatamente
+      const canvas = canvasRef.current;
+      if (canvas) { canvas.width = 0; canvas.height = 0; }
+    };
   }, []);
 
   function getPos(e: React.PointerEvent<HTMLCanvasElement>) {
@@ -117,7 +119,12 @@ function SignatureFullscreen({
   function confirmar() {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    onConfirm(canvas.toDataURL("image/png"));
+    // JPEG 85% é suficiente para assinatura (fundo branco, sem transparência) e muito menor que PNG
+    const dataURL = canvas.toDataURL("image/jpeg", 0.85);
+    // Destrói o canvas antes de chamar onConfirm para liberar memória mais cedo
+    canvas.width = 0;
+    canvas.height = 0;
+    onConfirm(dataURL);
   }
 
   return (
@@ -229,55 +236,56 @@ export function FinalizarAulaModal({
 
   async function compressImage(file: File): Promise<File> {
     return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = (event) => {
-        const img = new Image();
-        img.src = event.target?.result as string;
-        img.onload = () => {
-          const maxWidth = 1200;
-          const maxHeight = 1200;
-          let width = img.width;
-          let height = img.height;
+      // Usa createObjectURL em vez de readAsDataURL para evitar string base64
+      // gigante na memória (base64 é ~33% maior que o arquivo original)
+      const objectUrl = URL.createObjectURL(file);
+      const img = new Image();
+      img.src = objectUrl;
+      img.onload = () => {
+        // Libera o object URL assim que a imagem carregou — não precisa mais
+        URL.revokeObjectURL(objectUrl);
 
-          if (width > height) {
-            if (width > maxWidth) {
-              height = Math.round((height * maxWidth) / width);
-              width = maxWidth;
+        // Máx 800px é suficiente para evidência de aula e poupa ~55% de RAM
+        // em relação ao limite anterior de 1200px
+        const maxDim = 800;
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > maxDim) { height = Math.round((height * maxDim) / width); width = maxDim; }
+        } else {
+          if (height > maxDim) { width = Math.round((width * maxDim) / height); height = maxDim; }
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { return reject("Sem contexto 2D"); }
+        ctx.drawImage(img, 0, 0, width, height);
+
+        canvas.toBlob(
+          (blob) => {
+            // Destrói o canvas imediatamente após obter o blob
+            canvas.width = 0;
+            canvas.height = 0;
+            if (blob) {
+              const newFile = new File([blob], file.name.replace(/\.[^/.]+$/, ".jpg"), {
+                type: "image/jpeg",
+                lastModified: Date.now(),
+              });
+              resolve(newFile);
+            } else {
+              reject("Erro na compressão");
             }
-          } else {
-            if (height > maxHeight) {
-              width = Math.round((width * maxHeight) / height);
-              height = maxHeight;
-            }
-          }
-
-          const canvas = document.createElement("canvas");
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext("2d");
-          if (!ctx) return reject("Sem contexto 2D");
-          ctx.drawImage(img, 0, 0, width, height);
-
-          canvas.toBlob(
-            (blob) => {
-              if (blob) {
-                const newFile = new File([blob], file.name.replace(/\.[^/.]+$/, ".jpg"), {
-                  type: "image/jpeg",
-                  lastModified: Date.now(),
-                });
-                resolve(newFile);
-              } else {
-                reject("Erro na compressão");
-              }
-            },
-            "image/jpeg",
-            0.7
-          );
-        };
-        img.onerror = (error) => reject(error);
+          },
+          "image/jpeg",
+          0.75
+        );
       };
-      reader.onerror = (error) => reject(error);
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        reject("Erro ao carregar imagem");
+      };
     });
   }
 
@@ -341,6 +349,17 @@ export function FinalizarAulaModal({
       formData.append("autoescola_id", aula.autoescola_id);
       formData.append("signatureDataURL", signatureDataURL);
       formData.append("foto", fotoFile);
+
+      // Libera a memória das imagens imediatamente após montar o FormData
+      // (o FormData já tem referência ao blob/string — não precisa manter nos states)
+      setSignatureDataURL(null);
+      setSignaturePreview(null);
+      setFotoFile(null);
+      setFotoPreview(null);
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+        previewUrlRef.current = null;
+      }
 
       const res = await fetch("/api/finalizar-aula", { method: "POST", body: formData });
       const result = await res.json();

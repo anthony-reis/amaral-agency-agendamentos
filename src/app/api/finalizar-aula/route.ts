@@ -41,13 +41,17 @@ export async function POST(req: NextRequest) {
       .getPublicUrl(fotoPath)
 
     // Upload da assinatura (base64 → buffer)
-    const assinaturaPath = `${autoescola_id}/${agendamento_id}/assinatura.png`
-    const base64Data = signatureDataURL.replace(/^data:image\/png;base64,/, '')
+    // Suporta JPEG (dispositivos low-end) e PNG (legado) dinamicamente
+    const sigMimeMatch = signatureDataURL.match(/^data:(image\/(?:png|jpeg));base64,/)
+    const sigMime = sigMimeMatch?.[1] ?? 'image/jpeg'
+    const sigExt = sigMime === 'image/png' ? 'png' : 'jpg'
+    const assinaturaPath = `${autoescola_id}/${agendamento_id}/assinatura.${sigExt}`
+    const base64Data = signatureDataURL.replace(/^data:image\/(?:png|jpeg);base64,/, '')
     const sigBuffer = Buffer.from(base64Data, 'base64')
 
     const { error: sigError } = await supabase.storage
       .from('aulas-finalizadas')
-      .upload(assinaturaPath, sigBuffer, { contentType: 'image/png', upsert: true })
+      .upload(assinaturaPath, sigBuffer, { contentType: sigMime, upsert: true })
 
     if (sigError) {
       return NextResponse.json({ error: 'Erro ao salvar assinatura.' }, { status: 500 })
