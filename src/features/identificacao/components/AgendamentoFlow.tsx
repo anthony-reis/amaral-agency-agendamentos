@@ -56,7 +56,7 @@ const FERIADOS_FIXOS = new Set([
 
 function isNonWorkday(d: Date): boolean {
   const dow = d.getDay();
-  if (dow === 0 || dow === 6) return true;
+  if (dow === 0) return true;
   const mmdd = `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   return FERIADOS_FIXOS.has(mmdd);
 }
