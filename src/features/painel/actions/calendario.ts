@@ -85,40 +85,30 @@ export async function getInstrutoresDoDia(
 ): Promise<InstrutorDia[]> {
   const supabase = createServiceClient()
 
-  const { data: ags } = await supabase
-    .from('agendamentos')
-    .select('instructor_name')
-    .eq('autoescola_id', autoescola_id)
-    .eq('date', date)
-    .neq('status', 'cancelled')
-
-  if (!ags?.length) return []
+  const [{ data: ags }, { data: instructors }] = await Promise.all([
+    supabase
+      .from('agendamentos')
+      .select('instructor_name')
+      .eq('autoescola_id', autoescola_id)
+      .eq('date', date)
+      .neq('status', 'cancelled'),
+    supabase
+      .from('instructors')
+      .select('name, category')
+      .eq('autoescola_id', autoescola_id),
+  ])
 
   const counts = new Map<string, number>()
-  for (const a of ags) {
+  for (const a of ags ?? []) {
     const name = a.instructor_name ?? '(sem instrutor)'
     counts.set(name, (counts.get(name) ?? 0) + 1)
   }
 
-  const names = Array.from(counts.keys())
-
-  // Buscar categoria dos instrutores
-  const { data: instructors } = await supabase
-    .from('instructors')
-    .select('name, category')
-    .eq('autoescola_id', autoescola_id)
-    .in('name', names)
-
-  const catMap = new Map<string, string>()
-  for (const i of instructors ?? []) {
-    catMap.set(i.name, i.category)
-  }
-
-  return names
-    .map((name) => ({
-      instructor_name: name,
-      total: counts.get(name)!,
-      category: catMap.get(name) ?? 'CARRO',
+  return (instructors ?? [])
+    .map((inst) => ({
+      instructor_name: inst.name,
+      total: counts.get(inst.name) ?? 0,
+      category: inst.category,
     }))
     .sort((a, b) => a.instructor_name.localeCompare(b.instructor_name))
 }
