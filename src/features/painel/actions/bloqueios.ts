@@ -111,7 +111,7 @@ export async function criarBloqueio(
 
 export async function criarBloqueioSemanais(
   input: NovoBloqueioSemanalInput
-): Promise<ActionResult<{ total: number }>> {
+): Promise<ActionResult<{ total: number; registros: BloqueioTimeSlot[] }>> {
   const supabase = createServiceClient()
   const { dia_semana, grupos, vehicle_type, reason, autoescola_id } = input
 
@@ -140,7 +140,7 @@ export async function criarBloqueioSemanais(
 
   if (rows.length === 0) return { success: false, error: 'Nenhum registro para inserir.' }
 
-  const { error } = await supabase.from('blockedTimeSlots').insert(rows)
+  const { data: inserted, error } = await supabase.from('blockedTimeSlots').insert(rows).select()
   if (error) return { success: false, error: `Erro ao criar bloqueios: ${error.message}` }
 
   const userAct = await getCurrentUsername()
@@ -151,7 +151,7 @@ export async function criarBloqueioSemanais(
     autoescola_id,
   })
 
-  return { success: true, data: { total: rows.length } }
+  return { success: true, data: { total: rows.length, registros: inserted ?? [] } }
 }
 
 export async function editarBloqueio(

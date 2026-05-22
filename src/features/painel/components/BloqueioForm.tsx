@@ -203,6 +203,7 @@ export function BloqueioForm({ bloqueios: initial, instrutores, autoescola_id }:
           autoescola_id,
         })
         if (!result.success) { setError(result.error); return }
+        setBloqueios((prev) => [...result.data.registros, ...prev])
         setSuccessMsg(`${result.data.total} bloqueio(s) recorrente(s) criado(s).`)
         closeForm()
       })
