@@ -1,6 +1,7 @@
 import { getPainelSession } from '@/features/painel/actions/authPainel'
-import { getAgendamentosStats, getDesempenhoInstrutores } from '@/features/painel/actions/agendamentos'
+import { getAgendamentosStats, getDesempenhoInstrutores, getKmStats } from '@/features/painel/actions/agendamentos'
 import { listarInstrutores } from '@/features/painel/actions/instrutores'
+import { getInstructorConfig } from '@/features/painel/actions/configuracoes'
 import { DashboardStats } from '@/features/painel/components/DashboardStats'
 import { redirect } from 'next/navigation'
 
@@ -26,10 +27,12 @@ export default async function DashboardPage({ params }: Props) {
   const { dateStart, dateEnd } = getDefaultDates()
   const autoescola_id = session.autoescola_id
 
-  const [stats, desempenho, instrutores] = await Promise.all([
+  const [stats, desempenho, instrutores, kmStats, config] = await Promise.all([
     getAgendamentosStats(autoescola_id, dateStart, dateEnd),
     getDesempenhoInstrutores(autoescola_id, dateStart, dateEnd),
     listarInstrutores(autoescola_id),
+    getKmStats(autoescola_id, dateStart, dateEnd),
+    getInstructorConfig(autoescola_id),
   ])
 
   return (
@@ -40,6 +43,8 @@ export default async function DashboardPage({ params }: Props) {
       dateStart={dateStart}
       dateEnd={dateEnd}
       escola={escola}
+      kmStats={kmStats}
+      registrarKm={config.registrar_km}
     />
   )
 }

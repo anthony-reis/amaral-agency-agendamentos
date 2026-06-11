@@ -25,6 +25,7 @@ interface Props {
   instructorName: string;
   onSuccess: (id: string) => void;
   onCancel: () => void;
+  registrarKm?: boolean;
 }
 
 function SignatureFullscreen({
@@ -198,6 +199,7 @@ export function FinalizarAulaModal({
   instructorName,
   onSuccess,
   onCancel,
+  registrarKm = false,
 }: Props) {
   const [signatureDataURL, setSignatureDataURL] = useState<string | null>(null);
   const [signaturePreview, setSignaturePreview] = useState<string | null>(null);
@@ -207,6 +209,7 @@ export function FinalizarAulaModal({
   const [isPending, setIsPending] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [kmFinal, setKmFinal] = useState('');
   const previewUrlRef = useRef<string | null>(null);
 
   // Clear memory on unmount
@@ -231,6 +234,7 @@ export function FinalizarAulaModal({
       setError(null);
       setIsPending(false);
       setIsCompressing(false);
+      setKmFinal('');
     }
   }, [open]);
 
@@ -339,6 +343,20 @@ export function FinalizarAulaModal({
 
   async function handleFinalizar() {
     if (!fotoFile || !signatureDataURL) return;
+
+    // Valida KM final se feature ativa
+    if (registrarKm && aula.km_inicial != null) {
+      const kmNum = parseInt(kmFinal, 10);
+      if (!kmFinal || isNaN(kmNum) || kmNum < 0) {
+        setError('Informe o KM final do veículo.');
+        return;
+      }
+      if (kmNum < aula.km_inicial) {
+        setError(`KM final (${kmNum}) não pode ser menor que o KM inicial (${aula.km_inicial}).`);
+        return;
+      }
+    }
+
     setIsPending(true);
     setError(null);
 
@@ -349,6 +367,9 @@ export function FinalizarAulaModal({
       formData.append("autoescola_id", aula.autoescola_id);
       formData.append("signatureDataURL", signatureDataURL);
       formData.append("foto", fotoFile);
+      if (registrarKm && aula.km_inicial != null && kmFinal) {
+        formData.append("km_final", kmFinal);
+      }
 
       // Libera a memória das imagens imediatamente após montar o FormData
       // (o FormData já tem referência ao blob/string — não precisa manter nos states)
@@ -376,8 +397,15 @@ export function FinalizarAulaModal({
     }
   }
 
+  const needsKmFinal = registrarKm && aula.km_inicial != null;
+  const kmFinalNum = kmFinal !== '' ? parseInt(kmFinal, 10) : null;
+  const kmFinalInvalido = needsKmFinal && kmFinalNum !== null && aula.km_inicial != null && kmFinalNum < aula.km_inicial;
   const canFinalizar =
-    fotoFile !== null && signatureDataURL !== null && !isPending && !isCompressing;
+    fotoFile !== null &&
+    signatureDataURL !== null &&
+    !isPending &&
+    !isCompressing &&
+    (!needsKmFinal || (kmFinal !== '' && !kmFinalInvalido));
 
   const categoriaLabel = aula.instructorCategory ?? "—";
 
@@ -453,6 +481,44 @@ export function FinalizarAulaModal({
                       </div>
                     </div>
                   </div>
+
+                  {/* KM Final — só visível se registrar_km ativo e aula tem km_inicial */}
+                  {needsKmFinal && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <CheckCircle2 className="w-4 h-4 text-violet-400" />
+                        <p className="text-sm font-semibold text-[--p-text-1]">
+                          KM Final <span className="text-red-400">*</span>
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3 bg-[--p-bg-base] rounded-xl border border-[--p-border] p-3">
+                        <div className="text-xs text-[--p-text-3]">
+                          Inicial: <span className="font-bold text-[--p-text-2]">{aula.km_inicial?.toLocaleString('pt-BR')}</span>
+                        </div>
+                        <div className="flex-1">
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            placeholder="KM atual"
+                            value={kmFinal}
+                            onChange={(e) => { setKmFinal(e.target.value); setError(null); }}
+                            disabled={isPending}
+                            className="w-full px-3 py-2 text-lg font-bold text-center rounded-lg bg-[--p-bg-input] border border-[--p-border] text-[--p-text-1] focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 disabled:opacity-50 transition"
+                          />
+                        </div>
+                      </div>
+                      {kmFinalInvalido && (
+                        <p className="text-xs text-red-400 mt-1 font-semibold">
+                          KM final não pode ser menor que o inicial ({aula.km_inicial?.toLocaleString('pt-BR')})
+                        </p>
+                      )}
+                      {!kmFinalInvalido && kmFinal !== '' && kmFinalNum !== null && aula.km_inicial != null && kmFinalNum > aula.km_inicial && (
+                        <p className="text-xs text-violet-400 mt-1">
+                          {kmFinalNum - aula.km_inicial} km rodados
+                        </p>
+                      )}
+                    </div>
+                  )}
 
                   {/* Foto */}
                   <div>

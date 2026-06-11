@@ -2,8 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { motion } from "framer-motion";
-import { BarChart2, Trophy, TrendingUp, Calendar, Filter } from "lucide-react";
+import { BarChart2, Trophy, TrendingUp, Calendar, Filter, Gauge, AlertTriangle, Route } from "lucide-react";
 import type { AgendamentoStats, InstrutorDesempenho } from "../types";
+import type { KmStats } from "../actions/agendamentos";
 
 interface Props {
   stats: AgendamentoStats;
@@ -12,6 +13,8 @@ interface Props {
   dateStart: string;
   dateEnd: string;
   escola: string;
+  kmStats?: KmStats;
+  registrarKm?: boolean;
 }
 
 const MEDAL = ["🥇", "🥈", "🥉"];
@@ -23,12 +26,14 @@ export function DashboardStats({
   dateStart: initStart,
   dateEnd: initEnd,
   escola,
+  kmStats: initKmStats,
+  registrarKm = false,
 }: Props) {
   const [dateStart, setDateStart] = useState(initStart);
   const [dateEnd, setDateEnd] = useState(initEnd);
   const [instructor, setInstructor] = useState("TODOS");
   const [category, setCategory] = useState("TODAS");
-  const [data, setData] = useState({ stats, desempenho });
+  const [data, setData] = useState({ stats, desempenho, kmStats: initKmStats });
   const [isPending, startTransition] = useTransition();
 
   async function applyFilter() {
@@ -46,6 +51,8 @@ export function DashboardStats({
       }
     });
   }
+
+  const km = data.kmStats;
 
   return (
     <div className="space-y-6">
@@ -159,6 +166,84 @@ export function DashboardStats({
           icon={<Calendar className="w-8 h-8 text-white/80" />}
         />
       </div>
+
+      {/* Seção KM — só exibida se registrar_km ativo */}
+      {registrarKm && km && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Gauge className="w-5 h-5 text-violet-400" />
+            <h2 className="text-base font-bold text-[--p-text-1]">KM Rodado no Período</h2>
+          </div>
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard
+              label="KM Total"
+              value={`${km.km_total.toLocaleString('pt-BR')} km`}
+              color="bg-violet-600"
+              icon={<Route className="w-8 h-8 text-white/80" />}
+            />
+            <StatCard
+              label="Média por Aula"
+              value={`${km.km_medio} km`}
+              color="bg-violet-500"
+              icon={<Gauge className="w-8 h-8 text-white/80" />}
+            />
+            <StatCard
+              label="Aulas com KM"
+              value={km.total_aulas_com_km}
+              color="bg-violet-400"
+              icon={<TrendingUp className="w-8 h-8 text-white/80" />}
+            />
+            <div className={`${km.inconsistencias > 0 ? 'bg-red-600' : 'bg-slate-600'} rounded-2xl p-5 flex items-center justify-between`}>
+              <div>
+                <p className="text-xs text-white/70 font-medium mb-1">Inconsistências</p>
+                <p className="text-3xl font-bold text-white/80">{km.inconsistencias}</p>
+              </div>
+              <AlertTriangle className="w-8 h-8 text-white/80" />
+            </div>
+          </div>
+
+          {/* Tabela KM por instrutor */}
+          {km.por_instrutor.length > 0 && (
+            <div className="bg-[--p-bg-card] rounded-2xl border border-[--p-border] overflow-hidden">
+              <div className="flex items-center gap-2 px-6 py-4 border-b border-[--p-border]">
+                <Gauge className="w-4 h-4 text-violet-400" />
+                <h3 className="text-sm font-semibold text-[--p-text-1]">KM por Instrutor</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-[--p-border]">
+                      <th className="text-left text-xs font-semibold text-[--p-text-3] uppercase px-6 py-3">Instrutor</th>
+                      <th className="text-left text-xs font-semibold text-[--p-text-3] uppercase px-4 py-3">Categoria</th>
+                      <th className="text-right text-xs font-semibold text-[--p-text-3] uppercase px-4 py-3">Aulas</th>
+                      <th className="text-right text-xs font-semibold text-[--p-text-3] uppercase px-4 py-3">KM Total</th>
+                      <th className="text-right text-xs font-semibold text-[--p-text-3] uppercase px-4 py-3">Média/Aula</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[--p-border]">
+                    {km.por_instrutor.map((row) => (
+                      <tr key={row.instructor_name} className="hover:bg-[--p-hover] transition-colors">
+                        <td className="px-6 py-3.5 font-semibold text-[--p-text-1]">{row.instructor_name}</td>
+                        <td className="px-4 py-3.5">
+                          <span className={`px-2 py-0.5 text-xs font-bold rounded-md ${
+                            row.categoria === 'CARRO' ? 'bg-blue-500/20 text-blue-300' : 'bg-purple-500/20 text-purple-300'
+                          }`}>
+                            {row.categoria ?? '—'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3.5 text-right text-[--p-text-2]">{row.total_aulas}</td>
+                        <td className="px-4 py-3.5 text-right font-bold text-violet-400">{row.km_total.toLocaleString('pt-BR')} km</td>
+                        <td className="px-4 py-3.5 text-right text-[--p-text-3]">{row.km_medio} km</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Instructor performance table */}
       <div className="bg-[--p-bg-card] rounded-2xl border border-[--p-border] overflow-hidden">

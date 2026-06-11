@@ -2,30 +2,32 @@
 
 import { useState, useTransition } from 'react'
 import { motion } from 'framer-motion'
-import { Clock, Car, User, FileText, BarChart2, Calendar } from 'lucide-react'
+import { Clock, Car, User, FileText, BarChart2, Calendar, Gauge } from 'lucide-react'
 import { atualizarStatusAula } from '../actions/minhasAulas'
 import type { AulaInstrutor } from '../actions/minhasAulas'
 import type { InstructorConfig } from '@/features/painel/actions/configuracoes'
 import { ConfirmarAcaoModal } from './ConfirmarAcaoModal'
 import { FinalizarAulaModal } from './FinalizarAulaModal'
+import { IniciarAulaModal } from './IniciarAulaModal'
 import { ModalCancelamentoAula } from '@/features/shared/components/ModalCancelamentoAula'
 
 interface Props {
   aula: AulaInstrutor
   instructorName: string
-  onUpdate: (id: string, status: string) => void
+  onUpdate: (id: string, status: string, extra?: Partial<AulaInstrutor>) => void
   instructorConfig: InstructorConfig
 }
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   scheduled: { label: 'PENDENTE', color: 'bg-blue-500/20 text-blue-300' },
   confirmed: { label: 'CONFIRMADA', color: 'bg-emerald-500/20 text-emerald-300' },
+  in_progress: { label: 'EM ANDAMENTO', color: 'bg-violet-500/20 text-violet-300' },
   completed: { label: 'CONCLUÍDA', color: 'bg-green-500/20 text-green-300' },
   absent: { label: 'FALTA', color: 'bg-red-500/20 text-red-300' },
   cancelled: { label: 'DESMARCADA', color: 'bg-slate-500/20 text-slate-400' },
 }
 
-type ModalAberto = 'falta' | 'desmarcar' | 'finalizar' | null
+type ModalAberto = 'falta' | 'desmarcar' | 'finalizar' | 'iniciar' | null
 
 export function InstructorAulaCard({ aula, instructorName, onUpdate, instructorConfig }: Props) {
   const [isPending, startTransition] = useTransition()
@@ -53,6 +55,8 @@ export function InstructorAulaCard({ aula, instructorName, onUpdate, instructorC
     })
   }
 
+  const isPending2 = ['scheduled', 'confirmed'].includes(aula.status)
+  const isInProgress = aula.status === 'in_progress'
   const isDone = ['completed', 'absent', 'cancelled'].includes(aula.status)
   const statusInfo = STATUS_LABELS[aula.status] ?? { label: aula.status, color: 'bg-slate-500/20 text-slate-300' }
 
@@ -142,45 +146,96 @@ export function InstructorAulaCard({ aula, instructorName, onUpdate, instructorC
               <span className="truncate">{aula.notes}</span>
             </div>
           )}
+          {/* KM em andamento */}
+          {isInProgress && aula.km_inicial != null && (
+            <div className="col-span-2 flex items-center gap-1.5 text-violet-400">
+              <Gauge className="w-3.5 h-3.5 shrink-0" />
+              <span>KM inicial: {aula.km_inicial.toLocaleString('pt-BR')}</span>
+            </div>
+          )}
+          {/* KM concluída */}
+          {isDone && aula.km_rodado != null && (
+            <div className="col-span-2 flex items-center gap-1.5 text-emerald-400">
+              <Gauge className="w-3.5 h-3.5 shrink-0" />
+              <span>{aula.km_rodado} km rodados ({aula.km_inicial?.toLocaleString('pt-BR')} → {aula.km_final?.toLocaleString('pt-BR')})</span>
+            </div>
+          )}
         </div>
 
         {/* Action buttons */}
-        {!isDone && (instructorConfig.pode_dar_falta || instructorConfig.pode_desmarcar || instructorConfig.pode_finalizar) && (
+        {!isDone && (
           <div className="grid grid-cols-2 gap-2">
-            {instructorConfig.pode_dar_falta && (
-              <button
-                onClick={() => setModalAberto('falta')}
-                disabled={isPending}
-                className="py-2 px-3 text-xs font-semibold rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 disabled:opacity-50 transition-colors"
-              >
-                Dar Falta
-              </button>
-            )}
-            {instructorConfig.pode_desmarcar && (
-              <button
-                onClick={() => setModalAberto('desmarcar')}
-                disabled={isPending}
-                className={`py-2 px-3 text-xs font-semibold rounded-xl bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 disabled:opacity-50 transition-colors ${
-                  !instructorConfig.pode_dar_falta ? 'col-span-2' : ''
-                }`}
-              >
-                Desmarcar
-              </button>
-            )}
-            {instructorConfig.pode_finalizar && (
+            {/* Aula em andamento — só Finalizar */}
+            {isInProgress && instructorConfig.pode_finalizar && (
               <button
                 onClick={() => setModalAberto('finalizar')}
                 disabled={isPending}
-                className={`py-2.5 px-3 text-sm font-bold rounded-xl bg-emerald-500 text-white hover:bg-emerald-400 disabled:opacity-50 transition-colors flex items-center justify-center gap-2 ${
-                  !instructorConfig.pode_dar_falta && !instructorConfig.pode_desmarcar ? 'col-span-2' : 'col-span-2'
-                }`}
+                className="col-span-2 py-2.5 px-3 text-sm font-bold rounded-xl bg-emerald-500 text-white hover:bg-emerald-400 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
               >
                 Finalizar Aula ✓
               </button>
             )}
+
+            {/* Aula pendente — Dar Falta, Desmarcar e Iniciar (ou Finalizar se registrar_km desativado) */}
+            {isPending2 && (
+              <>
+                {instructorConfig.pode_dar_falta && (
+                  <button
+                    onClick={() => setModalAberto('falta')}
+                    disabled={isPending}
+                    className="py-2 px-3 text-xs font-semibold rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 disabled:opacity-50 transition-colors"
+                  >
+                    Dar Falta
+                  </button>
+                )}
+                {instructorConfig.pode_desmarcar && (
+                  <button
+                    onClick={() => setModalAberto('desmarcar')}
+                    disabled={isPending}
+                    className={`py-2 px-3 text-xs font-semibold rounded-xl bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 disabled:opacity-50 transition-colors ${
+                      !instructorConfig.pode_dar_falta ? 'col-span-2' : ''
+                    }`}
+                  >
+                    Desmarcar
+                  </button>
+                )}
+                {instructorConfig.registrar_km ? (
+                  <button
+                    onClick={() => setModalAberto('iniciar')}
+                    disabled={isPending}
+                    className="col-span-2 py-2.5 px-3 text-sm font-bold rounded-xl bg-blue-500 text-white hover:bg-blue-400 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Gauge className="w-4 h-4" />
+                    Iniciar Aula
+                  </button>
+                ) : (
+                  instructorConfig.pode_finalizar && (
+                    <button
+                      onClick={() => setModalAberto('finalizar')}
+                      disabled={isPending}
+                      className="col-span-2 py-2.5 px-3 text-sm font-bold rounded-xl bg-emerald-500 text-white hover:bg-emerald-400 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                    >
+                      Finalizar Aula ✓
+                    </button>
+                  )
+                )}
+              </>
+            )}
           </div>
         )}
       </motion.div>
+
+      {/* Modal: Iniciar Aula */}
+      <IniciarAulaModal
+        open={modalAberto === 'iniciar'}
+        aula={aula}
+        instructorName={instructorName}
+        onSuccess={(id, km_inicial) => {
+          onUpdate(id, 'in_progress', { km_inicial })
+          setModalAberto(null)
+        }}
+        onCancel={() => setModalAberto(null)}
+      />
 
       {/* Modal: Dar Falta */}
       <ConfirmarAcaoModal
@@ -215,6 +270,7 @@ export function InstructorAulaCard({ aula, instructorName, onUpdate, instructorC
         open={modalAberto === 'finalizar'}
         aula={aula}
         instructorName={instructorName}
+        registrarKm={instructorConfig.registrar_km}
         onSuccess={(id) => {
           onUpdate(id, 'completed')
           setModalAberto(null)

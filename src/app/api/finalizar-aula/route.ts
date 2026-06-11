@@ -10,6 +10,8 @@ export async function POST(req: NextRequest) {
     const autoescola_id = formData.get('autoescola_id') as string | null
     const signatureDataURL = formData.get('signatureDataURL') as string | null
     const fotoFile = formData.get('foto') as File | null
+    const kmFinalRaw = formData.get('km_final') as string | null
+    const kmFinal = kmFinalRaw !== null && kmFinalRaw !== '' ? parseInt(kmFinalRaw, 10) : null
 
     if (!agendamento_id || !instructor_name || !autoescola_id) {
       return NextResponse.json({ error: 'Dados obrigatórios ausentes.' }, { status: 400 })
@@ -22,6 +24,21 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = createServiceClient()
+
+    // Se km_final fornecido, valida consistência com km_inicial
+    if (kmFinal !== null) {
+      if (isNaN(kmFinal) || kmFinal < 0) {
+        return NextResponse.json({ error: 'KM final inválido.' }, { status: 400 })
+      }
+      const { data: ag } = await supabase
+        .from('agendamentos')
+        .select('km_inicial')
+        .eq('id', agendamento_id)
+        .single()
+      if (ag?.km_inicial != null && kmFinal < ag.km_inicial) {
+        return NextResponse.json({ error: `KM final (${kmFinal}) não pode ser menor que o KM inicial (${ag.km_inicial}).` }, { status: 400 })
+      }
+    }
 
     // Upload da foto
     const ext = (fotoFile.name.split('.').pop() ?? 'jpg').replace('jpeg', 'jpg')
@@ -62,9 +79,16 @@ export async function POST(req: NextRequest) {
       .getPublicUrl(assinaturaPath)
 
     // Atualiza agendamento
+    const updatePayload: Record<string, unknown> = {
+      status: 'completed',
+      photo_url: photoUrl,
+      signature_url: signatureUrl,
+    }
+    if (kmFinal !== null) updatePayload.km_final = kmFinal
+
     const { error } = await supabase
       .from('agendamentos')
-      .update({ status: 'completed', photo_url: photoUrl, signature_url: signatureUrl })
+      .update(updatePayload)
       .eq('id', agendamento_id)
       .eq('autoescola_id', autoescola_id)
 
@@ -75,8 +99,8 @@ export async function POST(req: NextRequest) {
     await supabase.from('activity_logs_painel').insert({
       username: instructor_name,
       action_type: 'agendamento',
-      description: `Instrutor ${instructor_name} finalizou a aula com evidências (foto + assinatura) — agendamento ${agendamento_id}`,
-      metadata: { agendamento_id: agendamento_id },
+      description: `Instrutor ${instructor_name} finalizou a aula com evidências (foto + assinatura)${kmFinal !== null ? `, KM final: ${kmFinal}` : ''} — agendamento ${agendamento_id}`,
+      metadata: { agendamento_id, ...(kmFinal !== null ? { km_final: kmFinal } : {}) },
       autoescola_id,
     })
 

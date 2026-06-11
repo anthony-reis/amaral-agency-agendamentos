@@ -24,6 +24,7 @@ import {
   Megaphone,
   UploadCloud,
   Settings,
+  FileSpreadsheet,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -50,6 +51,7 @@ function buildNavItems(escola: string): NavItem[] {
     { label: "Horários", href: `${base}/horarios`, icon: Clock },
     { label: "Bloqueios", href: `${base}/bloqueios`, icon: Ban },
     { label: "Histórico", href: `${base}/historico`, icon: History },
+    { label: "Fechamento", href: `${base}/fechamento`, icon: FileSpreadsheet },
     { label: "Conflitos", href: `${base}/conflitos`, icon: AlertTriangle },
     { label: "Importação", href: `${base}/importacao`, icon: UploadCloud },
     { label: "Auditoria", href: `${base}/auditoria`, icon: Activity },

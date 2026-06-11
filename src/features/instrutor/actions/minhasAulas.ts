@@ -21,6 +21,9 @@ export interface AulaInstrutor {
   creditos_disponiveis: number | null
   creditos_total: number | null
   phone: string | null
+  km_inicial: number | null
+  km_final: number | null
+  km_rodado: number | null
 }
 
 export interface DiaSemana {
@@ -41,7 +44,7 @@ export async function getMinhasAulasHoje(
 
   const { data: agendamentos } = await supabase
     .from('agendamentos')
-    .select('id, date, time_slot, student_name, student_document, cpf_cnh, instructorCategory, status, notes, autoescola_id')
+    .select('id, date, time_slot, student_name, student_document, cpf_cnh, instructorCategory, status, notes, autoescola_id, km_inicial, km_final, km_rodado')
     .eq('autoescola_id', autoescola_id)
     .eq('instructor_name', instructor_name)
     .eq('date', targetDate)
@@ -134,6 +137,9 @@ export async function getMinhasAulasHoje(
       creditos_disponiveis: cred != null ? cred.disponiveis : null,
       creditos_total: cred ? cred.total : null,
       phone: student?.phone ?? null,
+      km_inicial: a.km_inicial ?? null,
+      km_final: a.km_final ?? null,
+      km_rodado: a.km_rodado ?? null,
     }
   })
 }
@@ -177,7 +183,7 @@ export async function getMapaSemanal(
   for (const row of data ?? []) {
     const entry = countMap.get(row.date) ?? { total: 0, pendentes: 0 }
     entry.total++
-    if (row.status === 'scheduled') entry.pendentes++
+    if (row.status === 'scheduled' || row.status === 'in_progress') entry.pendentes++
     countMap.set(row.date, entry)
   }
 
@@ -254,6 +260,50 @@ export async function finalizarAula(
     username: instructor_name,
     action_type: 'agendamento',
     description: `Instrutor ${instructor_name} finalizou a aula com evidências (foto + assinatura) — agendamento ${agendamento_id}`,
+    autoescola_id,
+  })
+
+  revalidatePath('/', 'layout')
+  return { success: true, data: undefined }
+}
+
+export async function iniciarAula(
+  agendamento_id: string,
+  km_inicial: number,
+  instructor_name: string,
+  autoescola_id: string
+): Promise<ActionResult> {
+  if (!Number.isInteger(km_inicial) || km_inicial < 0) {
+    return { success: false, error: 'KM inicial inválido.' }
+  }
+
+  const supabase = createServiceClient()
+
+  const { data: ag, error: fetchError } = await supabase
+    .from('agendamentos')
+    .select('id, status')
+    .eq('id', agendamento_id)
+    .eq('autoescola_id', autoescola_id)
+    .single()
+
+  if (fetchError || !ag) return { success: false, error: 'Agendamento não encontrado.' }
+  if (!['scheduled', 'confirmed'].includes(ag.status)) {
+    return { success: false, error: 'Aula não pode ser iniciada neste status.' }
+  }
+
+  const { error } = await supabase
+    .from('agendamentos')
+    .update({ status: 'in_progress', km_inicial, iniciado_at: new Date().toISOString() })
+    .eq('id', agendamento_id)
+    .eq('autoescola_id', autoescola_id)
+
+  if (error) return { success: false, error: error.message }
+
+  await supabase.from('activity_logs_painel').insert({
+    username: instructor_name,
+    action_type: 'agendamento',
+    description: `Instrutor ${instructor_name} iniciou a aula com KM ${km_inicial} (agendamento ${agendamento_id})`,
+    metadata: { agendamento_id, km_inicial },
     autoescola_id,
   })
 

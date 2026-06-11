@@ -83,8 +83,8 @@ export function InstructorPainel({
   const faltas = aulas.filter((a) => a.status === 'absent').length
   const total = aulas.length
 
-  function handleUpdate(id: string, status: string) {
-    setAulas((prev) => prev.map((a) => (a.id === id ? { ...a, status } : a)))
+  function handleUpdate(id: string, status: string, extra?: Partial<AulaInstrutor>) {
+    setAulas((prev) => prev.map((a) => (a.id === id ? { ...a, status, ...extra } : a)))
   }
 
   const selectedDateObj = new Date(selectedDate + 'T12:00:00')

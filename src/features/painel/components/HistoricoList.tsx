@@ -138,27 +138,31 @@ export function HistoricoList({
   }, [filters.search]);
 
   function handleExportCSV() {
-    const header = "Data,Horário,Instrutor,Aluno,Documento,Status,Categoria";
+    const header = '"Data","Horário","Instrutor","Aluno","Documento","Status","Categoria","KM Inicial","KM Final","KM Rodado"'
+    const escape = (v: string | null | undefined) => `"${String(v ?? '').replace(/"/g, '""')}"`
     const rows = items.map((item) => {
-      const a = item.agendamento;
+      const a = item.agendamento
       return [
-        a.date,
-        a.time_slot,
-        a.instructor_name,
-        a.student_name,
-        a.cpf_cnh ?? a.student_document ?? "",
-        a.status,
-        a.instructorCategory ?? "",
-      ].join(",");
-    });
-    const csv = [header, ...rows].join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `historico-${filters.dateStart}-${filters.dateEnd}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+        escape(a.date),
+        escape(a.time_slot),
+        escape(a.instructor_name),
+        escape(a.student_name),
+        escape(a.cpf_cnh ?? a.student_document ?? ''),
+        escape(a.status),
+        escape(a.instructorCategory ?? ''),
+        escape(a.km_inicial != null ? String(a.km_inicial) : ''),
+        escape(a.km_final != null ? String(a.km_final) : ''),
+        escape(a.km_rodado != null ? String(a.km_rodado) : ''),
+      ].join(',')
+    })
+    const csv = [header, ...rows].join('\n')
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `historico-${filters.dateStart}-${filters.dateEnd}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
   }
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);

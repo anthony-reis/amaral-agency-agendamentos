@@ -29,7 +29,7 @@ export interface HorarioDisponivel {
 
 // ─── Agendamento ──────────────────────────────────────────────────────────────
 
-export type AgendamentoStatus = 'scheduled' | 'confirmed' | 'completed' | 'absent' | 'cancelled'
+export type AgendamentoStatus = 'scheduled' | 'confirmed' | 'in_progress' | 'completed' | 'absent' | 'cancelled'
 
 export interface Agendamento {
   id: string
@@ -48,6 +48,18 @@ export interface Agendamento {
   autoescola_id: string
   photo_url: string | null
   signature_url: string | null
+  km_inicial: number | null
+  km_final: number | null
+  km_rodado: number | null
+  iniciado_at: string | null
+}
+
+export interface InstrutorKmStats {
+  instructor_name: string
+  categoria: string | null
+  km_total: number
+  km_medio: number
+  total_aulas: number
 }
 
 export interface AgendamentoStats {

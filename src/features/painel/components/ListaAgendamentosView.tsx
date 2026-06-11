@@ -28,6 +28,7 @@ interface Props {
 const statusLabels: Record<AgendamentoStatus, { text: string; bg: string; color: string }> = {
   scheduled: { text: 'Agendado', bg: 'bg-[#0ea5e9]/10', color: 'text-[#0ea5e9]' },
   confirmed: { text: 'Confirmado', bg: 'bg-emerald-500/10', color: 'text-emerald-500' },
+  in_progress: { text: 'Em Andamento', bg: 'bg-violet-500/10', color: 'text-violet-500' },
   completed: { text: 'Concluído', bg: 'bg-purple-500/10', color: 'text-purple-500' },
   absent: { text: 'Falta', bg: 'bg-red-500/10', color: 'text-red-500' },
   cancelled: { text: 'Cancelado', bg: 'bg-gray-500/10', color: 'text-gray-500' },

@@ -305,6 +305,69 @@ export async function getDesempenhoInstrutores(
     .sort((a, b) => b.concluidas - a.concluidas)
 }
 
+export interface KmStats {
+  km_total: number
+  km_medio: number
+  total_aulas_com_km: number
+  inconsistencias: number
+  por_instrutor: InstrutorKmStats[]
+}
+
+import type { InstrutorKmStats } from '../types'
+
+export async function getKmStats(
+  autoescola_id: string,
+  date_start: string,
+  date_end: string
+): Promise<KmStats> {
+  const supabase = createServiceClient()
+
+  const { data } = await supabase
+    .from('agendamentos')
+    .select('instructor_name, instructorCategory, km_inicial, km_final, km_rodado')
+    .eq('autoescola_id', autoescola_id)
+    .eq('status', 'completed')
+    .gte('date', date_start)
+    .lte('date', date_end)
+    .not('instructor_name', 'is', null)
+
+  const rows = data ?? []
+
+  const aulasComKm = rows.filter((r) => r.km_rodado != null)
+  const km_total = aulasComKm.reduce((acc, r) => acc + (r.km_rodado ?? 0), 0)
+  const km_medio = aulasComKm.length > 0 ? Math.round(km_total / aulasComKm.length) : 0
+  const inconsistencias = rows.filter(
+    (r) => (r.km_final != null && r.km_inicial != null && r.km_final < r.km_inicial) || r.km_inicial == null
+  ).length
+
+  const { data: insts } = await supabase
+    .from('instructors')
+    .select('name, category')
+    .eq('autoescola_id', autoescola_id)
+  const catMap = new Map((insts ?? []).map((i) => [i.name, i.category]))
+
+  const instMap = new Map<string, { km_total: number; count: number; categoria: string | null }>()
+  for (const r of aulasComKm) {
+    const key = r.instructor_name!
+    if (!instMap.has(key)) instMap.set(key, { km_total: 0, count: 0, categoria: catMap.get(key) ?? r.instructorCategory })
+    const e = instMap.get(key)!
+    e.km_total += r.km_rodado ?? 0
+    e.count++
+  }
+
+  const por_instrutor: InstrutorKmStats[] = Array.from(instMap.entries())
+    .map(([name, v]) => ({
+      instructor_name: name,
+      categoria: v.categoria ?? null,
+      km_total: v.km_total,
+      km_medio: v.count > 0 ? Math.round(v.km_total / v.count) : 0,
+      total_aulas: v.count,
+    }))
+    .sort((a, b) => b.km_total - a.km_total)
+
+  return { km_total, km_medio, total_aulas_com_km: aulasComKm.length, inconsistencias, por_instrutor }
+}
+
 export async function cancelarAgendamentoComOpcoes(
   id: string,
   autoescola_id: string,

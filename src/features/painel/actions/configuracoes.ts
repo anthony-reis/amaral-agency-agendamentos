@@ -8,6 +8,7 @@ export interface InstructorConfig {
   pode_desmarcar: boolean
   pode_finalizar: boolean
   mostrar_telefone: boolean
+  registrar_km: boolean
 }
 
 const DEFAULT_CONFIG: InstructorConfig = {
@@ -15,6 +16,7 @@ const DEFAULT_CONFIG: InstructorConfig = {
   pode_desmarcar: true,
   pode_finalizar: true,
   mostrar_telefone: true,
+  registrar_km: false,
 }
 
 const DEFAULT_REAGENDAMENTO_MIN_HORAS = 2

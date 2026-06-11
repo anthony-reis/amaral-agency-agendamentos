@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { getAgendamentosStats, getDesempenhoInstrutores, getKmStats } from '@/features/painel/actions/agendamentos'
+import { getFechamentoMensal } from '@/features/painel/actions/fechamento'
 import type { PainelSession } from '@/features/painel/types'
 
 export async function GET(
@@ -24,16 +24,13 @@ export async function GET(
   }
 
   const sp = request.nextUrl.searchParams
-  const dateStart = sp.get('dateStart') ?? new Date(Date.now() - 28 * 86400000).toISOString().split('T')[0]
-  const dateEnd = sp.get('dateEnd') ?? new Date().toISOString().split('T')[0]
-  const instructor = sp.get('instructor') ?? 'TODOS'
-  const category = sp.get('category') ?? 'TODAS'
+  const mes = parseInt(sp.get('mes') ?? String(new Date().getMonth() + 1), 10)
+  const ano = parseInt(sp.get('ano') ?? String(new Date().getFullYear()), 10)
 
-  const [stats, desempenho, kmStats] = await Promise.all([
-    getAgendamentosStats(session.autoescola_id, dateStart, dateEnd),
-    getDesempenhoInstrutores(session.autoescola_id, dateStart, dateEnd, instructor, category),
-    getKmStats(session.autoescola_id, dateStart, dateEnd),
-  ])
+  if (isNaN(mes) || mes < 1 || mes > 12 || isNaN(ano)) {
+    return NextResponse.json({ error: 'Parâmetros inválidos' }, { status: 400 })
+  }
 
-  return NextResponse.json({ stats, desempenho, kmStats })
+  const data = await getFechamentoMensal(session.autoescola_id, mes, ano)
+  return NextResponse.json(data)
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Settings, Phone, XCircle, RotateCcw, CheckCircle2, Clock } from 'lucide-react'
+import { Settings, Phone, XCircle, RotateCcw, CheckCircle2, Clock, Gauge } from 'lucide-react'
 import { salvarInstructorConfig, salvarReagendamentoMinHoras } from '@/features/painel/actions/configuracoes'
 import type { InstructorConfig } from '@/features/painel/actions/configuracoes'
 
@@ -36,6 +36,12 @@ const OPCOES: { key: keyof InstructorConfig; label: string; descricao: string; i
     label: 'Mostrar Telefone do Aluno',
     descricao: 'Exibe o número e link de WhatsApp do aluno na aula',
     icon: <Phone className="w-4 h-4 text-blue-400" />,
+  },
+  {
+    key: 'registrar_km',
+    label: 'Registrar KM por Aula',
+    descricao: 'Habilita botão "Iniciar Aula" para registrar KM inicial e final',
+    icon: <Gauge className="w-4 h-4 text-violet-400" />,
   },
 ]
 
@@ -207,6 +213,10 @@ export function ConfiguracoesInstrutor({ autoescola_id, escola, initialConfig, i
           <div className="flex items-center gap-2 text-xs text-[--p-text-2]">
             <span className={`w-2 h-2 rounded-full ${config.pode_desmarcar ? 'bg-emerald-400' : 'bg-[--p-border]'}`} />
             Botão &quot;Desmarcar&quot;: {config.pode_desmarcar ? 'visível' : 'oculto'}
+          </div>
+          <div className="flex items-center gap-2 text-xs text-[--p-text-2]">
+            <span className={`w-2 h-2 rounded-full ${config.registrar_km ? 'bg-violet-400' : 'bg-[--p-border]'}`} />
+            Registro de KM: {config.registrar_km ? 'ativo (botão "Iniciar Aula" visível)' : 'desativado'}
           </div>
           <div className="flex items-center gap-2 text-xs text-[--p-text-2]">
             <span className="w-2 h-2 rounded-full bg-amber-400" />
