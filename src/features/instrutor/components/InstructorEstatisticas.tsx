@@ -26,6 +26,10 @@ interface Props {
   rangeInicial: EstatisticasFiltro
 }
 
+// Altura (px) da área de barras do gráfico. Usamos px em vez de % porque altura
+// percentual dentro de flexbox não resolve e as barras saem com 0px.
+const BAR_AREA_PX = 150
+
 function fmt(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
@@ -119,7 +123,11 @@ export function InstructorEstatisticas({
     }
   }
 
-  const maxMes = Math.max(1, ...stats.porMes.map((m) => m.total))
+  const maxSerie = Math.max(
+    1,
+    ...stats.serie.flatMap((m) => [m.concluidas, m.desmarcadas, m.faltas])
+  )
+  const tituloSerie = stats.granularidade === 'semana' ? 'Aulas por semana' : 'Aulas por mês'
 
   return (
     <div className="space-y-6">
@@ -266,47 +274,55 @@ export function InstructorEstatisticas({
         </motion.div>
       )}
 
-      {/* Agendamentos por mês */}
+      {/* Aulas por período — barras agrupadas (concluídas / desmarcadas / faltas) */}
       <div className="bg-[--p-bg-card] border border-[--p-border] rounded-2xl p-5">
         <div className="flex items-center gap-2 text-sm font-semibold text-[--p-text-1] mb-4">
           <BarChart3 className="w-4 h-4 text-[--p-accent]" />
-          Agendamentos por mês
+          {tituloSerie}
         </div>
-        {stats.porMes.length === 0 ? (
+        {stats.total === 0 ? (
           <p className="text-sm text-[--p-text-3] py-6 text-center">Nenhum agendamento neste período.</p>
         ) : (
-          <div className="flex items-end gap-3 h-48 overflow-x-auto pb-2">
-            {stats.porMes.map((m) => {
-              const totalH = Math.round((m.total / maxMes) * 100)
-              const concH = m.total > 0 ? Math.round((m.concluidas / m.total) * totalH) : 0
+          <div className="flex items-end gap-2 pb-2 overflow-x-auto" style={{ height: BAR_AREA_PX + 48 }}>
+            {stats.serie.map((m, idx) => {
+              const series = [
+                { key: 'c', value: m.concluidas, cls: 'bg-emerald-500', label: 'concluídas' },
+                { key: 'd', value: m.desmarcadas, cls: 'bg-rose-500', label: 'desmarcadas' },
+                { key: 'f', value: m.faltas, cls: 'bg-amber-500', label: 'faltas' },
+              ]
               return (
-                <div key={m.mes} className="flex flex-col items-center gap-2 min-w-[44px] flex-1">
-                  <span className="text-[11px] font-medium text-[--p-text-2]">{m.total}</span>
-                  <div className="w-full flex-1 flex items-end">
-                    <div
-                      className="w-full rounded-t-md bg-[--p-accent]/20 relative overflow-hidden"
-                      style={{ height: `${Math.max(totalH, 4)}%` }}
-                      title={`${m.total} agendamentos · ${m.concluidas} concluídas`}
-                    >
-                      <div
-                        className="absolute bottom-0 left-0 right-0 bg-[--p-accent] rounded-t-md"
-                        style={{ height: `${concH > 0 ? (concH / Math.max(totalH, 1)) * 100 : 0}%` }}
-                      />
-                    </div>
+                <div key={idx} className="flex flex-1 min-w-[68px] flex-col items-center justify-end gap-2">
+                  <div className="flex items-end justify-center gap-1.5 w-full" style={{ height: BAR_AREA_PX }}>
+                    {series.map((s) => {
+                      const h = s.value > 0 ? Math.max(Math.round((s.value / maxSerie) * BAR_AREA_PX), 4) : 0
+                      return (
+                        <div key={s.key} className="flex flex-col items-center justify-end gap-1" style={{ height: BAR_AREA_PX }}>
+                          {s.value > 0 && <span className="text-[10px] font-semibold text-[--p-text-2]">{s.value}</span>}
+                          <div
+                            className={`w-4 sm:w-6 rounded-t-md ${s.cls}`}
+                            style={{ height: h }}
+                            title={`${m.label}: ${s.value} ${s.label}`}
+                          />
+                        </div>
+                      )
+                    })}
                   </div>
-                  <span className="text-[11px] text-[--p-text-3] capitalize">{m.label}</span>
+                  <span className="text-[11px] text-[--p-text-3] capitalize truncate max-w-full">{m.label}</span>
                 </div>
               )
             })}
           </div>
         )}
-        {stats.porMes.length > 0 && (
+        {stats.total > 0 && (
           <div className="flex items-center gap-4 mt-3 text-xs text-[--p-text-3]">
             <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded bg-[--p-accent]" /> Concluídas
+              <span className="w-3 h-3 rounded bg-emerald-500" /> Concluídas
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded bg-[--p-accent]/20" /> Total
+              <span className="w-3 h-3 rounded bg-rose-500" /> Desmarcadas
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded bg-amber-500" /> Faltas
             </span>
           </div>
         )}

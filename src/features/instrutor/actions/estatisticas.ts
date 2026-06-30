@@ -2,11 +2,11 @@
 
 import { createServiceClient } from '@/lib/supabase/server'
 
-export interface EstatisticaMes {
-  mes: string // 'YYYY-MM'
-  label: string // 'jun/26'
-  total: number
+export interface EstatisticaBarra {
+  label: string // 'Sem 1' ou 'jun/26'
   concluidas: number
+  desmarcadas: number
+  faltas: number
 }
 
 export interface EstatisticasInstrutor {
@@ -17,7 +17,8 @@ export interface EstatisticasInstrutor {
   em_andamento: number
   total: number
   taxaConclusao: number // 0–100
-  porMes: EstatisticaMes[]
+  serie: EstatisticaBarra[]
+  granularidade: 'semana' | 'mes'
   // KM (alinhado com getKmStats)
   kmTotal: number
   kmMedia: number
@@ -73,19 +74,47 @@ export async function getEstatisticasInstrutor(
   const baseTaxa = concluidas + faltas + desmarcadas
   const taxaConclusao = baseTaxa > 0 ? Math.round((concluidas / baseTaxa) * 100) : 0
 
-  // Agendamentos por mês (cronológico)
-  const mesMap = new Map<string, { total: number; concluidas: number }>()
-  for (const r of rows) {
-    const mes = (r.date ?? '').slice(0, 7) // 'YYYY-MM'
-    if (!mes) continue
-    if (!mesMap.has(mes)) mesMap.set(mes, { total: 0, concluidas: 0 })
-    const e = mesMap.get(mes)!
-    e.total++
-    if (r.status === 'completed') e.concluidas++
+  // Granularidade do gráfico: períodos curtos (≤ ~45 dias, como "este mês"/"mês
+  // passado") são quebrados em semanas; períodos longos, em meses.
+  const spanDias =
+    Math.round(
+      (new Date(filtro.date_end + 'T12:00:00').getTime() - new Date(filtro.date_start + 'T12:00:00').getTime()) / 86400000
+    ) + 1
+  const granularidade: 'semana' | 'mes' = spanDias <= 45 ? 'semana' : 'mes'
+
+  function acumular(map: Map<string, { concluidas: number; desmarcadas: number; faltas: number }>, key: string, status: string) {
+    if (!map.has(key)) map.set(key, { concluidas: 0, desmarcadas: 0, faltas: 0 })
+    const e = map.get(key)!
+    if (status === 'completed') e.concluidas++
+    else if (status === 'cancelled') e.desmarcadas++
+    else if (status === 'absent') e.faltas++
   }
-  const porMes: EstatisticaMes[] = Array.from(mesMap.entries())
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([mes, v]) => ({ mes, label: labelMes(mes), total: v.total, concluidas: v.concluidas }))
+
+  let serie: EstatisticaBarra[]
+  if (granularidade === 'semana') {
+    // 4 semanas por dia-do-mês: 1–7, 8–14, 15–21, 22–fim
+    const semMap = new Map<string, { concluidas: number; desmarcadas: number; faltas: number }>()
+    for (const r of rows) {
+      const dia = parseInt((r.date ?? '').slice(8, 10), 10)
+      if (!dia) continue
+      const wk = Math.min(Math.floor((dia - 1) / 7), 3)
+      acumular(semMap, String(wk), r.status)
+    }
+    serie = [0, 1, 2, 3].map((i) => {
+      const v = semMap.get(String(i)) ?? { concluidas: 0, desmarcadas: 0, faltas: 0 }
+      return { label: `Sem ${i + 1}`, ...v }
+    })
+  } else {
+    const mesMap = new Map<string, { concluidas: number; desmarcadas: number; faltas: number }>()
+    for (const r of rows) {
+      const mes = (r.date ?? '').slice(0, 7) // 'YYYY-MM'
+      if (!mes) continue
+      acumular(mesMap, mes, r.status)
+    }
+    serie = Array.from(mesMap.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([mes, v]) => ({ label: labelMes(mes), ...v }))
+  }
 
   // KM — distância por aula = km_final - km_inicial (nunca o valor total do
   // hodômetro). Só conta aulas concluídas com leitura inicial e final válidas e
@@ -115,7 +144,8 @@ export async function getEstatisticasInstrutor(
     em_andamento,
     total,
     taxaConclusao,
-    porMes,
+    serie,
+    granularidade,
     kmTotal,
     kmMedia,
     aulasComKm: aulasComKmRows.length,
