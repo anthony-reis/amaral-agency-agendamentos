@@ -7,6 +7,10 @@ import type { Agendamento, AgendamentoStats, InstrutorDesempenho, AgendamentoSta
 
 const AG_ID_REGEX = /agendamento ([a-f0-9-]{36})/
 
+// Distância máxima plausível para uma aula prática (km). Acima disso é erro de
+// digitação no hodômetro (ex.: km_final com um dígito a mais) e é descartado da média.
+const KM_MAX_AULA = 200
+
 export interface AgendamentosFilter {
   autoescola_id: string
   date_start?: string
@@ -305,15 +309,36 @@ export async function getDesempenhoInstrutores(
     .sort((a, b) => b.concluidas - a.concluidas)
 }
 
+export type MotivoInconsistenciaKm = 'sem_km_final' | 'final_menor_igual_inicial' | 'distancia_absurda'
+
+export interface InconsistenciaKm {
+  id: string
+  date: string
+  time_slot: string
+  instructor_name: string | null
+  student_name: string | null
+  km_inicial: number | null
+  km_final: number | null
+  motivo: MotivoInconsistenciaKm
+}
+
 export interface KmStats {
   km_total: number
   km_medio: number
   total_aulas_com_km: number
   inconsistencias: number
+  inconsistencias_detalhes: InconsistenciaKm[]
   por_instrutor: InstrutorKmStats[]
 }
 
 import type { InstrutorKmStats } from '../types'
+
+function motivoInconsistencia(km_inicial: number, km_final: number | null): MotivoInconsistenciaKm | null {
+  if (km_final == null) return 'sem_km_final'
+  if (km_final - km_inicial <= 0) return 'final_menor_igual_inicial'
+  if (km_final - km_inicial > KM_MAX_AULA) return 'distancia_absurda'
+  return null
+}
 
 export async function getKmStats(
   autoescola_id: string,
@@ -324,7 +349,7 @@ export async function getKmStats(
 
   const { data } = await supabase
     .from('agendamentos')
-    .select('instructor_name, instructorCategory, km_inicial, km_final, km_rodado')
+    .select('id, date, time_slot, instructor_name, student_name, instructorCategory, km_inicial, km_final, km_rodado')
     .eq('autoescola_id', autoescola_id)
     .eq('status', 'completed')
     .gte('date', date_start)
@@ -333,12 +358,33 @@ export async function getKmStats(
 
   const rows = data ?? []
 
-  const aulasComKm = rows.filter((r) => r.km_rodado != null)
-  const km_total = aulasComKm.reduce((acc, r) => acc + (r.km_rodado ?? 0), 0)
+  // Distância por aula = km_final - km_inicial (nunca o valor total do hodômetro).
+  // Só conta aulas com leitura inicial e final e diferença dentro de faixa plausível;
+  // outliers de digitação (ex.: km_final com dígito a mais) são descartados da média.
+  const aulasComKm = rows.filter(
+    (r) =>
+      r.km_inicial != null &&
+      r.km_final != null &&
+      r.km_final - r.km_inicial > 0 &&
+      r.km_final - r.km_inicial <= KM_MAX_AULA
+  )
+  const km_total = aulasComKm.reduce((acc, r) => acc + (r.km_final! - r.km_inicial!), 0)
   const km_medio = aulasComKm.length > 0 ? Math.round(km_total / aulasComKm.length) : 0
-  const inconsistencias = rows.filter(
-    (r) => (r.km_final != null && r.km_inicial != null && r.km_final < r.km_inicial) || r.km_inicial == null
-  ).length
+  // Aulas iniciadas (têm km_inicial) cuja quilometragem ficou inválida/absurda.
+  const inconsistencias_detalhes: InconsistenciaKm[] = rows
+    .filter((r) => r.km_inicial != null && motivoInconsistencia(r.km_inicial, r.km_final) !== null)
+    .map((r) => ({
+      id: r.id,
+      date: r.date,
+      time_slot: r.time_slot,
+      instructor_name: r.instructor_name,
+      student_name: r.student_name,
+      km_inicial: r.km_inicial,
+      km_final: r.km_final,
+      motivo: motivoInconsistencia(r.km_inicial!, r.km_final)!,
+    }))
+    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.time_slot.localeCompare(b.time_slot)))
+  const inconsistencias = inconsistencias_detalhes.length
 
   const { data: insts } = await supabase
     .from('instructors')
@@ -351,7 +397,7 @@ export async function getKmStats(
     const key = r.instructor_name!
     if (!instMap.has(key)) instMap.set(key, { km_total: 0, count: 0, categoria: catMap.get(key) ?? r.instructorCategory })
     const e = instMap.get(key)!
-    e.km_total += r.km_rodado ?? 0
+    e.km_total += r.km_final! - r.km_inicial!
     e.count++
   }
 
@@ -365,7 +411,62 @@ export async function getKmStats(
     }))
     .sort((a, b) => b.km_total - a.km_total)
 
-  return { km_total, km_medio, total_aulas_com_km: aulasComKm.length, inconsistencias, por_instrutor }
+  return { km_total, km_medio, total_aulas_com_km: aulasComKm.length, inconsistencias, inconsistencias_detalhes, por_instrutor }
+}
+
+/**
+ * Corrige (ou limpa) a quilometragem de um agendamento concluído.
+ * - Passar `km_inicial`/`km_final` numéricos atualiza os valores.
+ * - Passar `null` em ambos limpa o registro de KM (deixa de contar como inconsistência).
+ */
+export async function corrigirKmAgendamento(
+  id: string,
+  autoescola_id: string,
+  km_inicial: number | null,
+  km_final: number | null
+): Promise<ActionResult> {
+  const supabase = createServiceClient()
+
+  // Limpar registro de KM
+  if (km_inicial == null && km_final == null) {
+    const { error } = await supabase
+      .from('agendamentos')
+      .update({ km_inicial: null, km_final: null, km_rodado: null })
+      .eq('id', id)
+      .eq('autoescola_id', autoescola_id)
+    if (error) return { success: false, error: error.message }
+  } else {
+    if (km_inicial == null || km_final == null) {
+      return { success: false, error: 'Informe o KM inicial e o KM final, ou limpe o registro.' }
+    }
+    if (!Number.isInteger(km_inicial) || !Number.isInteger(km_final) || km_inicial < 0 || km_final < 0) {
+      return { success: false, error: 'Valores de KM inválidos.' }
+    }
+    if (km_final < km_inicial) {
+      return { success: false, error: 'O KM final não pode ser menor que o KM inicial.' }
+    }
+    const { error } = await supabase
+      .from('agendamentos')
+      .update({ km_inicial, km_final, km_rodado: km_final - km_inicial })
+      .eq('id', id)
+      .eq('autoescola_id', autoescola_id)
+    if (error) return { success: false, error: error.message }
+  }
+
+  const username = await getCurrentUsername()
+  await supabase.from('activity_logs_painel').insert({
+    username,
+    action_type: 'agendamento',
+    description:
+      km_inicial == null && km_final == null
+        ? `Registro de KM removido do agendamento ${id}`
+        : `KM corrigido no agendamento ${id}: inicial ${km_inicial}, final ${km_final}`,
+    metadata: { agendamento_id: id, km_inicial, km_final },
+    autoescola_id,
+  })
+
+  revalidatePath('/', 'layout')
+  return { success: true, data: undefined }
 }
 
 export async function cancelarAgendamentoComOpcoes(

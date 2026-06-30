@@ -25,19 +25,27 @@ export async function POST(req: NextRequest) {
 
     const supabase = createServiceClient()
 
-    // Se km_final fornecido, valida consistência com km_inicial
-    if (kmFinal !== null) {
+    // Se a aula foi iniciada com KM inicial, o KM final é OBRIGATÓRIO para
+    // finalizar — não pode existir aula concluída sem o KM final correspondente.
+    const { data: ag } = await supabase
+      .from('agendamentos')
+      .select('km_inicial')
+      .eq('id', agendamento_id)
+      .eq('autoescola_id', autoescola_id)
+      .single()
+
+    if (ag?.km_inicial != null) {
+      if (kmFinal === null) {
+        return NextResponse.json({ error: 'Informe o KM final para finalizar a aula.' }, { status: 400 })
+      }
       if (isNaN(kmFinal) || kmFinal < 0) {
         return NextResponse.json({ error: 'KM final inválido.' }, { status: 400 })
       }
-      const { data: ag } = await supabase
-        .from('agendamentos')
-        .select('km_inicial')
-        .eq('id', agendamento_id)
-        .single()
-      if (ag?.km_inicial != null && kmFinal < ag.km_inicial) {
+      if (kmFinal < ag.km_inicial) {
         return NextResponse.json({ error: `KM final (${kmFinal}) não pode ser menor que o KM inicial (${ag.km_inicial}).` }, { status: 400 })
       }
+    } else if (kmFinal !== null && (isNaN(kmFinal) || kmFinal < 0)) {
+      return NextResponse.json({ error: 'KM final inválido.' }, { status: 400 })
     }
 
     // Upload da foto

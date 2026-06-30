@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { BarChart2, Trophy, TrendingUp, Calendar, Filter, Gauge, AlertTriangle, Route } from "lucide-react";
 import type { AgendamentoStats, InstrutorDesempenho } from "../types";
 import type { KmStats } from "../actions/agendamentos";
+import { InconsistenciasKmModal } from "./InconsistenciasKmModal";
 
 interface Props {
   stats: AgendamentoStats;
@@ -13,6 +14,7 @@ interface Props {
   dateStart: string;
   dateEnd: string;
   escola: string;
+  autoescola_id: string;
   kmStats?: KmStats;
   registrarKm?: boolean;
 }
@@ -26,6 +28,7 @@ export function DashboardStats({
   dateStart: initStart,
   dateEnd: initEnd,
   escola,
+  autoescola_id,
   kmStats: initKmStats,
   registrarKm = false,
 }: Props) {
@@ -35,6 +38,7 @@ export function DashboardStats({
   const [category, setCategory] = useState("TODAS");
   const [data, setData] = useState({ stats, desempenho, kmStats: initKmStats });
   const [isPending, startTransition] = useTransition();
+  const [inconsistenciasOpen, setInconsistenciasOpen] = useState(false);
 
   async function applyFilter() {
     startTransition(async () => {
@@ -194,13 +198,21 @@ export function DashboardStats({
               color="bg-violet-400"
               icon={<TrendingUp className="w-8 h-8 text-white/80" />}
             />
-            <div className={`${km.inconsistencias > 0 ? 'bg-red-600' : 'bg-slate-600'} rounded-2xl p-5 flex items-center justify-between`}>
+            <button
+              type="button"
+              onClick={() => setInconsistenciasOpen(true)}
+              disabled={km.inconsistencias === 0}
+              className={`${km.inconsistencias > 0 ? 'bg-red-600 hover:bg-red-500 cursor-pointer' : 'bg-slate-600 cursor-default'} rounded-2xl p-5 flex items-center justify-between text-left transition-colors`}
+            >
               <div>
                 <p className="text-xs text-white/70 font-medium mb-1">Inconsistências</p>
                 <p className="text-3xl font-bold text-white/80">{km.inconsistencias}</p>
+                {km.inconsistencias > 0 && (
+                  <p className="text-[11px] text-white/70 mt-1 underline">ver e resolver</p>
+                )}
               </div>
               <AlertTriangle className="w-8 h-8 text-white/80" />
-            </div>
+            </button>
           </div>
 
           {/* Tabela KM por instrutor */}
@@ -348,6 +360,15 @@ export function DashboardStats({
           Exibindo dados de {initStart} até {initEnd}
         </div>
       </div>
+
+      {/* Modal de inconsistências de KM */}
+      <InconsistenciasKmModal
+        open={inconsistenciasOpen}
+        onClose={() => setInconsistenciasOpen(false)}
+        inconsistencias={km?.inconsistencias_detalhes ?? []}
+        autoescola_id={autoescola_id}
+        onResolved={applyFilter}
+      />
     </div>
   );
 }

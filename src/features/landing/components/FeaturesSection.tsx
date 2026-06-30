@@ -11,6 +11,8 @@ import {
   MessageSquare,
   RefreshCw,
   GraduationCap,
+  BarChart3,
+  Gauge,
 } from 'lucide-react'
 import { features } from '../data/features'
 
@@ -23,6 +25,8 @@ const iconMap: Record<string, React.ElementType> = {
   MessageSquare,
   RefreshCw,
   GraduationCap,
+  BarChart3,
+  Gauge,
 }
 
 export function FeaturesSection() {

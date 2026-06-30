@@ -18,6 +18,18 @@ export const features: Feature[] = [
       'Tenha o controle total de instrutores, veículos e alunos em um painel moderno e intuitivo, acessível de qualquer lugar.',
   },
   {
+    icon: 'BarChart3',
+    title: 'Análises e Métricas em Tempo Real',
+    description:
+      'Dashboards completos com aulas concluídas, faltas, desmarcações e desempenho por instrutor. Cada instrutor ainda acompanha suas próprias estatísticas pessoais.',
+  },
+  {
+    icon: 'Gauge',
+    title: 'Controle de KM por Aula',
+    description:
+      'Registre o KM inicial e final de cada aula prática. Acompanhe a quilometragem por aula, instrutor e período — com validação que bloqueia finalizações sem KM e aponta inconsistências.',
+  },
+  {
     icon: 'UserCheck',
     title: 'Controle de Créditos Preciso',
     description:

@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { LayoutDashboard, LogOut, GraduationCap, Menu, X, ChevronRight, Car, Bike } from 'lucide-react'
+import { LayoutDashboard, LogOut, GraduationCap, Menu, X, ChevronRight, Car, Bike, BarChart3 } from 'lucide-react'
 import { ThemeToggle } from '@/components/ThemeToggle'
 
 interface Props {
@@ -20,6 +20,10 @@ export function InstructorSidebar({ escola, name, category, logoUrl, onLogout }:
   const [mobileOpen, setMobileOpen] = useState(false)
 
   const painelLink = `/${escola}/instrutor`
+  const estatisticasLink = `/${escola}/instrutor/estatisticas`
+
+  const painelActive = pathname === painelLink
+  const estatisticasActive = pathname === estatisticasLink || pathname.startsWith(estatisticasLink + '/')
 
   const CategoryIcon = category === 'MOTO' ? Bike : Car
 
@@ -49,16 +53,27 @@ export function InstructorSidebar({ escola, name, category, logoUrl, onLogout }:
           href={painelLink}
           onClick={() => setMobileOpen(false)}
           className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-            pathname === painelLink || pathname.startsWith(painelLink + '/')
+            painelActive
               ? 'bg-[--p-accent]/10 text-[--p-accent]'
               : 'text-[--p-text-3] hover:text-[--p-text-1] hover:bg-[--p-hover]'
           }`}
         >
           <LayoutDashboard className="w-4 h-4 shrink-0" />
           Painel
-          {(pathname === painelLink || pathname.startsWith(painelLink + '/')) && (
-            <ChevronRight className="w-3 h-3 ml-auto opacity-60" />
-          )}
+          {painelActive && <ChevronRight className="w-3 h-3 ml-auto opacity-60" />}
+        </Link>
+        <Link
+          href={estatisticasLink}
+          onClick={() => setMobileOpen(false)}
+          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+            estatisticasActive
+              ? 'bg-[--p-accent]/10 text-[--p-accent]'
+              : 'text-[--p-text-3] hover:text-[--p-text-1] hover:bg-[--p-hover]'
+          }`}
+        >
+          <BarChart3 className="w-4 h-4 shrink-0" />
+          Estatísticas
+          {estatisticasActive && <ChevronRight className="w-3 h-3 ml-auto opacity-60" />}
         </Link>
       </nav>
 
