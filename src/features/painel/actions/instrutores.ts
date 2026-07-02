@@ -125,6 +125,26 @@ export async function excluirInstrutor(
     .eq('autoescola_id', autoescola_id)
     .single()
 
+  if (!inst) return { success: false, error: 'Instrutor não encontrado.' }
+
+  // Proteção contra exclusão acidental: não permite excluir enquanto houver
+  // aulas marcadas (agendadas/confirmadas/em andamento) de hoje em diante.
+  const hoje = new Date().toISOString().slice(0, 10)
+  const { count: aulasMarcadas } = await supabase
+    .from('agendamentos')
+    .select('id', { count: 'exact', head: true })
+    .eq('autoescola_id', autoescola_id)
+    .eq('instructor_name', inst.name)
+    .gte('date', hoje)
+    .in('status', ['scheduled', 'confirmed', 'in_progress'])
+
+  if (aulasMarcadas && aulasMarcadas > 0) {
+    return {
+      success: false,
+      error: `Não é possível excluir ${inst.name}: ainda há ${aulasMarcadas} aula(s) marcada(s) de hoje em diante. Cancele ou remaneje essas aulas para outro instrutor antes de excluir.`,
+    }
+  }
+
   const { error } = await supabase
     .from('instructors')
     .delete()

@@ -62,9 +62,15 @@ export function InstrutoesTable({ instrutores: initial, autoescola_id, categoria
 
   function handleDelete(id: string) {
     if (!confirm('Excluir este instrutor? Esta ação não pode ser desfeita.')) return
+    setError('')
     startTransition(async () => {
       const result = await excluirInstrutor(id, autoescola_id)
-      if (result.success) setInstrutores((prev) => prev.filter((i) => i.id !== id))
+      if (result.success) {
+        setInstrutores((prev) => prev.filter((i) => i.id !== id))
+      } else {
+        setError(result.error)
+        alert(result.error)
+      }
     })
   }
 

@@ -47,7 +47,7 @@ function buildNavItems(escola: string): NavItem[] {
       href: `${base}/agendamento-massa`,
       icon: CalendarPlus,
     },
-    { label: "Lista", href: `${base}/lista`, icon: ClipboardList },
+    { label: "Lista de Agend.", href: `${base}/lista`, icon: ClipboardList },
     { label: "Horários", href: `${base}/horarios`, icon: Clock },
     { label: "Bloqueios", href: `${base}/bloqueios`, icon: Ban },
     { label: "Histórico", href: `${base}/historico`, icon: History },
