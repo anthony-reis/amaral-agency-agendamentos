@@ -28,12 +28,11 @@ export async function loginInstrutor(
 
   const { data: autoescola } = await supabase
     .from('autoescolas')
-    .select('id')
+    .select('id, status, is_teste')
     .eq('slug', autoescola_slug)
-    .eq('status', 'active')
     .single()
 
-  if (!autoescola) {
+  if (!autoescola || (autoescola.status !== 'active' && !autoescola.is_teste)) {
     return { success: false, error: 'Autoescola não encontrada.' }
   }
 
