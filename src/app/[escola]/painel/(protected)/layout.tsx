@@ -19,7 +19,7 @@ export default async function PainelProtectedLayout({ children, params }: Props)
   const supabase = createServiceClient()
   const { data: autoescola } = await supabase
     .from('autoescolas')
-    .select('nome, logo_url')
+    .select('nome, logo_url, solicitacoes_ativo')
     .eq('slug', escola)
     .single()
 
@@ -37,6 +37,8 @@ export default async function PainelProtectedLayout({ children, params }: Props)
         logoUrl={autoescola?.logo_url ?? null}
         userName={session.full_name}
         userRole={session.role}
+        autoescolaId={session.autoescola_id}
+        solicitacoesAtivo={autoescola?.solicitacoes_ativo ?? false}
         onLogout={handleLogout}
       />
       <main className="flex-1 min-w-0 overflow-y-auto">

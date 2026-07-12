@@ -11,14 +11,30 @@ export default async function EntrarPage({ searchParams }: Props) {
   const { perfil } = await searchParams
   const tipo = perfil === 'escola' ? 'escola' : 'aluno'
 
+  // Autoescolas reais (is_teste=false) sempre aparecem quando ativas — essa
+  // regra nunca depende de env var, então produção nunca lista uma
+  // autoescola de teste, mesmo sem redeploy.
   const supabase = createServiceClient()
-  const { data } = await supabase
+  const { data: reais } = await supabase
     .from('autoescolas')
     .select('id, nome, slug, logo_url, status')
     .eq('status', 'active')
+    .eq('is_teste', false)
     .order('nome')
 
-  const escolas: Pick<Autoescola, 'id' | 'nome' | 'slug' | 'logo_url' | 'status'>[] = data ?? []
+  let escolas: Pick<Autoescola, 'id' | 'nome' | 'slug' | 'logo_url' | 'status'>[] = reais ?? []
+
+  // Conveniência só para o seu ambiente local (.env.local, nunca presente em
+  // produção): também lista as autoescolas de teste, pra não precisar digitar
+  // a URL na mão enquanto testa a homolog.
+  if (process.env.NEXT_PUBLIC_MOSTRAR_AUTOESCOLAS_TESTE === 'true') {
+    const { data: teste } = await supabase
+      .from('autoescolas')
+      .select('id, nome, slug, logo_url, status')
+      .eq('is_teste', true)
+      .order('nome')
+    escolas = [...escolas, ...(teste ?? [])]
+  }
 
   return (
     <div className="min-h-screen bg-[--p-bg-base]">

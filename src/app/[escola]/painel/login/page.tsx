@@ -13,11 +13,11 @@ export default async function PainelLoginPage({ params }: Props) {
 
   const { data: autoescola } = await supabase
     .from('autoescolas')
-    .select('id, nome, status')
+    .select('id, nome, status, is_teste')
     .eq('slug', escola)
     .single()
 
-  if (!autoescola || autoescola.status !== 'active') notFound()
+  if (!autoescola || (autoescola.status !== 'active' && !autoescola.is_teste)) notFound()
 
   const users = await listarUsuariosPainel(autoescola.id)
 

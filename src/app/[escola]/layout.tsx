@@ -12,12 +12,11 @@ export default async function EscolaLayout({ children, params }: Props) {
 
   const { data: autoescola } = await supabase
     .from('autoescolas')
-    .select('id, nome, logo_url, slug, status')
+    .select('id, nome, logo_url, slug, status, is_teste')
     .eq('slug', escola)
-    .eq('status', 'active')
     .maybeSingle()
 
-  if (!autoescola) notFound()
+  if (!autoescola || (autoescola.status !== 'active' && !autoescola.is_teste)) notFound()
 
   return <>{children}</>
 }

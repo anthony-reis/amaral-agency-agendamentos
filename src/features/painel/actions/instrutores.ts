@@ -4,6 +4,14 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { getCurrentUsername } from './authPainel'
 import type { Instrutor, NovoInstrutorInput, ActionResult } from '../types'
 
+// Postgres `numeric` chega como string via Supabase/PostgREST — normaliza para number.
+function normalizarInstrutor(row: Instrutor): Instrutor {
+  return {
+    ...row,
+    valor_hora_aula: row.valor_hora_aula != null ? Number(row.valor_hora_aula) : null,
+  }
+}
+
 export async function listarInstrutores(autoescola_id: string): Promise<Instrutor[]> {
   const supabase = createServiceClient()
   const { data, error } = await supabase
@@ -13,7 +21,7 @@ export async function listarInstrutores(autoescola_id: string): Promise<Instruto
     .order('name')
 
   if (error) throw new Error(error.message)
-  return data ?? []
+  return (data ?? []).map(normalizarInstrutor)
 }
 
 export async function criarInstrutor(
@@ -55,7 +63,7 @@ export async function criarInstrutor(
 
 export async function atualizarInstrutor(
   id: string,
-  input: Partial<Pick<Instrutor, 'name' | 'category'>>,
+  input: Partial<Pick<Instrutor, 'name' | 'category' | 'valor_hora_aula'>>,
   autoescola_id: string
 ): Promise<ActionResult<Instrutor>> {
   const supabase = createServiceClient()
@@ -108,7 +116,7 @@ export async function atualizarInstrutor(
     description: `Instrutor atualizado (ID: ${id})`,
     autoescola_id,
   })
-  return { success: true, data }
+  return { success: true, data: normalizarInstrutor(data) }
 }
 
 export async function excluirInstrutor(

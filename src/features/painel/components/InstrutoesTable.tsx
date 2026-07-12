@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Users, Plus, Trash2, Pencil, Key, X, Check, AlertCircle } from 'lucide-react'
+import { Users, Plus, Trash2, Pencil, Key, X, Check, AlertCircle, DollarSign } from 'lucide-react'
 import {
   criarInstrutor, excluirInstrutor, atualizarInstrutor, alterarSenhaInstrutor,
 } from '../actions/instrutores'
@@ -26,7 +26,7 @@ export function InstrutoesTable({ instrutores: initial, autoescola_id, categoria
   const [passwordId, setPasswordId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [newForm, setNewForm] = useState({ name: '', category: 'CARRO' })
-  const [editForm, setEditForm] = useState({ name: '', category: '' })
+  const [editForm, setEditForm] = useState({ name: '', category: '', valor_hora_aula: '' })
   const [novaSenha, setNovaSenha] = useState('')
 
   const filtered = filter === 'TODOS'
@@ -48,12 +48,21 @@ export function InstrutoesTable({ instrutores: initial, autoescola_id, categoria
   function startEdit(instrutor: Instrutor) {
     setEditingId(instrutor.id)
     const validCategory = CATEGORIAS.includes(instrutor.category) ? instrutor.category : CATEGORIAS[0]
-    setEditForm({ name: instrutor.name, category: validCategory })
+    setEditForm({
+      name: instrutor.name,
+      category: validCategory,
+      valor_hora_aula: instrutor.valor_hora_aula != null ? String(instrutor.valor_hora_aula) : '',
+    })
   }
 
   function handleEdit(id: string) {
     startTransition(async () => {
-      const result = await atualizarInstrutor(id, editForm, autoescola_id)
+      const valorTrim = editForm.valor_hora_aula.trim()
+      const result = await atualizarInstrutor(id, {
+        name: editForm.name,
+        category: editForm.category,
+        valor_hora_aula: valorTrim === '' ? null : Number(valorTrim),
+      }, autoescola_id)
       if (!result.success) return
       setInstrutores((prev) => prev.map((i) => i.id === id ? result.data : i))
       setEditingId(null)
@@ -179,6 +188,12 @@ export function InstrutoesTable({ instrutores: initial, autoescola_id, categoria
               <tr className="border-b border-[--p-border]">
                 <th className="text-left text-xs font-semibold text-[--p-text-3] uppercase px-6 py-3.5">Instrutor</th>
                 <th className="text-left text-xs font-semibold text-[--p-text-3] uppercase px-4 py-3.5">Categoria</th>
+                <th className="text-left text-xs font-semibold text-[--p-text-3] uppercase px-4 py-3.5">
+                  <span className="inline-flex items-center gap-1">
+                    <DollarSign className="w-3 h-3" />
+                    Hora/Aula
+                  </span>
+                </th>
                 <th className="px-4 py-3.5" />
               </tr>
             </thead>
@@ -228,6 +243,28 @@ export function InstrutoesTable({ instrutores: initial, autoescola_id, categoria
                       }`}>
                         {instrutor.category}
                       </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3.5">
+                    {editingId === instrutor.id ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs text-[--p-text-3]">R$</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="Opcional"
+                          value={editForm.valor_hora_aula}
+                          onChange={(e) => setEditForm((p) => ({ ...p, valor_hora_aula: e.target.value }))}
+                          className="px-2 py-1 rounded-lg bg-[--p-bg-input] border border-[--p-border] text-sm text-[--p-text-1] w-24 focus:outline-none"
+                        />
+                      </div>
+                    ) : instrutor.valor_hora_aula != null ? (
+                      <span className="text-[--p-text-1] font-medium">
+                        {instrutor.valor_hora_aula.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </span>
+                    ) : (
+                      <span className="text-[--p-text-3]">—</span>
                     )}
                   </td>
                   <td className="px-4 py-3.5">

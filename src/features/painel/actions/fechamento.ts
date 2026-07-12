@@ -22,6 +22,8 @@ export interface FechamentoInstrutor {
   km_total: number
   km_medio: number
   aulas: FechamentoAula[]
+  valor_hora_aula: number | null
+  valor_total_pagar: number | null
 }
 
 export interface FechamentoMensalData {
@@ -30,6 +32,7 @@ export interface FechamentoMensalData {
   total_aulas: number
   km_total: number
   instrutores: FechamentoInstrutor[]
+  valor_total_pagar_geral: number
 }
 
 export async function getFechamentoMensal(
@@ -56,9 +59,13 @@ export async function getFechamentoMensal(
 
   const { data: insts } = await supabase
     .from('instructors')
-    .select('name, category')
+    .select('name, category, valor_hora_aula')
     .eq('autoescola_id', autoescola_id)
   const catMap = new Map((insts ?? []).map((i) => [i.name, i.category]))
+  // Postgres `numeric` chega como string via PostgREST — normaliza para number.
+  const valorMap = new Map(
+    (insts ?? []).map((i) => [i.name, i.valor_hora_aula != null ? Number(i.valor_hora_aula) : null])
+  )
 
   const rows = (data ?? []) as FechamentoAula[]
 
@@ -73,6 +80,8 @@ export async function getFechamentoMensal(
         km_total: 0,
         km_medio: 0,
         aulas: [],
+        valor_hora_aula: valorMap.get(key) ?? null,
+        valor_total_pagar: null,
       })
     }
     const entry = map.get(key)!
@@ -84,7 +93,10 @@ export async function getFechamentoMensal(
   const instrutores = Array.from(map.values()).map((e) => ({
     ...e,
     km_medio: e.total_aulas > 0 ? Math.round(e.km_total / e.total_aulas) : 0,
+    valor_total_pagar: e.valor_hora_aula != null ? e.valor_hora_aula * e.total_aulas : null,
   })).sort((a, b) => b.km_total - a.km_total)
+
+  const valor_total_pagar_geral = instrutores.reduce((acc, i) => acc + (i.valor_total_pagar ?? 0), 0)
 
   return {
     mes,
@@ -92,6 +104,7 @@ export async function getFechamentoMensal(
     total_aulas: rows.length,
     km_total: rows.reduce((acc, r) => acc + (r.km_rodado ?? 0), 0),
     instrutores,
+    valor_total_pagar_geral,
   }
 }
 

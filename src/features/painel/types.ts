@@ -7,6 +7,7 @@ export interface Instrutor {
   password: string | null
   autoescola_id: string
   created_at: string
+  valor_hora_aula: number | null
 }
 
 export type NovoInstrutorInput = {
@@ -248,4 +249,81 @@ export interface Comunicado {
 
 export interface ComunicadoComLidos extends Comunicado {
   total_lidos: number
+}
+
+// ─── Solicitações ─────────────────────────────────────────────────────────────
+
+export type SolicitacaoTipo = 'exame' | 'legislacao'
+
+export type SolicitacaoStatus = 'pendente' | 'em_analise' | 'agendado' | 'recusado' | 'cancelado'
+
+export interface DadosAtendimento {
+  data: string // YYYY-MM-DD
+  horario: string
+  local: string | null
+  observacoes: string | null
+}
+
+export interface Solicitacao {
+  id: string
+  autoescola_id: string
+  student_id: string
+  tipo: SolicitacaoTipo
+  categoria: string | null
+  status: SolicitacaoStatus
+  observacao_aluno: string | null
+  mensagem_admin: string | null
+  motivo_recusa: string | null
+  dados_atendimento: DadosAtendimento | null
+  admin_responsavel_id: string | null
+  visualizado_em: string | null
+  finalizado_em: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface SolicitacaoComAluno extends Solicitacao {
+  student_name: string
+  student_document: string
+  student_phone: string | null
+}
+
+export type SolicitacaoEventoTipo =
+  | 'criada' | 'visualizada' | 'em_analise' | 'agendada' | 'recusada' | 'cancelada' | 'mensagem'
+
+export interface SolicitacaoEvento {
+  id: string
+  solicitacao_id: string
+  tipo_evento: SolicitacaoEventoTipo
+  autor_tipo: 'aluno' | 'painel'
+  autor_nome: string
+  dados: Record<string, unknown> | null
+  created_at: string
+}
+
+export type SituacaoCreditos = 'com_creditos' | 'sem_creditos' | 'indisponivel'
+
+export interface SolicitacaoDetalhe extends SolicitacaoComAluno {
+  eventos: SolicitacaoEvento[]
+  aulasConcluidas: number
+  situacaoCreditos: SituacaoCreditos
+  totalCreditos: number | null
+}
+
+export type NovaSolicitacaoInput = {
+  autoescola_id: string
+  student_id: string
+  student_name: string
+  tipo: SolicitacaoTipo
+  categoria?: string | null
+  observacao_aluno?: string | null
+}
+
+export interface SolicitacoesFiltro {
+  tipo?: SolicitacaoTipo | 'TODOS'
+  status?: SolicitacaoStatus | 'TODOS'
+  dateStart?: string
+  dateEnd?: string
+  aluno?: string
+  naoVisualizadas?: boolean
 }

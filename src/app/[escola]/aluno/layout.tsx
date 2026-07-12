@@ -21,7 +21,7 @@ export default async function AlunoLayout({ children, params }: Props) {
   const supabase = createServiceClient()
   const { data: autoescola } = await supabase
     .from('autoescolas')
-    .select('id, nome, logo_url')
+    .select('id, nome, logo_url, solicitacoes_ativo')
     .eq('slug', escola)
     .single()
 
@@ -49,6 +49,7 @@ export default async function AlunoLayout({ children, params }: Props) {
         autoescolaLogoUrl={autoescola.logo_url ?? null}
         studentName={studentName}
         isIdentified={isIdentified}
+        solicitacoesAtivo={autoescola.solicitacoes_ativo ?? false}
         onLogout={handleLogout}
       />
       <main className="flex-1 min-w-0">

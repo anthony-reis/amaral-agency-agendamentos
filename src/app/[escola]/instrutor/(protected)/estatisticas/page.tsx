@@ -38,6 +38,7 @@ export default async function EstatisticasPage({ params }: Props) {
       instructorName={session.name}
       autoescola_id={session.autoescola_id}
       registrarKm={instructorConfig.registrar_km}
+      mostrarHoraAula={instructorConfig.mostrar_hora_aula}
       rangeInicial={range}
     />
   )

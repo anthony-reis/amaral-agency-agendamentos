@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { FileSpreadsheet, ChevronDown, ChevronRight, Download, Gauge, Route, Car } from 'lucide-react'
+import { FileSpreadsheet, ChevronDown, ChevronRight, Download, Gauge, Route, Car, DollarSign } from 'lucide-react'
 import type { FechamentoMensalData } from '../actions/fechamento'
 
 interface Props {
@@ -14,6 +14,10 @@ const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
 ]
+
+function fmtMoeda(v: number): string {
+  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
 
 export function FechamentoMensal({ initialData, escola, autoescola_id }: Props) {
   const now = new Date()
@@ -58,7 +62,7 @@ export function FechamentoMensal({ initialData, escola, autoescola_id }: Props) 
   }
 
   function exportarCSV() {
-    const header = ['Data', 'Horário', 'Aluno', 'Instrutor', 'Categoria', 'KM Inicial', 'KM Final', 'KM Rodado']
+    const header = ['Data', 'Horário', 'Aluno', 'Instrutor', 'Categoria', 'KM Inicial', 'KM Final', 'KM Rodado', 'Valor Hora/Aula', 'Valor a Pagar']
     const rows: string[][] = []
     for (const inst of data.instrutores) {
       for (const aula of inst.aulas) {
@@ -71,6 +75,8 @@ export function FechamentoMensal({ initialData, escola, autoescola_id }: Props) 
           aula.km_inicial != null ? String(aula.km_inicial) : '',
           aula.km_final != null ? String(aula.km_final) : '',
           aula.km_rodado != null ? String(aula.km_rodado) : '',
+          inst.valor_hora_aula != null ? fmtMoeda(inst.valor_hora_aula) : '',
+          inst.valor_total_pagar != null ? fmtMoeda(inst.valor_total_pagar) : '',
         ])
       }
     }
@@ -147,7 +153,7 @@ export function FechamentoMensal({ initialData, escola, autoescola_id }: Props) 
       </div>
 
       {/* Cards resumo */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-violet-600 rounded-2xl p-5 flex items-center justify-between">
           <div>
             <p className="text-xs text-white/70 mb-1">Aulas Concluídas</p>
@@ -162,7 +168,14 @@ export function FechamentoMensal({ initialData, escola, autoescola_id }: Props) 
           </div>
           <Route className="w-8 h-8 text-white/60" />
         </div>
-        <div className="col-span-2 lg:col-span-1 bg-[--p-bg-card] border border-[--p-border] rounded-2xl p-5 flex items-center justify-between">
+        <div className="bg-emerald-600 rounded-2xl p-5 flex items-center justify-between">
+          <div>
+            <p className="text-xs text-white/70 mb-1">Total a Pagar</p>
+            <p className="text-2xl font-bold text-white/90">{fmtMoeda(data.valor_total_pagar_geral)}</p>
+          </div>
+          <DollarSign className="w-8 h-8 text-white/60" />
+        </div>
+        <div className="bg-[--p-bg-card] border border-[--p-border] rounded-2xl p-5 flex items-center justify-between">
           <div>
             <p className="text-xs text-[--p-text-3] mb-1">{MESES[mes - 1]} / {ano}</p>
             <p className="text-lg font-bold text-[--p-text-1]">
@@ -210,6 +223,14 @@ export function FechamentoMensal({ initialData, escola, autoescola_id }: Props) 
                     <div className="text-right">
                       <p className="text-xs text-[--p-text-3]">Média/Aula</p>
                       <p className="font-semibold text-[--p-text-2]">{inst.km_medio} km</p>
+                    </div>
+                    <div className="text-right min-w-[110px]">
+                      <p className="text-xs text-[--p-text-3]">A Pagar</p>
+                      {inst.valor_total_pagar != null ? (
+                        <p className="font-bold text-emerald-400">{fmtMoeda(inst.valor_total_pagar)}</p>
+                      ) : (
+                        <p className="text-xs text-[--p-text-3] italic">Hora/aula não definida</p>
+                      )}
                     </div>
                   </div>
                 </button>
