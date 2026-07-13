@@ -59,7 +59,12 @@ export async function criarAluno(input: NovoAlunoInput): Promise<ActionResult<Al
     .select()
     .single()
 
-  if (error || !aluno) return { success: false, error: 'Erro ao criar aluno.' }
+  if (error || !aluno) {
+    if (error?.code === '23505') {
+      return { success: false, error: 'Já existe um aluno com este CPF/CNH.' }
+    }
+    return { success: false, error: error?.message ?? 'Erro ao criar aluno.' }
+  }
 
   // Criar créditos zerados
   const { data: creditos } = await supabase

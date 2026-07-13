@@ -431,7 +431,7 @@ export async function corrigirKmAgendamento(
   if (km_inicial == null && km_final == null) {
     const { error } = await supabase
       .from('agendamentos')
-      .update({ km_inicial: null, km_final: null, km_rodado: null })
+      .update({ km_inicial: null, km_final: null })
       .eq('id', id)
       .eq('autoescola_id', autoescola_id)
     if (error) return { success: false, error: error.message }
@@ -447,7 +447,7 @@ export async function corrigirKmAgendamento(
     }
     const { error } = await supabase
       .from('agendamentos')
-      .update({ km_inicial, km_final, km_rodado: km_final - km_inicial })
+      .update({ km_inicial, km_final })
       .eq('id', id)
       .eq('autoescola_id', autoescola_id)
     if (error) return { success: false, error: error.message }
