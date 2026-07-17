@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getPainelSession, logoutPainel } from '@/features/painel/actions/authPainel'
+import { lojaHabilitada } from '@/lib/loja'
 import { PainelNav } from '@/features/painel/components/PainelNav'
 
 interface Props {
@@ -17,11 +18,14 @@ export default async function PainelProtectedLayout({ children, params }: Props)
   }
 
   const supabase = createServiceClient()
-  const { data: autoescola } = await supabase
-    .from('autoescolas')
-    .select('nome, logo_url, solicitacoes_ativo')
-    .eq('slug', escola)
-    .single()
+  const [{ data: autoescola }, lojaAtiva] = await Promise.all([
+    supabase
+      .from('autoescolas')
+      .select('nome, logo_url, solicitacoes_ativo')
+      .eq('slug', escola)
+      .single(),
+    lojaHabilitada(session.autoescola_id),
+  ])
 
   async function handleLogout() {
     'use server'
@@ -39,6 +43,7 @@ export default async function PainelProtectedLayout({ children, params }: Props)
         userRole={session.role}
         autoescolaId={session.autoescola_id}
         solicitacoesAtivo={autoescola?.solicitacoes_ativo ?? false}
+        lojaAtiva={lojaAtiva}
         onLogout={handleLogout}
       />
       <main className="flex-1 min-w-0 overflow-y-auto">

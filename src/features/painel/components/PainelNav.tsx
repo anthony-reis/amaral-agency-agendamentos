@@ -33,6 +33,9 @@ import {
   Inbox,
   FileCheck,
   BookOpenCheck,
+  ShoppingCart,
+  Package,
+  Receipt,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { contarNaoVisualizadas } from "@/features/painel/actions/solicitacoes";
@@ -63,9 +66,23 @@ function buildDashboardItem(escola: string): NavItem {
   };
 }
 
-function buildNavGroups(escola: string): NavGroup[] {
+function buildNavGroups(escola: string, lojaAtiva: boolean): NavGroup[] {
   const base = `/${escola}/painel`;
   return [
+    // Grupo Vendas: feature gate por tenant (credencial Mercado Pago ativa)
+    ...(lojaAtiva
+      ? [
+          {
+            id: "vendas",
+            label: "Vendas",
+            icon: ShoppingCart,
+            items: [
+              { label: "Catálogo", href: `${base}/catalogo`, icon: Package },
+              { label: "Vendas", href: `${base}/vendas`, icon: Receipt },
+            ],
+          },
+        ]
+      : []),
     {
       id: "agendamentos",
       label: "Agendamentos",
@@ -148,6 +165,7 @@ interface Props {
   userRole: string;
   autoescolaId: string;
   solicitacoesAtivo: boolean;
+  lojaAtiva?: boolean;
   onLogout: () => Promise<void>;
 }
 
@@ -159,13 +177,14 @@ export function PainelNav({
   userRole,
   autoescolaId,
   solicitacoesAtivo,
+  lojaAtiva = false,
   onLogout,
 }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const dashboardItem = buildDashboardItem(escola);
-  const navGroups = buildNavGroups(escola);
+  const navGroups = buildNavGroups(escola, lojaAtiva);
   const solicitacoesHref = `/${escola}/painel/solicitacoes`;
 
   // ─── Solicitações: badge + modal de alta prioridade ────────────────────────

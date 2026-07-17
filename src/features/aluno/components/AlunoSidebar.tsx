@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { CalendarDays, BookOpen, LogOut, Car, Menu, X, ChevronRight, Megaphone, ClipboardList } from 'lucide-react'
+import { CalendarDays, BookOpen, LogOut, Car, Menu, X, ChevronRight, Megaphone, ClipboardList, ShoppingBag } from 'lucide-react'
 import { ThemeToggle } from '@/components/ThemeToggle'
 
 interface Props {
@@ -14,6 +14,7 @@ interface Props {
   studentName: string
   isIdentified: boolean
   solicitacoesAtivo: boolean
+  lojaAtiva?: boolean
   onLogout: () => Promise<void>
 }
 
@@ -39,6 +40,7 @@ export function AlunoSidebar({
   studentName,
   isIdentified,
   solicitacoesAtivo,
+  lojaAtiva = false,
   onLogout,
 }: Props) {
   const pathname = usePathname()
@@ -48,6 +50,7 @@ export function AlunoSidebar({
   const aulasLink = `/${escola}/aluno/minhas-aulas`
   const comunicadosLink = `/${escola}/aluno/comunicados`
   const solicitacoesLink = `/${escola}/aluno/solicitacoes`
+  const lojaLink = `/${escola}/aluno/loja`
 
   // ─── Not identified: minimal sticky header only ───────────────────────────
   if (!isIdentified) {
@@ -121,6 +124,23 @@ export function AlunoSidebar({
           Comunicados
           {pathname === comunicadosLink && <ChevronRight className="w-3 h-3 ml-auto opacity-60" />}
         </Link>
+        {lojaAtiva && (
+          <Link
+            href={lojaLink}
+            onClick={() => setMobileOpen(false)}
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+              pathname === lojaLink || pathname.startsWith(lojaLink + '/')
+                ? 'bg-[--p-accent]/10 text-[--p-accent]'
+                : 'text-[--p-text-3] hover:text-[--p-text-1] hover:bg-[--p-hover]'
+            }`}
+          >
+            <ShoppingBag className="w-4 h-4 shrink-0" />
+            Loja
+            {(pathname === lojaLink || pathname.startsWith(lojaLink + '/')) && (
+              <ChevronRight className="w-3 h-3 ml-auto opacity-60" />
+            )}
+          </Link>
+        )}
         {solicitacoesAtivo && (
           <Link
             href={solicitacoesLink}
