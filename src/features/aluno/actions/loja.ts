@@ -2,7 +2,8 @@
 
 import { cookies } from 'next/headers'
 import { createServiceClient } from '@/lib/supabase/server'
-import { criarPreference } from '@/lib/mercadopago'
+import { criarPreference, buscarPaymentPorExternalReference } from '@/lib/mercadopago'
+import { processarPagamentoPedido } from '@/lib/pagamentoLoja'
 import type { PedidoLoja, PedidoLojaStatus, Produto, ProdutoSnapshot } from '@/lib/loja-types'
 import type { ActionResult } from '@/features/admin/types'
 
@@ -139,6 +140,53 @@ export async function consultarPedido(
 
   if (!data || data.student_id !== studentId) return null
   return { status: data.status as PedidoLojaStatus, creditos_liberados: data.creditos_liberados }
+}
+
+/**
+ * Reconciliação ativa: consulta a API do MP diretamente (por
+ * external_reference) e credita se necessário, sem depender do webhook.
+ * Usada pela página de retorno como fallback caso a notificação atrase
+ * ou nunca chegue (ex.: instabilidade do sandbox do MP).
+ */
+export async function reconciliarPedido(
+  pedido_id: string
+): Promise<{ status: PedidoLojaStatus; creditos_liberados: boolean } | null> {
+  const cookieStore = await cookies()
+  const studentId = cookieStore.get('student_id')?.value
+  if (!studentId) return null
+
+  const supabase = createServiceClient()
+  const { data: pedidoRaw } = await supabase
+    .from('pedidos_loja')
+    .select('*')
+    .eq('id', pedido_id)
+    .single()
+
+  if (!pedidoRaw || pedidoRaw.student_id !== studentId) return null
+  const pedido = pedidoRaw as PedidoLoja
+
+  // Estado final já resolvido (provavelmente pelo webhook) — nada a checar no MP
+  if (pedido.status !== 'pendente') {
+    return { status: pedido.status, creditos_liberados: pedido.creditos_liberados }
+  }
+
+  const { data: credenciais } = await supabase
+    .from('autoescola_pagamentos')
+    .select('mp_access_token')
+    .eq('autoescola_id', pedido.autoescola_id)
+    .maybeSingle()
+  if (!credenciais) return { status: pedido.status, creditos_liberados: pedido.creditos_liberados }
+
+  try {
+    const payment = await buscarPaymentPorExternalReference(pedido.id, credenciais.mp_access_token)
+    if (!payment) return { status: pedido.status, creditos_liberados: pedido.creditos_liberados }
+
+    const resultado = await processarPagamentoPedido(supabase, pedido, payment)
+    return resultado
+  } catch (e) {
+    console.error('[loja] Erro ao reconciliar pedido com a API do MP:', e)
+    return { status: pedido.status, creditos_liberados: pedido.creditos_liberados }
+  }
 }
 
 export async function listarMinhasCompras(): Promise<PedidoLoja[]> {

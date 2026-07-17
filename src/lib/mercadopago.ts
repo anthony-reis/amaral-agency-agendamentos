@@ -98,6 +98,31 @@ export async function buscarPayment(
 }
 
 /**
+ * Fallback de reconciliação ativa: busca o pagamento pelo external_reference
+ * (= id do pedido) sem depender do webhook ou de query params de retorno.
+ * Usado pela página de retorno do aluno para não deixar o pedido "pendente"
+ * caso a notificação do MP atrase ou nunca chegue.
+ */
+export async function buscarPaymentPorExternalReference(
+  externalReference: string,
+  accessToken: string
+): Promise<MPPayment | null> {
+  const res = await fetch(
+    `${MP_API}/v1/payments/search?sort=date_created&criteria=desc&external_reference=${encodeURIComponent(externalReference)}`,
+    {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      cache: 'no-store',
+    }
+  )
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Mercado Pago: erro ao buscar payments por external_reference (${res.status}): ${body}`)
+  }
+  const data = (await res.json()) as { results?: MPPayment[] }
+  return data.results?.[0] ?? null
+}
+
+/**
  * Valida a assinatura x-signature dos webhooks do Mercado Pago.
  * Manifest: `id:<data.id>;request-id:<x-request-id>;ts:<ts>;`
  * (data.id em lowercase quando alfanumérico, conforme docs do MP)
