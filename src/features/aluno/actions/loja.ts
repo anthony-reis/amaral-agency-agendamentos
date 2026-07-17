@@ -105,9 +105,12 @@ export async function criarCheckout(
       .update({ mp_preference_id: preference.id, updated_at: new Date().toISOString() })
       .eq('id', pedido.id)
 
+    // Sempre init_point: o MP descontinuou o domínio sandbox.mercadopago.com.br
+    // (sandbox_init_point pode cair em loop de redirecionamento). O modo de
+    // teste é detectado automaticamente pelo Access Token usado na preference.
     return {
       success: true,
-      data: { initPoint: credenciais.sandbox ? preference.sandbox_init_point : preference.init_point },
+      data: { initPoint: preference.init_point },
     }
   } catch (e) {
     console.error('[loja] Erro ao criar preference MP:', e)
