@@ -1,7 +1,7 @@
 'use server'
 
 import { createServiceClient } from '@/lib/supabase/server'
-import { getCurrentUsername } from './authPainel'
+import { getCurrentUsername, assertPodeEditar } from './authPainel'
 import type { BloqueioTimeSlot, NovoBloqueioInput, NovoBloqueioSemanalInput, ActionResult } from '../types'
 
 export async function listarBloqueios(autoescola_id: string): Promise<BloqueioTimeSlot[]> {
@@ -35,6 +35,9 @@ export async function listarBloqueios(autoescola_id: string): Promise<BloqueioTi
 export async function criarBloqueio(
   input: NovoBloqueioInput
 ): Promise<ActionResult<BloqueioTimeSlot[]>> {
+  const guard = await assertPodeEditar()
+  if (!guard.ok) return { success: false, error: guard.error }
+
   const supabase = createServiceClient()
   const { tipo, vehicle_type, instructor, reason, autoescola_id } = input
 
@@ -112,6 +115,9 @@ export async function criarBloqueio(
 export async function criarBloqueioSemanais(
   input: NovoBloqueioSemanalInput
 ): Promise<ActionResult<{ total: number; registros: BloqueioTimeSlot[] }>> {
+  const guard = await assertPodeEditar()
+  if (!guard.ok) return { success: false, error: guard.error }
+
   const supabase = createServiceClient()
   const { dia_semana, grupos, vehicle_type, reason, autoescola_id } = input
 
@@ -165,6 +171,9 @@ export async function editarBloqueio(
   },
   autoescola_id: string
 ): Promise<ActionResult> {
+  const guard = await assertPodeEditar()
+  if (!guard.ok) return { success: false, error: guard.error }
+
   const supabase = createServiceClient()
   const { error } = await supabase
     .from('blockedTimeSlots')
@@ -189,6 +198,9 @@ export async function excluirBloqueio(
   id: string,
   autoescola_id: string
 ): Promise<ActionResult> {
+  const guard = await assertPodeEditar()
+  if (!guard.ok) return { success: false, error: guard.error }
+
   const supabase = createServiceClient()
   const { error } = await supabase
     .from('blockedTimeSlots')

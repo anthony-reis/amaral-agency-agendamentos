@@ -2,7 +2,7 @@
 
 import { getDisponibilidade } from '@/lib/getDisponibilidade'
 import { createServiceClient } from '@/lib/supabase/server'
-import { getCurrentUsername } from './authPainel'
+import { getCurrentUsername, assertPodeEditar } from './authPainel'
 
 // Feriados nacionais fixos (MM-DD)
 const FERIADOS_FIXOS = new Set([
@@ -76,6 +76,9 @@ export async function criarAgendamentosMassa(data: {
   category: string
   agendamentos: AgendamentoMassaItem[]
 }): Promise<{ success: boolean; created: number; error?: string }> {
+  const guard = await assertPodeEditar()
+  if (!guard.ok) return { success: false, created: 0, error: guard.error }
+
   const supabase = createServiceClient()
   const rpcCat = data.category === 'CARRO' ? 'aulas_cat_b' : 'aulas_cat_a'
 

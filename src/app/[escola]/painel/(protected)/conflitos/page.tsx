@@ -14,5 +14,5 @@ export default async function ConflitosPage({ params }: Props) {
 
   const conflitos = await detectarConflitos(session.autoescola_id)
 
-  return <ConflitosPanel conflitos={conflitos} autoescola_id={session.autoescola_id} />
+  return <ConflitosPanel conflitos={conflitos} autoescola_id={session.autoescola_id} userRole={session.role} />
 }

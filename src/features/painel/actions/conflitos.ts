@@ -2,7 +2,7 @@
 
 import { createServiceClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import { getCurrentUsername } from './authPainel'
+import { getCurrentUsername, assertPodeEditar } from './authPainel'
 import type { Conflito } from '../types'
 
 export async function detectarConflitos(autoescola_id: string): Promise<Conflito[]> {
@@ -172,6 +172,9 @@ export async function resolverConflito(
   agendamentoId: string,
   autoescola_id: string
 ): Promise<void> {
+  const guard = await assertPodeEditar()
+  if (!guard.ok) throw new Error(guard.error)
+
   const supabase = createServiceClient()
 
   // Fetch the agendamento to get student info for credit refund

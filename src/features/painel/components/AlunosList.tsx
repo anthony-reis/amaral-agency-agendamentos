@@ -4,11 +4,12 @@ import { useState, useTransition } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { GraduationCap, Plus, Search, Download, Pencil, Trash2, X, Minus, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 import { criarAluno, editarAluno, excluirAluno, ajustarCredito, contarAulasAgendadas } from '../actions/alunos'
-import type { AlunoComCreditos } from '../types'
+import { canEditPainel, type AlunoComCreditos } from '../types'
 
 interface Props {
   alunos: AlunoComCreditos[]
   autoescola_id: string
+  userRole: string
 }
 
 const CATS = ['a', 'b', 'c', 'd', 'e'] as const
@@ -29,7 +30,8 @@ function formatDoc(doc: string) {
 type SortCol = 'a' | 'b' | 'c' | 'd' | 'e' | 'total' | null
 type SortDir = 'asc' | 'desc'
 
-export function AlunosList({ alunos: initial, autoescola_id }: Props) {
+export function AlunosList({ alunos: initial, autoescola_id, userRole }: Props) {
+  const canEdit = canEditPainel(userRole)
   const [alunos, setAlunos] = useState<AlunoComCreditos[]>(initial)
   const [search, setSearch] = useState('')
   const [isPending, startTransition] = useTransition()
@@ -221,13 +223,15 @@ export function AlunosList({ alunos: initial, autoescola_id }: Props) {
           <Download className="w-4 h-4" />
           Exportar
         </button>
-        <button
-          onClick={openNovo}
-          className="flex items-center gap-2 px-4 py-2.5 bg-[#0ea5e9] text-white text-sm font-semibold rounded-xl hover:bg-[#0284c7] transition-colors shadow-sm"
-        >
-          <Plus className="w-4 h-4" />
-          Novo Aluno
-        </button>
+        {canEdit && (
+          <button
+            onClick={openNovo}
+            className="flex items-center gap-2 px-4 py-2.5 bg-[#0ea5e9] text-white text-sm font-semibold rounded-xl hover:bg-[#0284c7] transition-colors shadow-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Novo Aluno
+          </button>
+        )}
       </div>
 
       {/* Table */}
@@ -309,23 +313,27 @@ export function AlunosList({ alunos: initial, autoescola_id }: Props) {
                     return (
                       <td key={c} className="px-2 py-3.5 text-center">
                         <div className="flex items-center justify-center gap-1">
-                          <button
-                            onClick={() => a.creditos && handleAjustar(a.id, a.creditos.id, c, -1)}
-                            disabled={isPending || !a.creditos || val === 0}
-                            className="w-5 h-5 flex items-center justify-center rounded text-red-400 hover:bg-red-500/10 disabled:opacity-30 transition-colors"
-                          >
-                            <Minus className="w-3 h-3" />
-                          </button>
+                          {canEdit && (
+                            <button
+                              onClick={() => a.creditos && handleAjustar(a.id, a.creditos.id, c, -1)}
+                              disabled={isPending || !a.creditos || val === 0}
+                              className="w-5 h-5 flex items-center justify-center rounded text-red-400 hover:bg-red-500/10 disabled:opacity-30 transition-colors"
+                            >
+                              <Minus className="w-3 h-3" />
+                            </button>
+                          )}
                           <span className={`w-6 text-center font-semibold text-sm ${val > 0 ? 'text-[--p-text-1]' : 'text-[--p-text-3]'}`}>
                             {val}
                           </span>
-                          <button
-                            onClick={() => a.creditos && handleAjustar(a.id, a.creditos.id, c, 1)}
-                            disabled={isPending || !a.creditos}
-                            className="w-5 h-5 flex items-center justify-center rounded text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-30 transition-colors"
-                          >
-                            <Plus className="w-3 h-3" />
-                          </button>
+                          {canEdit && (
+                            <button
+                              onClick={() => a.creditos && handleAjustar(a.id, a.creditos.id, c, 1)}
+                              disabled={isPending || !a.creditos}
+                              className="w-5 h-5 flex items-center justify-center rounded text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-30 transition-colors"
+                            >
+                              <Plus className="w-3 h-3" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     )
@@ -334,23 +342,25 @@ export function AlunosList({ alunos: initial, autoescola_id }: Props) {
                     <span className="font-bold text-[#0ea5e9]">{totalCreditos(a)}</span>
                   </td>
                   <td className="px-4 py-3.5">
-                    <div className="flex items-center gap-1 justify-end">
-                      <button
-                        onClick={() => openEditar(a)}
-                        className="p-1.5 rounded-lg text-[--p-text-3] hover:text-[#0ea5e9] hover:bg-[#0ea5e9]/10 transition-colors"
-                        title="Editar"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleAbrirExcluir(a)}
-                        disabled={isPending || isLoadingCount}
-                        className="p-1.5 rounded-lg text-[--p-text-3] hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-30"
-                        title="Excluir"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                    {canEdit && (
+                      <div className="flex items-center gap-1 justify-end">
+                        <button
+                          onClick={() => openEditar(a)}
+                          className="p-1.5 rounded-lg text-[--p-text-3] hover:text-[#0ea5e9] hover:bg-[#0ea5e9]/10 transition-colors"
+                          title="Editar"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleAbrirExcluir(a)}
+                          disabled={isPending || isLoadingCount}
+                          className="p-1.5 rounded-lg text-[--p-text-3] hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-30"
+                          title="Excluir"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </motion.tr>
               ))}

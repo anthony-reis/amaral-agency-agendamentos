@@ -18,6 +18,7 @@ export default async function InstrutoesPage({ params }: Props) {
     <InstrutoesTable
       instrutores={instrutores}
       autoescola_id={session.autoescola_id}
+      userRole={session.role}
     />
   )
 }

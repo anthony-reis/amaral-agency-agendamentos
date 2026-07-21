@@ -158,6 +158,14 @@ export interface PainelSession {
   autoescola_slug: string
 }
 
+export function isVisualizador(role: string | null | undefined): boolean {
+  return role === 'visualizador'
+}
+
+export function canEditPainel(role: string | null | undefined): boolean {
+  return !isVisualizador(role)
+}
+
 // ─── Aluno ────────────────────────────────────────────────────────────────────
 
 export interface Aluno {

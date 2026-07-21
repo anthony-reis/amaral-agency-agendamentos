@@ -1,7 +1,7 @@
 'use server'
 
 import { createServiceClient } from '@/lib/supabase/server'
-import { getCurrentUsername } from './authPainel'
+import { getCurrentUsername, assertPodeEditar } from './authPainel'
 import type { Instrutor, NovoInstrutorInput, ActionResult } from '../types'
 
 export async function listarInstrutores(autoescola_id: string): Promise<Instrutor[]> {
@@ -19,6 +19,9 @@ export async function listarInstrutores(autoescola_id: string): Promise<Instruto
 export async function criarInstrutor(
   input: NovoInstrutorInput
 ): Promise<ActionResult<Instrutor>> {
+  const guard = await assertPodeEditar()
+  if (!guard.ok) return { success: false, error: guard.error }
+
   const { name, category, autoescola_id } = input
 
   if (!name.trim()) return { success: false, error: 'Nome é obrigatório.' }
@@ -58,6 +61,9 @@ export async function atualizarInstrutor(
   input: Partial<Pick<Instrutor, 'name' | 'category'>>,
   autoescola_id: string
 ): Promise<ActionResult<Instrutor>> {
+  const guard = await assertPodeEditar()
+  if (!guard.ok) return { success: false, error: guard.error }
+
   const supabase = createServiceClient()
 
   // Fetch current name before update to detect renames
@@ -115,6 +121,9 @@ export async function excluirInstrutor(
   id: string,
   autoescola_id: string
 ): Promise<ActionResult> {
+  const guard = await assertPodeEditar()
+  if (!guard.ok) return { success: false, error: guard.error }
+
   const supabase = createServiceClient()
 
   // Fetch name first so we can clean up horarios
@@ -178,6 +187,9 @@ export async function alterarSenhaInstrutor(
   novaSenha: string,
   autoescola_id: string
 ): Promise<ActionResult> {
+  const guard = await assertPodeEditar()
+  if (!guard.ok) return { success: false, error: guard.error }
+
   if (!novaSenha.trim()) return { success: false, error: 'Senha não pode ser vazia.' }
 
   const supabase = createServiceClient()

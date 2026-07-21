@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Activity, Search, Trash2, CheckCircle, XCircle, Clock } from 'lucide-react'
-import type { Agendamento, AgendamentoStatus } from '../types'
+import { canEditPainel, type Agendamento, type AgendamentoStatus } from '../types'
 import { atualizarStatusAgendamentosEmMassa } from '../actions/agendamentos'
 
 interface Filter {
@@ -23,6 +23,7 @@ interface Props {
   autoescola_id: string
   escolaSlug: string
   instrutores: string[]
+  userRole: string
 }
 
 const statusLabels: Record<AgendamentoStatus, { text: string; bg: string; color: string }> = {
@@ -34,7 +35,8 @@ const statusLabels: Record<AgendamentoStatus, { text: string; bg: string; color:
   cancelled: { text: 'Cancelado', bg: 'bg-gray-500/10', color: 'text-gray-500' },
 }
 
-export function ListaAgendamentosView({ initialAgendamentos, total, filter, autoescola_id, escolaSlug, instrutores }: Props) {
+export function ListaAgendamentosView({ initialAgendamentos, total, filter, autoescola_id, escolaSlug, instrutores, userRole }: Props) {
+  const canEdit = canEditPainel(userRole)
   const router = useRouter()
   const pathname = usePathname()
   const [isPending, startTransition] = useTransition()
@@ -132,7 +134,7 @@ export function ListaAgendamentosView({ initialAgendamentos, total, filter, auto
 
       {/* Bar de Ações em Massa */}
       <AnimatePresence>
-        {selectedIds.size > 0 && (
+        {canEdit && selectedIds.size > 0 && (
           <motion.div 
             initial={{ opacity: 0, y: -10 }} 
             animate={{ opacity: 1, y: 0 }} 
@@ -233,14 +235,16 @@ export function ListaAgendamentosView({ initialAgendamentos, total, filter, auto
         <table className="w-full text-sm min-w-[900px]">
           <thead className="bg-[#0ea5e9]/5 border-b border-[--p-border]">
             <tr>
-              <th className="px-4 py-3.5 text-left w-12">
-                <input 
-                  type="checkbox" 
-                  checked={selectedIds.size > 0 && selectedIds.size === initialAgendamentos.length}
-                  onChange={handleSelectAll}
-                  className="w-4 h-4 rounded border-[--p-border] text-[#0ea5e9] focus:ring-[#0ea5e9]"
-                />
-              </th>
+              {canEdit && (
+                <th className="px-4 py-3.5 text-left w-12">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.size > 0 && selectedIds.size === initialAgendamentos.length}
+                    onChange={handleSelectAll}
+                    className="w-4 h-4 rounded border-[--p-border] text-[#0ea5e9] focus:ring-[#0ea5e9]"
+                  />
+                </th>
+              )}
               <th className="px-5 py-3.5 text-left text-xs font-bold text-[--p-text-3] uppercase tracking-wider">Aluno</th>
               <th className="px-4 py-3.5 text-left text-xs font-bold text-[--p-text-3] uppercase tracking-wider">Instrutor</th>
               <th className="px-4 py-3.5 text-left text-xs font-bold text-[--p-text-3] uppercase tracking-wider">Data/Hora</th>
@@ -250,7 +254,7 @@ export function ListaAgendamentosView({ initialAgendamentos, total, filter, auto
           <tbody className="divide-y divide-[--p-border]">
             {initialAgendamentos.length === 0 ? (
               <tr>
-                <td colSpan={5} className="py-12 text-center text-[--p-text-3]">
+                <td colSpan={canEdit ? 5 : 4} className="py-12 text-center text-[--p-text-3]">
                   Nenhum agendamento encontrado para os filtros selecionados.
                 </td>
               </tr>
@@ -265,16 +269,18 @@ export function ListaAgendamentosView({ initialAgendamentos, total, filter, auto
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     className={`hover:bg-[--p-hover] transition-colors ${isSelected ? 'bg-[#0ea5e9]/5' : ''}`}
-                    onClick={() => toggleSelection(ag.id)}
+                    onClick={() => canEdit && toggleSelection(ag.id)}
                   >
-                    <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
-                      <input 
-                        type="checkbox" 
-                        checked={isSelected}
-                        onChange={() => toggleSelection(ag.id)}
-                        className="w-4 h-4 rounded border-[--p-border] text-[#0ea5e9] focus:ring-[#0ea5e9] cursor-pointer"
-                      />
-                    </td>
+                    {canEdit && (
+                      <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelection(ag.id)}
+                          className="w-4 h-4 rounded border-[--p-border] text-[#0ea5e9] focus:ring-[#0ea5e9] cursor-pointer"
+                        />
+                      </td>
+                    )}
                     <td className="px-5 py-4 cursor-pointer">
                       <p className="font-semibold text-[--p-text-1] truncate max-w-[200px]">{ag.student_name}</p>
                       <p className="text-xs text-[--p-text-3] mt-0.5">{doc}</p>

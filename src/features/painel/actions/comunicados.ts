@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getPainelSession } from './authPainel'
-import type { ComunicadoComLidos } from '../types'
+import { isVisualizador, type ComunicadoComLidos } from '../types'
 
 export async function listarComunicados(autoescola_id: string): Promise<ComunicadoComLidos[]> {
   const supabase = createServiceClient()
@@ -39,6 +39,7 @@ export async function criarComunicado(
   const supabase = createServiceClient()
   const session = await getPainelSession(escola)
   if (!session) throw new Error('Não autenticado.')
+  if (isVisualizador(session.role)) throw new Error('Ação não permitida para o perfil Visualizador.')
 
   const titulo = (formData.get('titulo') as string | null)?.trim() ?? ''
   const descricao = (formData.get('descricao') as string | null)?.trim() ?? ''
@@ -77,6 +78,7 @@ export async function editarComunicado(
   const supabase = createServiceClient()
   const session = await getPainelSession(escola)
   if (!session) throw new Error('Não autenticado.')
+  if (isVisualizador(session.role)) throw new Error('Ação não permitida para o perfil Visualizador.')
 
   const titulo = (formData.get('titulo') as string | null)?.trim() ?? ''
   const descricao = (formData.get('descricao') as string | null)?.trim() ?? ''
@@ -112,6 +114,7 @@ export async function excluirComunicado(
   const supabase = createServiceClient()
   const session = await getPainelSession(escola)
   if (!session) throw new Error('Não autenticado.')
+  if (isVisualizador(session.role)) throw new Error('Ação não permitida para o perfil Visualizador.')
 
   const { error } = await supabase
     .from('comunicados')

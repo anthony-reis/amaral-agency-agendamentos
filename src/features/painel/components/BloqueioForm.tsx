@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Ban, Plus, Trash2, Pencil, X, AlertCircle, Calendar, Clock, CalendarRange, CalendarDays, UserX, Clock3 } from 'lucide-react'
 import { criarBloqueio, criarBloqueioSemanais, editarBloqueio, excluirBloqueio } from '../actions/bloqueios'
-import type { BloqueioTimeSlot, GrupoBloqueioSemanal } from '../types'
+import { canEditPainel, type BloqueioTimeSlot, type GrupoBloqueioSemanal } from '../types'
 
 const TIPOS = [
   { value: 'dia', label: 'Dia Inteiro', icon: Calendar },
@@ -66,11 +66,13 @@ interface Props {
   bloqueios: BloqueioTimeSlot[]
   instrutores: string[]
   autoescola_id: string
+  userRole: string
 }
 
 type GrupoUI = GrupoBloqueioSemanal & { id: number }
 
-export function BloqueioForm({ bloqueios: initial, instrutores, autoescola_id }: Props) {
+export function BloqueioForm({ bloqueios: initial, instrutores, autoescola_id, userRole }: Props) {
+  const canEdit = canEditPainel(userRole)
   const [bloqueios, setBloqueios] = useState<BloqueioTimeSlot[]>(initial)
   const [showForm, setShowForm] = useState(false)
   const [tipo, setTipo] = useState<'dia' | 'horario' | 'intervalo' | 'semanal'>('dia')
@@ -268,13 +270,15 @@ export function BloqueioForm({ bloqueios: initial, instrutores, autoescola_id }:
             <p className="text-sm text-[--p-text-3]">{bloqueios.length} bloqueio{bloqueios.length !== 1 ? 's' : ''} ativo{bloqueios.length !== 1 ? 's' : ''}</p>
           </div>
         </div>
-        <button
-          onClick={() => { setEditingId(null); setShowForm((v) => !v) }}
-          className="flex items-center gap-2 px-4 py-2.5 bg-red-500 text-white text-sm font-semibold rounded-xl hover:bg-red-600 transition-colors shadow-sm"
-        >
-          <Plus className="w-4 h-4" />
-          Novo Bloqueio
-        </button>
+        {canEdit && (
+          <button
+            onClick={() => { setEditingId(null); setShowForm((v) => !v) }}
+            className="flex items-center gap-2 px-4 py-2.5 bg-red-500 text-white text-sm font-semibold rounded-xl hover:bg-red-600 transition-colors shadow-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Novo Bloqueio
+          </button>
+        )}
       </div>
 
       {/* Success toast */}
@@ -614,22 +618,24 @@ export function BloqueioForm({ bloqueios: initial, instrutores, autoescola_id }:
                   </td>
                   <td className="px-4 py-3.5 text-[--p-text-3] max-w-[200px] truncate">{b.reason}</td>
                   <td className="px-4 py-3.5 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <button
-                        onClick={() => openEdit(b)}
-                        disabled={isPending}
-                        className="p-1.5 text-[--p-text-3] hover:text-blue-400 hover:bg-blue-400/5 rounded-lg transition-colors"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(b.id)}
-                        disabled={isPending}
-                        className="p-1.5 text-[--p-text-3] hover:text-red-400 hover:bg-red-400/5 rounded-lg transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+                    {canEdit && (
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => openEdit(b)}
+                          disabled={isPending}
+                          className="p-1.5 text-[--p-text-3] hover:text-blue-400 hover:bg-blue-400/5 rounded-lg transition-colors"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(b.id)}
+                          disabled={isPending}
+                          className="p-1.5 text-[--p-text-3] hover:text-red-400 hover:bg-red-400/5 rounded-lg transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}

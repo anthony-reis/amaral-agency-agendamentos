@@ -2,7 +2,7 @@
 
 import { createServiceClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import { getCurrentUsername } from './authPainel'
+import { getCurrentUsername, assertPodeEditar } from './authPainel'
 import type { Agendamento, AgendamentoStats, InstrutorDesempenho, AgendamentoStatus, ActionResult } from '../types'
 
 const AG_ID_REGEX = /agendamento ([a-f0-9-]{36})/
@@ -425,6 +425,9 @@ export async function corrigirKmAgendamento(
   km_inicial: number | null,
   km_final: number | null
 ): Promise<ActionResult> {
+  const guard = await assertPodeEditar()
+  if (!guard.ok) return { success: false, error: guard.error }
+
   const supabase = createServiceClient()
 
   // Limpar registro de KM
@@ -477,6 +480,9 @@ export async function cancelarAgendamentoComOpcoes(
     reason?: string
   }
 ): Promise<ActionResult> {
+  const guard = await assertPodeEditar()
+  if (!guard.ok) return { success: false, error: guard.error }
+
   const supabase = createServiceClient()
 
   try {
@@ -585,8 +591,11 @@ export async function atualizarStatusAgendamentosEmMassa(
   status: AgendamentoStatus,
   autoescola_id: string
 ): Promise<ActionResult> {
+  const guard = await assertPodeEditar()
+  if (!guard.ok) return { success: false, error: guard.error }
+
   if (!ids.length) return { success: true, data: undefined }
-  
+
   const supabase = createServiceClient()
 
   try {

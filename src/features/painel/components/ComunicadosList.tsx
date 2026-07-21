@@ -4,12 +4,13 @@ import { useState, useTransition, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Megaphone, Plus, Trash2, X, Users, Pencil } from 'lucide-react'
 import { criarComunicado, editarComunicado, excluirComunicado } from '../actions/comunicados'
-import type { ComunicadoComLidos } from '../types'
+import { canEditPainel, type ComunicadoComLidos } from '../types'
 
 interface Props {
   comunicados: ComunicadoComLidos[]
   autoescola_id: string
   escola: string
+  userRole: string
 }
 
 type ModalMode = 'create' | 'edit'
@@ -21,7 +22,8 @@ interface FormModal {
   descricao?: string
 }
 
-export function ComunicadosList({ comunicados: initial, autoescola_id, escola }: Props) {
+export function ComunicadosList({ comunicados: initial, autoescola_id, escola, userRole }: Props) {
+  const canEdit = canEditPainel(userRole)
   const [comunicados, setComunicados] = useState<ComunicadoComLidos[]>(initial)
   const [modal, setModal] = useState<FormModal | null>(null)
   const [formError, setFormError] = useState('')
@@ -90,13 +92,15 @@ export function ComunicadosList({ comunicados: initial, autoescola_id, escola }:
           <h1 className="text-2xl font-bold text-[--p-text-1]">Comunicados</h1>
           <p className="text-sm text-[--p-text-3] mt-0.5">Avisos enviados para todos os alunos</p>
         </div>
-        <button
-          onClick={openCreate}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0ea5e9] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
-        >
-          <Plus className="w-4 h-4" />
-          Novo Comunicado
-        </button>
+        {canEdit && (
+          <button
+            onClick={openCreate}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0ea5e9] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
+          >
+            <Plus className="w-4 h-4" />
+            Novo Comunicado
+          </button>
+        )}
       </div>
 
       {/* Create / Edit modal */}
@@ -222,22 +226,24 @@ export function ComunicadosList({ comunicados: initial, autoescola_id, escola }:
                       </span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      onClick={() => openEdit(c)}
-                      className="p-2 rounded-lg text-[--p-text-3] hover:text-[#0ea5e9] hover:bg-[#0ea5e9]/10 transition-colors"
-                      title="Editar"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => setConfirmDelete(c.id)}
-                      className="p-2 rounded-lg text-[--p-text-3] hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                      title="Excluir"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+                  {canEdit && (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => openEdit(c)}
+                        className="p-2 rounded-lg text-[--p-text-3] hover:text-[#0ea5e9] hover:bg-[#0ea5e9]/10 transition-colors"
+                        title="Editar"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setConfirmDelete(c.id)}
+                        className="p-2 rounded-lg text-[--p-text-3] hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                        title="Excluir"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </motion.div>
             ))}

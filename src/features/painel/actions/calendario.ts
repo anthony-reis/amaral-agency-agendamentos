@@ -2,7 +2,7 @@
 
 import { createServiceClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import { getCurrentUsername } from './authPainel'
+import { getCurrentUsername, assertPodeEditar } from './authPainel'
 
 export interface DiaCalendario {
   date: string          // 'YYYY-MM-DD'
@@ -300,6 +300,9 @@ export async function atualizarStatusAgendamento(
   id: string,
   status: 'scheduled' | 'confirmed' | 'completed' | 'absent' | 'cancelled'
 ): Promise<{ error: string | null }> {
+  const guard = await assertPodeEditar()
+  if (!guard.ok) return { error: guard.error }
+
   const supabase = createServiceClient()
 
   const { data: ag, error: fetchErr } = await supabase
@@ -402,6 +405,9 @@ export async function agendarAulaCalendario(data: {
   student_name: string
   student_document: string
 }): Promise<{ error: string | null }> {
+  const guard = await assertPodeEditar()
+  if (!guard.ok) return { error: guard.error }
+
   const supabase = createServiceClient()
 
   const { data: inst } = await supabase.from('instructors').select('category').eq('name', data.instructor_name).eq('autoescola_id', data.autoescola_id).single()

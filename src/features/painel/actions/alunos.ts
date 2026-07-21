@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createServiceClient } from '@/lib/supabase/server'
-import { getCurrentUsername } from './authPainel'
+import { getCurrentUsername, assertPodeEditar } from './authPainel'
 import type { AlunoComCreditos, AlunoCreditos, NovoAlunoInput, ActionResult } from '../types'
 
 export async function listarAlunos(
@@ -31,6 +31,9 @@ export async function listarAlunos(
 }
 
 export async function criarAluno(input: NovoAlunoInput): Promise<ActionResult<AlunoComCreditos>> {
+  const guard = await assertPodeEditar()
+  if (!guard.ok) return { success: false, error: guard.error }
+
   const supabase = createServiceClient()
 
   const docLimpo = input.document_id.replace(/\D/g, '')
@@ -98,6 +101,9 @@ export async function editarAluno(
   input: Partial<{ name: string; phone: string; email: string }>,
   autoescola_id: string
 ): Promise<ActionResult<void>> {
+  const guard = await assertPodeEditar()
+  if (!guard.ok) return { success: false, error: guard.error }
+
   const supabase = createServiceClient()
   const { error } = await supabase
     .from('students')
@@ -152,6 +158,9 @@ export async function excluirAluno(
   id: string,
   autoescola_id: string
 ): Promise<ActionResult<void>> {
+  const guard = await assertPodeEditar()
+  if (!guard.ok) return { success: false, error: guard.error }
+
   const supabase = createServiceClient()
 
   // Buscar document_id para encontrar agendamentos vinculados por cpf_cnh
@@ -195,6 +204,9 @@ export async function ajustarCredito(
   delta: 1 | -1,
   autoescola_id: string
 ): Promise<ActionResult<AlunoCreditos>> {
+  const guard = await assertPodeEditar()
+  if (!guard.ok) return { success: false, error: guard.error }
+
   const supabase = createServiceClient()
   const col = `aulas_cat_${categoria}` as const
 

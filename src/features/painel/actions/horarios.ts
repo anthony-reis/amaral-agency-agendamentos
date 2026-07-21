@@ -1,7 +1,7 @@
 'use server'
 
 import { createServiceClient } from '@/lib/supabase/server'
-import { getCurrentUsername } from './authPainel'
+import { getCurrentUsername, assertPodeEditar } from './authPainel'
 import type { HorarioDisponivel, ActionResult } from '../types'
 
 export async function listarHorarios(autoescola_id: string): Promise<HorarioDisponivel[]> {
@@ -22,6 +22,9 @@ export async function criarHorario(
   instrutor: string | null,
   autoescola_id: string
 ): Promise<ActionResult<HorarioDisponivel>> {
+  const guard = await assertPodeEditar()
+  if (!guard.ok) return { success: false, error: guard.error }
+
   if (!horario.trim()) return { success: false, error: 'Horário é obrigatório.' }
 
   const supabase = createServiceClient()
@@ -67,6 +70,9 @@ export async function toggleHorario(
   ativo: boolean,
   autoescola_id: string
 ): Promise<ActionResult> {
+  const guard = await assertPodeEditar()
+  if (!guard.ok) return { success: false, error: guard.error }
+
   const supabase = createServiceClient()
   const { error } = await supabase
     .from('horarios_disponiveis')
@@ -91,6 +97,9 @@ export async function excluirHorario(
   id: string,
   autoescola_id: string
 ): Promise<ActionResult> {
+  const guard = await assertPodeEditar()
+  if (!guard.ok) return { success: false, error: guard.error }
+
   const supabase = createServiceClient()
   const { error } = await supabase
     .from('horarios_disponiveis')

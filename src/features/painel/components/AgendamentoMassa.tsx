@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import type { AlunoComCreditos } from "@/features/painel/types";
 import type { Instrutor } from "@/features/painel/types";
+import { canEditPainel } from "@/features/painel/types";
 import {
   buscarDisponibilidadeMassa,
   criarAgendamentosMassa,
@@ -31,6 +32,7 @@ interface Props {
   alunos: AlunoComCreditos[];
   instrutores: Instrutor[];
   autoescola_id: string;
+  userRole: string;
 }
 
 type Step = 1 | 2 | 3 | 4;
@@ -46,7 +48,9 @@ export function AgendamentoMassa({
   alunos,
   instrutores,
   autoescola_id,
+  userRole,
 }: Props) {
+  const canEdit = canEditPainel(userRole);
   const [step, setStep] = useState<Step>(1);
   const [isPending, startTransition] = useTransition();
 
@@ -182,6 +186,26 @@ export function AgendamentoMassa({
   }
 
   const stepLabels = ["Aluno", "Configurar", "Selecionar", "Confirmar"];
+
+  if (!canEdit) {
+    return (
+      <div className="p-6 max-w-3xl mx-auto space-y-6">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[#0ea5e9]/10 flex items-center justify-center shrink-0">
+            <CalendarPlus className="w-5 h-5 text-[#0ea5e9]" />
+          </div>
+          <div>
+            <h1 className="text-lg font-bold text-[--p-text-1]">
+              Agendamento em Massa
+            </h1>
+            <p className="text-sm text-[--p-text-3]">
+              Seu perfil (Visualizador) não tem permissão para criar agendamentos.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">

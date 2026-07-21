@@ -23,6 +23,7 @@ export default async function HorariosPage({ params }: Props) {
       horarios={horarios}
       instrutores={instrutores.map((i) => i.name)}
       autoescola_id={session.autoescola_id}
+      userRole={session.role}
     />
   )
 }

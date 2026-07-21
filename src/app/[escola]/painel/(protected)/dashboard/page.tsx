@@ -46,6 +46,7 @@ export default async function DashboardPage({ params }: Props) {
       autoescola_id={autoescola_id}
       kmStats={kmStats}
       registrarKm={config.registrar_km}
+      userRole={session.role}
     />
   )
 }

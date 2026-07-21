@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { AlertTriangle, CheckCircle2, User, Users, CreditCard, CalendarX2 } from 'lucide-react'
 import { resolverConflito } from '../actions/conflitos'
-import type { Conflito } from '../types'
+import { canEditPainel, type Conflito } from '../types'
 
 function formatDate(d: string) {
   const [y, m, day] = d.split('-')
@@ -16,6 +16,7 @@ function formatDate(d: string) {
 interface Props {
   conflitos: Conflito[]
   autoescola_id: string
+  userRole: string
 }
 
 
@@ -24,7 +25,8 @@ function sortByDate(a: Conflito, b: Conflito) {
   return b.date.localeCompare(a.date) // descending (most recent first)
 }
 
-export function ConflitosPanel({ conflitos: initial, autoescola_id }: Props) {
+export function ConflitosPanel({ conflitos: initial, autoescola_id, userRole }: Props) {
+  const canEdit = canEditPainel(userRole)
   const [conflitos, setConflitos] = useState<Conflito[]>(() =>
     [...initial].sort(sortByDate)
   )
@@ -227,12 +229,14 @@ export function ConflitosPanel({ conflitos: initial, autoescola_id }: Props) {
                           </>
                         )}
                       </div>
-                      <button
-                        onClick={() => setResolving({ conflito, idToCancel: id, idx: i })}
-                        className="shrink-0 px-3 py-1.5 text-xs font-semibold text-red-500 border border-red-500/30 rounded-lg hover:bg-red-500/10 transition-colors"
-                      >
-                        Cancelar este
-                      </button>
+                      {canEdit && (
+                        <button
+                          onClick={() => setResolving({ conflito, idToCancel: id, idx: i })}
+                          className="shrink-0 px-3 py-1.5 text-xs font-semibold text-red-500 border border-red-500/30 rounded-lg hover:bg-red-500/10 transition-colors"
+                        >
+                          Cancelar este
+                        </button>
+                      )}
                     </div>
                   ))}
                   <p className={`text-xs mt-2 ${noteColor}`}>

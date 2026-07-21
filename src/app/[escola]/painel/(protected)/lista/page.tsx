@@ -59,6 +59,7 @@ export default async function ListaAgendamentosPage({ params, searchParams }: Pr
         autoescola_id={session.autoescola_id}
         escolaSlug={escola}
         instrutores={instructorNames}
+        userRole={session.role}
       />
     </div>
   )

@@ -35,7 +35,7 @@ function getRelativeTime(iso: string) {
 }
 
 function initials(username: string) {
-  const parts = username.split(/[\s._-]/)
+  const parts = username.split(/[\s._-]+/).filter(Boolean)
   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
   return username.slice(0, 2).toUpperCase()
 }

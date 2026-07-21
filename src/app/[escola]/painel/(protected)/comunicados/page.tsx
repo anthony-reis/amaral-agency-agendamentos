@@ -19,6 +19,7 @@ export default async function ComunicadosPage({ params }: Props) {
       comunicados={comunicados}
       autoescola_id={session.autoescola_id}
       escola={escola}
+      userRole={session.role}
     />
   )
 }

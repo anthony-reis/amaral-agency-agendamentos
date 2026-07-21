@@ -4,12 +4,14 @@ import { useState, useTransition } from 'react'
 import { Settings, Phone, XCircle, RotateCcw, CheckCircle2, Clock, Gauge } from 'lucide-react'
 import { salvarInstructorConfig, salvarReagendamentoMinHoras } from '@/features/painel/actions/configuracoes'
 import type { InstructorConfig } from '@/features/painel/actions/configuracoes'
+import { canEditPainel } from '@/features/painel/types'
 
 interface Props {
   autoescola_id: string
   escola: string
   initialConfig: InstructorConfig
   initialReagendamentoMinHoras: number
+  userRole: string
 }
 
 const OPCOES: { key: keyof InstructorConfig; label: string; descricao: string; icon: React.ReactNode }[] = [
@@ -45,7 +47,8 @@ const OPCOES: { key: keyof InstructorConfig; label: string; descricao: string; i
   },
 ]
 
-export function ConfiguracoesInstrutor({ autoescola_id, escola, initialConfig, initialReagendamentoMinHoras }: Props) {
+export function ConfiguracoesInstrutor({ autoescola_id, escola, initialConfig, initialReagendamentoMinHoras, userRole }: Props) {
+  const canEdit = canEditPainel(userRole)
   const [config, setConfig] = useState<InstructorConfig>(initialConfig)
   const [reagendamentoHoras, setReagendamentoHoras] = useState(initialReagendamentoMinHoras)
   const [isPending, startTransition] = useTransition()
@@ -106,7 +109,7 @@ export function ConfiguracoesInstrutor({ autoescola_id, escola, initialConfig, i
               </div>
               <button
                 onClick={() => toggle(key)}
-                disabled={isPending}
+                disabled={isPending || !canEdit}
                 className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 transition-colors duration-200 focus:outline-none disabled:opacity-50 ${
                   config[key]
                     ? 'bg-[--p-accent] border-[--p-accent]'
@@ -159,7 +162,7 @@ export function ConfiguracoesInstrutor({ autoescola_id, escola, initialConfig, i
                     setSaved(false)
                     setReagendamentoHoras(Number(e.target.value))
                   }}
-                  disabled={isPending}
+                  disabled={isPending || !canEdit}
                   className="w-24 px-3 py-2 rounded-xl bg-[--p-bg-input] border border-[--p-border] text-[--p-text-1] text-center text-lg font-bold focus:outline-none focus:ring-2 focus:ring-[--p-accent]/30 focus:border-[--p-accent] disabled:opacity-50 transition"
                 />
                 <span className="text-sm text-[--p-text-2] font-medium">
@@ -177,22 +180,24 @@ export function ConfiguracoesInstrutor({ autoescola_id, escola, initialConfig, i
       </div>
 
       {/* ── Botão Salvar ── */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={handleSave}
-          disabled={isPending}
-          className="px-5 py-2.5 rounded-xl bg-[--p-accent] text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition-opacity"
-        >
-          {isPending ? 'Salvando...' : 'Salvar Configurações'}
-        </button>
-        {saved && (
-          <span className="text-sm text-emerald-400 flex items-center gap-1.5">
-            <CheckCircle2 className="w-4 h-4" />
-            Salvo!
-          </span>
-        )}
-        {error && <span className="text-sm text-red-400">{error}</span>}
-      </div>
+      {canEdit && (
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleSave}
+            disabled={isPending}
+            className="px-5 py-2.5 rounded-xl bg-[--p-accent] text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition-opacity"
+          >
+            {isPending ? 'Salvando...' : 'Salvar Configurações'}
+          </button>
+          {saved && (
+            <span className="text-sm text-emerald-400 flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4" />
+              Salvo!
+            </span>
+          )}
+          {error && <span className="text-sm text-red-400">{error}</span>}
+        </div>
+      )}
 
       {/* ── Preview ── */}
       <div className="bg-[--p-bg-card] border border-[--p-border] rounded-2xl p-5">

@@ -23,6 +23,7 @@ export default async function AgendamentoMassaPage({ params }: Props) {
       alunos={alunos}
       instrutores={instrutores}
       autoescola_id={session.autoescola_id}
+      userRole={session.role}
     />
   )
 }

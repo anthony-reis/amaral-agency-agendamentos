@@ -14,5 +14,5 @@ export default async function AlunosPage({ params }: Props) {
 
   const alunos = await listarAlunos(session.autoescola_id)
 
-  return <AlunosList alunos={alunos} autoescola_id={session.autoescola_id} />
+  return <AlunosList alunos={alunos} autoescola_id={session.autoescola_id} userRole={session.role} />
 }

@@ -6,7 +6,7 @@ import { Users, Plus, Trash2, Pencil, Key, X, Check, AlertCircle } from 'lucide-
 import {
   criarInstrutor, excluirInstrutor, atualizarInstrutor, alterarSenhaInstrutor,
 } from '../actions/instrutores'
-import type { Instrutor } from '../types'
+import { canEditPainel, type Instrutor } from '../types'
 
 const CATEGORIAS_FALLBACK = ['CARRO', 'MOTO', 'AMBOS']
 
@@ -14,9 +14,11 @@ interface Props {
   instrutores: Instrutor[]
   autoescola_id: string
   categoriasOpcoes?: string[]
+  userRole: string
 }
 
-export function InstrutoesTable({ instrutores: initial, autoescola_id, categoriasOpcoes }: Props) {
+export function InstrutoesTable({ instrutores: initial, autoescola_id, categoriasOpcoes, userRole }: Props) {
+  const canEdit = canEditPainel(userRole)
   const CATEGORIAS = categoriasOpcoes ?? CATEGORIAS_FALLBACK
   const [instrutores, setInstrutores] = useState<Instrutor[]>(initial)
   const [filter, setFilter] = useState<'TODOS' | string>('TODOS')
@@ -95,13 +97,15 @@ export function InstrutoesTable({ instrutores: initial, autoescola_id, categoria
             <p className="text-sm text-[--p-text-3]">{instrutores.length} cadastrado{instrutores.length !== 1 ? 's' : ''}</p>
           </div>
         </div>
-        <button
-          onClick={() => setShowCreate((v) => !v)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-[#0ea5e9] text-white text-sm font-semibold rounded-xl hover:bg-[#0284c7] transition-colors shadow-sm"
-        >
-          <Plus className="w-4 h-4" />
-          Novo Instrutor
-        </button>
+        {canEdit && (
+          <button
+            onClick={() => setShowCreate((v) => !v)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-[#0ea5e9] text-white text-sm font-semibold rounded-xl hover:bg-[#0284c7] transition-colors shadow-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Novo Instrutor
+          </button>
+        )}
       </div>
 
       {/* Filter tabs */}
@@ -231,29 +235,31 @@ export function InstrutoesTable({ instrutores: initial, autoescola_id, categoria
                     )}
                   </td>
                   <td className="px-4 py-3.5">
-                    <div className="flex items-center justify-end gap-1">
-                      <button
-                        onClick={() => { setPasswordId(instrutor.id); setNovaSenha(''); setError('') }}
-                        title="Alterar senha"
-                        className="p-1.5 rounded-lg text-[--p-text-3] hover:text-yellow-400 hover:bg-yellow-400/5 transition-colors"
-                      >
-                        <Key className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => startEdit(instrutor)}
-                        title="Editar"
-                        className="p-1.5 rounded-lg text-[--p-text-3] hover:text-[#0ea5e9] hover:bg-[#0ea5e9]/5 transition-colors"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(instrutor.id)}
-                        title="Excluir"
-                        className="p-1.5 rounded-lg text-[--p-text-3] hover:text-red-400 hover:bg-red-400/5 transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+                    {canEdit && (
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => { setPasswordId(instrutor.id); setNovaSenha(''); setError('') }}
+                          title="Alterar senha"
+                          className="p-1.5 rounded-lg text-[--p-text-3] hover:text-yellow-400 hover:bg-yellow-400/5 transition-colors"
+                        >
+                          <Key className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => startEdit(instrutor)}
+                          title="Editar"
+                          className="p-1.5 rounded-lg text-[--p-text-3] hover:text-[#0ea5e9] hover:bg-[#0ea5e9]/5 transition-colors"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(instrutor.id)}
+                          title="Excluir"
+                          className="p-1.5 rounded-lg text-[--p-text-3] hover:text-red-400 hover:bg-red-400/5 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}

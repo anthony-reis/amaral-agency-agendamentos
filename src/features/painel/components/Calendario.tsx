@@ -17,6 +17,7 @@ import {
 } from '../actions/calendario'
 import { cancelarAgendamentoComOpcoes } from '../actions/agendamentos'
 import { ModalCancelamentoAula } from '@/features/shared/components/ModalCancelamentoAula'
+import { canEditPainel } from '../types'
 
 const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -267,6 +268,7 @@ function SlotRow({
   alunos,
   onStatusChange,
   onBooked,
+  canEdit,
 }: {
   slot: SlotDia
   instructorName: string
@@ -276,6 +278,7 @@ function SlotRow({
   alunos: AlunoParaAgendar[]
   onStatusChange: (id: string, status: string) => void
   onBooked: (updated: SlotDia) => void
+  canEdit: boolean
 }) {
   const [showForm, setShowForm] = useState(false)
   const ag = slot.agendamento
@@ -298,19 +301,23 @@ function SlotRow({
         <td className="px-4 py-2.5 align-top" colSpan={4}>
           <AnimatePresence mode="wait">
             {!showForm ? (
-              <motion.button
-                key="btn"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                onClick={() => setShowForm(true)}
-                className="flex items-center gap-1.5 text-xs text-[--p-text-3] hover:text-[#0ea5e9] transition-colors group"
-              >
-                <span className="italic">Livre</span>
-                <span className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity ml-1 text-[#0ea5e9]">
-                  <Plus className="w-3 h-3" /> Agendar
-                </span>
-              </motion.button>
+              canEdit ? (
+                <motion.button
+                  key="btn"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setShowForm(true)}
+                  className="flex items-center gap-1.5 text-xs text-[--p-text-3] hover:text-[#0ea5e9] transition-colors group"
+                >
+                  <span className="italic">Livre</span>
+                  <span className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity ml-1 text-[#0ea5e9]">
+                    <Plus className="w-3 h-3" /> Agendar
+                  </span>
+                </motion.button>
+              ) : (
+                <span className="text-xs text-[--p-text-3] italic">Livre</span>
+              )
             ) : (
               <AgendarForm
                 key="form"
@@ -384,17 +391,23 @@ function SlotRow({
       <td className="px-4 py-3 align-middle">
         <div className="flex items-center gap-2">
           <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[ag.status] ?? STATUS_DOT.scheduled}`} />
-          <select
-            value={ag.status}
-            onChange={(e) => onStatusChange(ag.id, e.target.value)}
-            className={`text-xs font-medium bg-transparent border-0 focus:outline-none focus:ring-0 cursor-pointer pr-1 ${STATUS_TEXT[ag.status] ?? STATUS_TEXT.scheduled}`}
-          >
-            {STATUS_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value} className="text-[--p-text-1] bg-[--p-bg-card]">
-                {o.label}
-              </option>
-            ))}
-          </select>
+          {canEdit ? (
+            <select
+              value={ag.status}
+              onChange={(e) => onStatusChange(ag.id, e.target.value)}
+              className={`text-xs font-medium bg-transparent border-0 focus:outline-none focus:ring-0 cursor-pointer pr-1 ${STATUS_TEXT[ag.status] ?? STATUS_TEXT.scheduled}`}
+            >
+              {STATUS_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value} className="text-[--p-text-1] bg-[--p-bg-card]">
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <span className={`text-xs font-medium ${STATUS_TEXT[ag.status] ?? STATUS_TEXT.scheduled}`}>
+              {STATUS_OPTIONS.find((o) => o.value === ag.status)?.label ?? ag.status}
+            </span>
+          )}
         </div>
       </td>
     </tr>
@@ -406,9 +419,11 @@ function SlotRow({
 function DayPanel({
   autoescola_id,
   date,
+  canEdit,
 }: {
   autoescola_id: string
   date: string
+  canEdit: boolean
 }) {
   const [instrutores, setInstrutores] = useState<InstrutorDia[] | null>(null)
   const [selectedInstrutor, setSelectedInstrutor] = useState<string | null>(null)
@@ -595,6 +610,7 @@ function DayPanel({
                       alunos={alunos}
                       onStatusChange={handleStatusChange}
                       onBooked={handleBooked}
+                      canEdit={canEdit}
                     />
                   ))}
                 </tbody>
@@ -626,9 +642,11 @@ interface Props {
   initialData: DiaCalendario[]
   initialYear: number
   initialMonth: number
+  userRole: string
 }
 
-export function Calendario({ autoescola_id, initialData, initialYear, initialMonth }: Props) {
+export function Calendario({ autoescola_id, initialData, initialYear, initialMonth, userRole }: Props) {
+  const canEdit = canEditPainel(userRole)
   const [year, setYear] = useState(initialYear)
   const [month, setMonth] = useState(initialMonth)
   const [dias, setDias] = useState<DiaCalendario[]>(initialData)
@@ -765,7 +783,7 @@ export function Calendario({ autoescola_id, initialData, initialYear, initialMon
           exit={{ opacity: 0, y: -8 }}
           transition={{ duration: 0.15 }}
         >
-          <DayPanel autoescola_id={autoescola_id} date={selectedDate} />
+          <DayPanel autoescola_id={autoescola_id} date={selectedDate} canEdit={canEdit} />
         </motion.div>
       </AnimatePresence>
     </div>

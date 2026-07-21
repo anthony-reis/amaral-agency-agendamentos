@@ -17,6 +17,7 @@ interface Props {
   autoescola_id: string;
   kmStats?: KmStats;
   registrarKm?: boolean;
+  userRole: string;
 }
 
 const MEDAL = ["🥇", "🥈", "🥉"];
@@ -31,6 +32,7 @@ export function DashboardStats({
   autoescola_id,
   kmStats: initKmStats,
   registrarKm = false,
+  userRole,
 }: Props) {
   const [dateStart, setDateStart] = useState(initStart);
   const [dateEnd, setDateEnd] = useState(initEnd);
@@ -368,6 +370,7 @@ export function DashboardStats({
         inconsistencias={km?.inconsistencias_detalhes ?? []}
         autoescola_id={autoescola_id}
         onResolved={applyFilter}
+        userRole={userRole}
       />
     </div>
   );

@@ -4,15 +4,17 @@ import { useState, useTransition } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Clock, Plus, Trash2, X, AlertCircle } from 'lucide-react'
 import { criarHorario, toggleHorario, excluirHorario } from '../actions/horarios'
-import type { HorarioDisponivel } from '../types'
+import { canEditPainel, type HorarioDisponivel } from '../types'
 
 interface Props {
   horarios: HorarioDisponivel[]
   instrutores: string[]
   autoescola_id: string
+  userRole: string
 }
 
-export function HorariosGrid({ horarios: initial, instrutores, autoescola_id }: Props) {
+export function HorariosGrid({ horarios: initial, instrutores, autoescola_id, userRole }: Props) {
+  const canEdit = canEditPainel(userRole)
   const [horarios, setHorarios] = useState<HorarioDisponivel[]>(initial)
   const [isPending, startTransition] = useTransition()
   const [showForm, setShowForm] = useState(false)
@@ -69,13 +71,15 @@ export function HorariosGrid({ horarios: initial, instrutores, autoescola_id }: 
             <p className="text-sm text-[--p-text-3]">Gerencie os horários disponíveis por instrutor</p>
           </div>
         </div>
-        <button
-          onClick={() => setShowForm((v) => !v)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-[#0ea5e9] text-white text-sm font-semibold rounded-xl hover:bg-[#0284c7] transition-colors shadow-sm"
-        >
-          <Plus className="w-4 h-4" />
-          Novo Horário
-        </button>
+        {canEdit && (
+          <button
+            onClick={() => setShowForm((v) => !v)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-[#0ea5e9] text-white text-sm font-semibold rounded-xl hover:bg-[#0284c7] transition-colors shadow-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Novo Horário
+          </button>
+        )}
       </div>
 
       {/* Add form */}
@@ -150,21 +154,27 @@ export function HorariosGrid({ horarios: initial, instrutores, autoescola_id }: 
                         : 'bg-[--p-hover] border-[--p-border] text-[--p-text-3] line-through'
                     }`}
                   >
-                    <button
-                      onClick={() => handleToggle(h.id, h.ativo)}
-                      disabled={isPending}
-                      className="hover:scale-110 transition-transform"
-                      title={h.ativo ? 'Desativar' : 'Ativar'}
-                    >
-                      {h.horario}
-                    </button>
-                    <button
-                      onClick={() => handleDelete(h.id)}
-                      disabled={isPending}
-                      className="text-current opacity-40 hover:opacity-100 hover:text-red-400"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
+                    {canEdit ? (
+                      <button
+                        onClick={() => handleToggle(h.id, h.ativo)}
+                        disabled={isPending}
+                        className="hover:scale-110 transition-transform"
+                        title={h.ativo ? 'Desativar' : 'Ativar'}
+                      >
+                        {h.horario}
+                      </button>
+                    ) : (
+                      <span>{h.horario}</span>
+                    )}
+                    {canEdit && (
+                      <button
+                        onClick={() => handleDelete(h.id)}
+                        disabled={isPending}
+                        className="text-current opacity-40 hover:opacity-100 hover:text-red-400"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -173,9 +183,11 @@ export function HorariosGrid({ horarios: initial, instrutores, autoescola_id }: 
         ))}
       </div>
 
-      <p className="text-xs text-slate-600 text-center">
-        Clique no horário para ativar/desativar · Clique no × para excluir
-      </p>
+      {canEdit && (
+        <p className="text-xs text-slate-600 text-center">
+          Clique no horário para ativar/desativar · Clique no × para excluir
+        </p>
+      )}
     </div>
   )
 }

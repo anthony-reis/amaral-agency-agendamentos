@@ -10,6 +10,7 @@ const ROLES = [
   { value: 'super_admin', label: 'Super Admin' },
   { value: 'admin', label: 'Admin' },
   { value: 'operador', label: 'Operador' },
+  { value: 'visualizador', label: 'Visualizador' },
 ]
 
 interface Props {

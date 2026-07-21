@@ -2,7 +2,7 @@
 
 import { cookies } from 'next/headers'
 import { createServiceClient } from '@/lib/supabase/server'
-import type { PainelSession, PainelUser, ActionResult } from '../types'
+import { isVisualizador, type PainelSession, type PainelUser, type ActionResult } from '../types'
 
 const COOKIE_NAME = 'painel_session'
 const COOKIE_MAX_AGE = 60 * 60 * 8 // 8 hours
@@ -103,6 +103,27 @@ export async function getPainelSession(slug: string): Promise<PainelSession | nu
   } catch {
     return null
   }
+}
+
+export async function getPainelRole(): Promise<string | null> {
+  const cookieStore = await cookies()
+  const raw = cookieStore.get(COOKIE_NAME)?.value
+  if (!raw) return null
+
+  try {
+    const session = JSON.parse(raw) as PainelSession
+    return session.role ?? null
+  } catch {
+    return null
+  }
+}
+
+export async function assertPodeEditar(): Promise<{ ok: true } | { ok: false; error: string }> {
+  const role = await getPainelRole()
+  if (isVisualizador(role)) {
+    return { ok: false, error: 'Ação não permitida para o perfil Visualizador.' }
+  }
+  return { ok: true }
 }
 
 export async function getCurrentUsername(): Promise<string> {

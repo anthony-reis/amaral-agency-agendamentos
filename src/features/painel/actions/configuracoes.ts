@@ -2,6 +2,7 @@
 
 import { createServiceClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { assertPodeEditar } from './authPainel'
 
 export interface InstructorConfig {
   pode_dar_falta: boolean
@@ -49,6 +50,9 @@ export async function salvarInstructorConfig(
   config: InstructorConfig,
   escola: string
 ): Promise<{ success: boolean; error?: string }> {
+  const guard = await assertPodeEditar()
+  if (!guard.ok) return { success: false, error: guard.error }
+
   const supabase = createServiceClient()
   const { error } = await supabase
     .from('autoescolas')
@@ -67,6 +71,9 @@ export async function salvarReagendamentoMinHoras(
   horas: number,
   escola: string
 ): Promise<{ success: boolean; error?: string }> {
+  const guard = await assertPodeEditar()
+  if (!guard.ok) return { success: false, error: guard.error }
+
   const supabase = createServiceClient()
   const { error } = await supabase
     .from('autoescolas')

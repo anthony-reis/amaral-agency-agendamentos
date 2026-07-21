@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { X, AlertTriangle, Info, Check, Trash2, Calendar, Clock, User, Gauge } from 'lucide-react'
 import { corrigirKmAgendamento } from '../actions/agendamentos'
 import type { InconsistenciaKm, MotivoInconsistenciaKm } from '../actions/agendamentos'
+import { canEditPainel } from '../types'
 
 interface Props {
   open: boolean
@@ -12,6 +13,7 @@ interface Props {
   inconsistencias: InconsistenciaKm[]
   autoescola_id: string
   onResolved: () => void
+  userRole: string
 }
 
 const MOTIVO_INFO: Record<MotivoInconsistenciaKm, { label: string; desc: string; color: string }> = {
@@ -36,10 +38,12 @@ function LinhaInconsistencia({
   item,
   autoescola_id,
   onResolved,
+  canEdit,
 }: {
   item: InconsistenciaKm
   autoescola_id: string
   onResolved: () => void
+  canEdit: boolean
 }) {
   const [kmIni, setKmIni] = useState(item.km_inicial != null ? String(item.km_inicial) : '')
   const [kmFim, setKmFim] = useState(item.km_final != null ? String(item.km_final) : '')
@@ -103,7 +107,7 @@ function LinhaInconsistencia({
                 inputMode="numeric"
                 value={kmIni}
                 onChange={(e) => setKmIni(e.target.value)}
-                disabled={pending}
+                disabled={pending || !canEdit}
                 className="mt-1 block w-28 px-2.5 py-1.5 rounded-lg bg-[--p-bg-input] border border-[--p-border] text-sm text-[--p-text-1] focus:outline-none focus:ring-1 focus:ring-[#0ea5e9]/40"
               />
             </label>
@@ -114,7 +118,7 @@ function LinhaInconsistencia({
                 inputMode="numeric"
                 value={kmFim}
                 onChange={(e) => setKmFim(e.target.value)}
-                disabled={pending}
+                disabled={pending || !canEdit}
                 className="mt-1 block w-28 px-2.5 py-1.5 rounded-lg bg-[--p-bg-input] border border-[--p-border] text-sm text-[--p-text-1] focus:outline-none focus:ring-1 focus:ring-[#0ea5e9]/40"
               />
             </label>
@@ -123,21 +127,25 @@ function LinhaInconsistencia({
                 = {diff} km
               </span>
             )}
-            <button
-              onClick={() => salvar(false)}
-              disabled={pending}
-              className="ml-auto px-3 py-1.5 text-xs font-bold rounded-lg bg-[#0ea5e9] text-white hover:bg-[#0284c7] disabled:opacity-50 transition-colors flex items-center gap-1.5"
-            >
-              <Check className="w-3.5 h-3.5" /> Salvar
-            </button>
-            <button
-              onClick={() => salvar(true)}
-              disabled={pending}
-              title="Remover o registro de KM desta aula"
-              className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[--p-border] text-[--p-text-3] hover:text-rose-500 hover:border-rose-500/40 disabled:opacity-50 transition-colors flex items-center gap-1.5"
-            >
-              <Trash2 className="w-3.5 h-3.5" /> Limpar
-            </button>
+            {canEdit && (
+              <>
+                <button
+                  onClick={() => salvar(false)}
+                  disabled={pending}
+                  className="ml-auto px-3 py-1.5 text-xs font-bold rounded-lg bg-[#0ea5e9] text-white hover:bg-[#0284c7] disabled:opacity-50 transition-colors flex items-center gap-1.5"
+                >
+                  <Check className="w-3.5 h-3.5" /> Salvar
+                </button>
+                <button
+                  onClick={() => salvar(true)}
+                  disabled={pending}
+                  title="Remover o registro de KM desta aula"
+                  className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[--p-border] text-[--p-text-3] hover:text-rose-500 hover:border-rose-500/40 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Limpar
+                </button>
+              </>
+            )}
           </div>
           {erro && <p className="text-xs text-rose-500 mt-2">{erro}</p>}
         </>
@@ -146,7 +154,8 @@ function LinhaInconsistencia({
   )
 }
 
-export function InconsistenciasKmModal({ open, onClose, inconsistencias, autoescola_id, onResolved }: Props) {
+export function InconsistenciasKmModal({ open, onClose, inconsistencias, autoescola_id, onResolved, userRole }: Props) {
+  const canEdit = canEditPainel(userRole)
   return (
     <AnimatePresence>
       {open && (
@@ -221,6 +230,7 @@ export function InconsistenciasKmModal({ open, onClose, inconsistencias, autoesc
                         item={item}
                         autoescola_id={autoescola_id}
                         onResolved={onResolved}
+                        canEdit={canEdit}
                       />
                     ))}
                   </div>

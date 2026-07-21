@@ -24,6 +24,7 @@ export default async function CalendarioPage({ params }: Props) {
       initialData={dias}
       initialYear={year}
       initialMonth={month}
+      userRole={session.role}
     />
   )
 }

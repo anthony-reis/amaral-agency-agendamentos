@@ -23,6 +23,7 @@ export default async function ConfiguracoesPage({ params }: Props) {
       escola={escola}
       initialConfig={config}
       initialReagendamentoMinHoras={reagendamentoMinHoras}
+      userRole={session.role}
     />
   )
 }
