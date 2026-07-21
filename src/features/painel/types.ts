@@ -245,6 +245,8 @@ export type ActionResult<T = void> =
 
 // ─── Comunicado ───────────────────────────────────────────────────────────────
 
+export type ComunicadoPublico = 'alunos' | 'instrutores' | 'ambos'
+
 export interface Comunicado {
   id: string
   autoescola_id: string
@@ -252,8 +254,10 @@ export interface Comunicado {
   descricao: string
   created_by: string
   created_at: string
+  publico: ComunicadoPublico
 }
 
 export interface ComunicadoComLidos extends Comunicado {
   total_lidos: number
+  total_lidos_instrutores: number
 }

@@ -4,7 +4,7 @@ import { useState, useTransition, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Megaphone, Plus, Trash2, X, Users, Pencil } from 'lucide-react'
 import { criarComunicado, editarComunicado, excluirComunicado } from '../actions/comunicados'
-import { canEditPainel, type ComunicadoComLidos } from '../types'
+import { canEditPainel, type ComunicadoComLidos, type ComunicadoPublico } from '../types'
 
 interface Props {
   comunicados: ComunicadoComLidos[]
@@ -20,6 +20,19 @@ interface FormModal {
   id?: string
   titulo?: string
   descricao?: string
+  publico?: ComunicadoPublico
+}
+
+const PUBLICO_OPTIONS: { value: ComunicadoPublico; label: string }[] = [
+  { value: 'ambos', label: 'Alunos e Instrutores' },
+  { value: 'alunos', label: 'Somente Alunos' },
+  { value: 'instrutores', label: 'Somente Instrutores' },
+]
+
+const PUBLICO_BADGE: Record<ComunicadoPublico, string> = {
+  ambos: 'Alunos e Instrutores',
+  alunos: 'Alunos',
+  instrutores: 'Instrutores',
 }
 
 export function ComunicadosList({ comunicados: initial, autoescola_id, escola, userRole }: Props) {
@@ -38,7 +51,7 @@ export function ComunicadosList({ comunicados: initial, autoescola_id, escola, u
 
   function openEdit(c: ComunicadoComLidos) {
     setFormError('')
-    setModal({ mode: 'edit', id: c.id, titulo: c.titulo, descricao: c.descricao })
+    setModal({ mode: 'edit', id: c.id, titulo: c.titulo, descricao: c.descricao, publico: c.publico })
   }
 
   function closeModal() {
@@ -58,7 +71,7 @@ export function ComunicadosList({ comunicados: initial, autoescola_id, escola, u
           setComunicados((prev) =>
             prev.map((c) =>
               c.id === modal.id
-                ? { ...atualizado, total_lidos: c.total_lidos }
+                ? { ...atualizado, total_lidos: c.total_lidos, total_lidos_instrutores: c.total_lidos_instrutores }
                 : c
             )
           )
@@ -90,7 +103,7 @@ export function ComunicadosList({ comunicados: initial, autoescola_id, escola, u
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-[--p-text-1]">Comunicados</h1>
-          <p className="text-sm text-[--p-text-3] mt-0.5">Avisos enviados para todos os alunos</p>
+          <p className="text-sm text-[--p-text-3] mt-0.5">Avisos enviados para alunos e/ou instrutores</p>
         </div>
         {canEdit && (
           <button
@@ -143,6 +156,20 @@ export function ComunicadosList({ comunicados: initial, autoescola_id, escola, u
                       placeholder="Ex: Atualização de horários"
                       className="w-full px-3 py-2.5 bg-[--p-bg-input] border border-[--p-border] rounded-xl text-sm text-[--p-text-1] placeholder:text-[--p-text-3] focus:outline-none focus:border-[#0ea5e9]/60"
                     />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-[--p-text-3] uppercase tracking-wider mb-1.5">
+                      Público
+                    </label>
+                    <select
+                      name="publico"
+                      defaultValue={modal.publico ?? 'ambos'}
+                      className="w-full px-3 py-2.5 bg-[--p-bg-input] border border-[--p-border] rounded-xl text-sm text-[--p-text-1] focus:outline-none focus:border-[#0ea5e9]/60"
+                    >
+                      {PUBLICO_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-[--p-text-3] uppercase tracking-wider mb-1.5">
@@ -208,7 +235,12 @@ export function ComunicadosList({ comunicados: initial, autoescola_id, escola, u
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-base font-bold text-[--p-text-1] mb-1">{c.titulo}</h3>
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <h3 className="text-base font-bold text-[--p-text-1]">{c.titulo}</h3>
+                      <span className="text-[10px] font-semibold bg-[--p-hover] text-[--p-text-2] px-2 py-0.5 rounded-full uppercase tracking-wide">
+                        {PUBLICO_BADGE[c.publico]}
+                      </span>
+                    </div>
                     <p className="text-sm text-[--p-text-2] whitespace-pre-wrap leading-relaxed mb-3">
                       {c.descricao}
                     </p>
@@ -220,10 +252,18 @@ export function ComunicadosList({ comunicados: initial, autoescola_id, escola, u
                         })}
                       </span>
                       {c.created_by && <span>por {c.created_by}</span>}
-                      <span className="flex items-center gap-1">
-                        <Users className="w-3 h-3" />
-                        {c.total_lidos} {c.total_lidos === 1 ? 'leitura' : 'leituras'}
-                      </span>
+                      {c.publico !== 'instrutores' && (
+                        <span className="flex items-center gap-1">
+                          <Users className="w-3 h-3" />
+                          {c.total_lidos} {c.total_lidos === 1 ? 'aluno leu' : 'alunos leram'}
+                        </span>
+                      )}
+                      {c.publico !== 'alunos' && (
+                        <span className="flex items-center gap-1">
+                          <Users className="w-3 h-3" />
+                          {c.total_lidos_instrutores} {c.total_lidos_instrutores === 1 ? 'instrutor leu' : 'instrutores leram'}
+                        </span>
+                      )}
                     </div>
                   </div>
                   {canEdit && (

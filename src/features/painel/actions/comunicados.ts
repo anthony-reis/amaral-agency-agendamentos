@@ -19,17 +19,26 @@ export async function listarComunicados(autoescola_id: string): Promise<Comunica
 
   const ids = comunicados.map((c) => c.id)
 
-  const { data: lidosRows } = await supabase
-    .from('comunicados_lidos')
-    .select('comunicado_id')
-    .in('comunicado_id', ids)
+  const [{ data: lidosRows }, { data: lidosInstrutorRows }] = await Promise.all([
+    supabase.from('comunicados_lidos').select('comunicado_id').in('comunicado_id', ids),
+    supabase.from('comunicados_lidos_instrutor').select('comunicado_id').in('comunicado_id', ids),
+  ])
 
   const countMap = new Map<string, number>()
   for (const row of lidosRows ?? []) {
     countMap.set(row.comunicado_id, (countMap.get(row.comunicado_id) ?? 0) + 1)
   }
 
-  return comunicados.map((c) => ({ ...c, total_lidos: countMap.get(c.id) ?? 0 }))
+  const countInstrutorMap = new Map<string, number>()
+  for (const row of lidosInstrutorRows ?? []) {
+    countInstrutorMap.set(row.comunicado_id, (countInstrutorMap.get(row.comunicado_id) ?? 0) + 1)
+  }
+
+  return comunicados.map((c) => ({
+    ...c,
+    total_lidos: countMap.get(c.id) ?? 0,
+    total_lidos_instrutores: countInstrutorMap.get(c.id) ?? 0,
+  }))
 }
 
 export async function criarComunicado(
@@ -43,6 +52,7 @@ export async function criarComunicado(
 
   const titulo = (formData.get('titulo') as string | null)?.trim() ?? ''
   const descricao = (formData.get('descricao') as string | null)?.trim() ?? ''
+  const publico = (formData.get('publico') as string | null) ?? 'ambos'
 
   if (!titulo || !descricao) throw new Error('Título e descrição são obrigatórios.')
 
@@ -52,6 +62,7 @@ export async function criarComunicado(
       autoescola_id: session.autoescola_id,
       titulo,
       descricao,
+      publico,
       created_by: session.full_name,
     })
     .select('*')
@@ -67,7 +78,7 @@ export async function criarComunicado(
   })
 
   revalidatePath(`/${escola}/painel/comunicados`)
-  return { ...data, total_lidos: 0 }
+  return { ...data, total_lidos: 0, total_lidos_instrutores: 0 }
 }
 
 export async function editarComunicado(
@@ -82,12 +93,13 @@ export async function editarComunicado(
 
   const titulo = (formData.get('titulo') as string | null)?.trim() ?? ''
   const descricao = (formData.get('descricao') as string | null)?.trim() ?? ''
+  const publico = (formData.get('publico') as string | null) ?? 'ambos'
 
   if (!titulo || !descricao) throw new Error('Título e descrição são obrigatórios.')
 
   const { data, error } = await supabase
     .from('comunicados')
-    .update({ titulo, descricao })
+    .update({ titulo, descricao, publico })
     .eq('id', id)
     .eq('autoescola_id', session.autoescola_id)
     .select('*')
@@ -103,7 +115,7 @@ export async function editarComunicado(
   })
 
   revalidatePath(`/${escola}/painel/comunicados`)
-  return { ...data, total_lidos: 0 }
+  return { ...data, total_lidos: 0, total_lidos_instrutores: 0 }
 }
 
 export async function excluirComunicado(
