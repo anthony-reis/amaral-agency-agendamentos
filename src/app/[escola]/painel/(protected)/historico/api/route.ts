@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { listarHistoricoEnriquecido } from '@/features/painel/actions/agendamentos'
-import { createServiceClient } from '@/lib/supabase/server'
+import { listarAgendamentos, getAgendamentosStats } from '@/features/painel/actions/agendamentos'
+import type { AgendamentosSortColumn } from '@/features/painel/actions/agendamentos'
 import type { PainelSession } from '@/features/painel/types'
+
+const SORT_COLUMNS: AgendamentosSortColumn[] = [
+  'date',
+  'time_slot',
+  'student_name',
+  'instructor_name',
+  'instructorCategory',
+  'status',
+]
 
 export async function GET(
   request: NextRequest,
@@ -28,17 +37,36 @@ export async function GET(
   const today = new Date().toISOString().split('T')[0]
   const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]
 
-  const result = await listarHistoricoEnriquecido({
-    autoescola_id: session.autoescola_id,
-    date_start: sp.get('dateStart') ?? monthAgo,
-    date_end: sp.get('dateEnd') ?? today,
-    status: sp.get('status') ?? undefined,
-    instructor: sp.get('instructor') ?? undefined,
-    category: sp.get('category') ?? undefined,
-    search: sp.get('search') ?? undefined,
-    limit: Number(sp.get('limit') ?? 30),
-    offset: Number(sp.get('offset') ?? 0),
-  })
+  const dateStart = sp.get('dateStart') ?? monthAgo
+  const dateEnd = sp.get('dateEnd') ?? today
+  const instructor = sp.get('instructor') ?? undefined
+  const category = sp.get('category') ?? undefined
+  const status = sp.get('status') ?? undefined
+  const search = sp.get('search') ?? undefined
+  const sortByParam = sp.get('sortBy')
+  const sortBy = SORT_COLUMNS.find((c) => c === sortByParam)
+  const sortDir = sp.get('sortDir') === 'asc' ? 'asc' : 'desc'
 
-  return NextResponse.json(result)
+  const [result, stats] = await Promise.all([
+    listarAgendamentos({
+      autoescola_id: session.autoescola_id,
+      date_start: dateStart,
+      date_end: dateEnd,
+      instructor_name: instructor,
+      category,
+      status,
+      search,
+      sort_by: sortBy,
+      sort_dir: sortDir,
+      limit: Number(sp.get('limit') ?? 50),
+      offset: Number(sp.get('offset') ?? 0),
+    }),
+    getAgendamentosStats(session.autoescola_id, dateStart, dateEnd, {
+      instructor_name: instructor,
+      category,
+      search,
+    }),
+  ])
+
+  return NextResponse.json({ ...result, stats })
 }

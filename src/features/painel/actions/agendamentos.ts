@@ -5,11 +5,17 @@ import { revalidatePath } from 'next/cache'
 import { getCurrentUsername, assertPodeEditar } from './authPainel'
 import type { Agendamento, AgendamentoStats, InstrutorDesempenho, AgendamentoStatus, ActionResult } from '../types'
 
-const AG_ID_REGEX = /agendamento ([a-f0-9-]{36})/
-
 // Distância máxima plausível para uma aula prática (km). Acima disso é erro de
 // digitação no hodômetro (ex.: km_final com um dígito a mais) e é descartado da média.
 const KM_MAX_AULA = 200
+
+export type AgendamentosSortColumn =
+  | 'date'
+  | 'time_slot'
+  | 'student_name'
+  | 'instructor_name'
+  | 'instructorCategory'
+  | 'status'
 
 export interface AgendamentosFilter {
   autoescola_id: string
@@ -21,6 +27,8 @@ export interface AgendamentosFilter {
   search?: string
   limit?: number
   offset?: number
+  sort_by?: AgendamentosSortColumn
+  sort_dir?: 'asc' | 'desc'
 }
 
 export async function listarAgendamentos(
@@ -29,14 +37,23 @@ export async function listarAgendamentos(
   const supabase = createServiceClient()
   const limit = filter.limit ?? 50
   const offset = filter.offset ?? 0
+  const sortBy = filter.sort_by ?? 'date'
+  const ascending = filter.sort_dir === 'asc'
 
   let query = supabase
     .from('agendamentos')
     .select('*', { count: 'exact' })
     .eq('autoescola_id', filter.autoescola_id)
-    .order('date', { ascending: false })
-    .order('time_slot', { ascending: false })
     .range(offset, offset + limit - 1)
+
+  if (sortBy === 'date') {
+    query = query.order('date', { ascending }).order('time_slot', { ascending })
+  } else {
+    query = query
+      .order(sortBy, { ascending })
+      .order('date', { ascending: false })
+      .order('time_slot', { ascending: false })
+  }
 
   if (filter.date_start) query = query.gte('date', filter.date_start)
   if (filter.date_end) query = query.lte('date', filter.date_end)
@@ -88,141 +105,39 @@ export async function listarAgendamentos(
   return { data: rows, total: count ?? 0 }
 }
 
-export interface HistoricoItem {
-  id: string
-  agendamento: Agendamento
-  log_timestamp: string
-  log_username: string
-  log_action_type: string
-  log_description: string
-}
-
-export async function listarHistoricoEnriquecido(filter: {
-  autoescola_id: string
-  date_start?: string
-  date_end?: string
-  limit?: number
-  offset?: number
-  status?: string
-  instructor?: string
-  category?: string
-  search?: string
-}): Promise<{ data: HistoricoItem[]; total: number }> {
-  const supabase = createServiceClient()
-  const limit = filter.limit ?? 30
-  const offset = filter.offset ?? 0
-
-  // 1. Pegar logs de agendamento/cancelamento
-  let query = supabase
-    .from('activity_logs_painel')
-    .select('*', { count: 'exact' })
-    .eq('autoescola_id', filter.autoescola_id)
-    .in('action_type', ['agendamento', 'cancelamento'])
-    .order('created_at', { ascending: false })
-    .range(offset, offset + limit - 1)
-
-  if (filter.date_start) query = query.gte('created_at', `${filter.date_start}T00:00:00`)
-  if (filter.date_end) query = query.lte('created_at', `${filter.date_end}T23:59:59`)
-
-  const { data: logs, error: logErr, count } = await query
-  if (logErr) throw new Error(logErr.message)
-
-  if (!logs || logs.length === 0) return { data: [], total: 0 }
-
-  // 2. Extrair IDs de agendamento (do metadata ou da descrição)
-  const ids = logs
-    .map((l) => {
-      if (l.metadata?.agendamento_id) return l.metadata.agendamento_id
-      const match = l.description.match(AG_ID_REGEX)
-      return match ? match[1] : null
-    })
-    .filter(Boolean) as string[]
-
-  const uniqueIds = Array.from(new Set(ids))
-
-  // 3. Buscar os agendamentos correspondentes
-  let agMap = new Map<string, Agendamento>()
-  if (uniqueIds.length > 0) {
-    const { data: ags } = await supabase
-      .from('agendamentos')
-      .select('*')
-      .in('id', uniqueIds)
-
-    if (ags) {
-      ags.forEach((ag) => agMap.set(ag.id, ag))
-    }
-  }
-
-  // 4. Montar o resultado enriquecido
-  // Pré-computar nomes de instrutores da categoria selecionada
-  let categoryInstructorNames: Set<string> | null = null
-  if (filter.category && filter.category !== 'TODAS') {
-    const supabase2 = createServiceClient()
-    const { data: catInsts } = await supabase2
-      .from('instructors')
-      .select('name')
-      .eq('category', filter.category)
-      .eq('autoescola_id', filter.autoescola_id)
-    categoryInstructorNames = new Set((catInsts ?? []).map((i) => i.name))
-  }
-
-  const searchLower = filter.search?.toLowerCase().trim()
-
-  const results: HistoricoItem[] = []
-  for (const log of logs) {
-    const agId = log.metadata?.agendamento_id || log.description.match(AG_ID_REGEX)?.[1]
-    const ag = agId ? agMap.get(agId) : null
-
-    if (ag) {
-      // Filtrar por status
-      if (filter.status && filter.status !== 'TODOS' && ag.status !== filter.status) {
-        continue
-      }
-      // Filtrar por instrutor
-      if (filter.instructor && filter.instructor !== 'TODOS' && ag.instructor_name !== filter.instructor) {
-        continue
-      }
-      // Filtrar por categoria
-      if (categoryInstructorNames && !categoryInstructorNames.has(ag.instructor_name ?? '')) {
-        continue
-      }
-      // Filtrar por busca (nome ou documento)
-      if (searchLower) {
-        const haystack = [
-          ag.student_name ?? '',
-          ag.cpf_cnh ?? '',
-          ag.student_document ?? '',
-        ].join(' ').toLowerCase()
-        if (!haystack.includes(searchLower)) continue
-      }
-
-      results.push({
-        id: log.id,
-        agendamento: ag,
-        log_timestamp: log.created_at,
-        log_username: log.username,
-        log_action_type: log.action_type,
-        log_description: log.description,
-      })
-    }
-  }
-
-  return { data: results, total: count ?? 0 }
-}
-
 export async function getAgendamentosStats(
   autoescola_id: string,
   date_start: string,
-  date_end: string
+  date_end: string,
+  extra?: { instructor_name?: string; category?: string; search?: string }
 ): Promise<AgendamentoStats> {
   const supabase = createServiceClient()
-  const { data, error } = await supabase
+  let query = supabase
     .from('agendamentos')
     .select('status')
     .eq('autoescola_id', autoescola_id)
     .gte('date', date_start)
     .lte('date', date_end)
 
+  if (extra?.instructor_name && extra.instructor_name !== 'TODOS') {
+    query = query.eq('instructor_name', extra.instructor_name)
+  }
+  if (extra?.category && extra.category !== 'TODAS') {
+    const { data: insts } = await supabase
+      .from('instructors')
+      .select('name')
+      .eq('category', extra.category)
+      .eq('autoescola_id', autoescola_id)
+    const names = (insts ?? []).map((i) => i.name)
+    query = query.in('instructor_name', names.length > 0 ? names : ['__NO_MATCH__'])
+  }
+  if (extra?.search) {
+    query = query.or(
+      `student_name.ilike.%${extra.search}%,cpf_cnh.ilike.%${extra.search}%,student_document.ilike.%${extra.search}%`
+    )
+  }
+
+  const { data, error } = await query
   if (error) throw new Error(error.message)
 
   const rows = data ?? []

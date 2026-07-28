@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getPainelSession } from '@/features/painel/actions/authPainel'
-import { listarHistoricoEnriquecido, getAgendamentosStats } from '@/features/painel/actions/agendamentos'
+import { listarAgendamentos, getAgendamentosStats } from '@/features/painel/actions/agendamentos'
 import { listarInstrutores } from '@/features/painel/actions/instrutores'
 import { HistoricoList } from '@/features/painel/components/HistoricoList'
 
@@ -18,7 +18,7 @@ export default async function HistoricoPage({ params }: Props) {
   const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]
 
   const [result, stats, instrutores] = await Promise.all([
-    listarHistoricoEnriquecido({ autoescola_id, date_start: monthAgo, date_end: today, limit: 30 }),
+    listarAgendamentos({ autoescola_id, date_start: monthAgo, date_end: today, limit: 50 }),
     getAgendamentosStats(autoescola_id, monthAgo, today),
     listarInstrutores(autoescola_id),
   ])
@@ -26,9 +26,9 @@ export default async function HistoricoPage({ params }: Props) {
   return (
     <HistoricoList
       agendamentos={result.data}
+      total={result.total}
       stats={stats}
       instrutores={instrutores.map((i) => i.name)}
-      total={result.total}
       escola={escola}
       autoescola_id={autoescola_id}
     />

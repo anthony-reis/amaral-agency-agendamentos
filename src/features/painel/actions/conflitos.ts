@@ -188,7 +188,10 @@ export async function resolverConflito(
   // Cancel the agendamento
   await supabase
     .from('agendamentos')
-    .update({ status: 'cancelled' })
+    .update({
+      status: 'cancelled',
+      cancel_reason: 'Conflito resolvido: horário duplicado cancelado automaticamente e crédito devolvido ao aluno.',
+    })
     .eq('id', agendamentoId)
     .eq('autoescola_id', autoescola_id)
 
