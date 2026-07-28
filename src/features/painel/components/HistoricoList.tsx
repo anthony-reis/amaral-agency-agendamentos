@@ -8,6 +8,7 @@ import {
   Search,
   Eye,
   ShieldAlert,
+  Loader2,
   ChevronLeft,
   ChevronRight,
   ChevronUp,
@@ -144,6 +145,7 @@ export function HistoricoList({
     dir: "desc",
   });
   const [isPending, startTransition] = useTransition();
+  const [isExporting, setIsExporting] = useState(false);
   const [aulaDetalhe, setAulaDetalhe] = useState<Agendamento | null>(null);
 
   const [filters, setFilters] = useState({
@@ -260,33 +262,62 @@ export function HistoricoList({
     filters.dateStart !== monthAgo ||
     filters.dateEnd !== today;
 
-  function handleExportCSV() {
-    const header =
-      '"Data","Horário","Instrutor","Aluno","Documento","Status","Categoria","KM Inicial","KM Final","KM Rodado"';
-    const escape = (v: string | null | undefined) =>
-      `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const rows = items.map((a) =>
-      [
-        escape(a.date),
-        escape(a.time_slot),
-        escape(a.instructor_name),
-        escape(a.student_name),
-        escape(a.cpf_cnh ?? a.student_document ?? ""),
-        escape(a.status),
-        escape(a.instructorCategory ?? ""),
-        escape(a.km_inicial != null ? String(a.km_inicial) : ""),
-        escape(a.km_final != null ? String(a.km_final) : ""),
-        escape(a.km_rodado != null ? String(a.km_rodado) : ""),
-      ].join(",")
-    );
-    const csv = [header, ...rows].join("\n");
-    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `historico-${filters.dateStart}-${filters.dateEnd}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+  async function handleExportCSV() {
+    // Exporta pelo total filtrado (mesmo número do card "Total"), não pela página atual da tabela.
+    if (totalCount === 0) return;
+    setIsExporting(true);
+    try {
+      const params = new URLSearchParams({
+        autoescola_id,
+        dateStart: filters.dateStart,
+        dateEnd: filters.dateEnd,
+        instructor: filters.instructor,
+        category: filters.category,
+        status: filters.status,
+        search: filters.search,
+        sortBy: sort.by,
+        sortDir: sort.dir,
+        offset: "0",
+        limit: String(totalCount),
+      });
+      const res = await fetch(`/${escola}/painel/historico/api?${params}`);
+      if (!res.ok) return;
+      const json = await res.json();
+      const rows: Agendamento[] = json.data;
+
+      const header =
+        '"Data","Horário","Instrutor","Aluno","Documento","Status","Categoria","KM Inicial","KM Final","KM Rodado"';
+      const escape = (v: string | null | undefined) =>
+        `"${String(v ?? "").replace(/"/g, '""')}"`;
+      const csvRows = rows.map((a) =>
+        [
+          escape(a.date),
+          escape(a.time_slot),
+          escape(a.instructor_name),
+          escape(a.student_name),
+          escape(a.cpf_cnh ?? a.student_document ?? ""),
+          escape(a.status),
+          escape(a.instructorCategory ?? ""),
+          escape(a.km_inicial != null ? String(a.km_inicial) : ""),
+          escape(a.km_final != null ? String(a.km_final) : ""),
+          escape(a.km_rodado != null ? String(a.km_rodado) : ""),
+        ].join(",")
+      );
+      const csv = [header, ...csvRows].join("\n");
+      const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `historico-${filters.dateStart}-${filters.dateEnd}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
+  function handleApply() {
+    startTransition(() => fetchData(filters, 0, sort));
   }
 
   const chips: {
@@ -444,10 +475,22 @@ export function HistoricoList({
             )}
             <button
               onClick={handleExportCSV}
-              className="flex items-center gap-1.5 text-sm text-[--p-text-3] hover:text-[#0ea5e9] transition-colors"
+              disabled={isExporting || totalCount === 0}
+              className="flex items-center gap-1.5 text-sm text-[--p-text-3] hover:text-[#0ea5e9] transition-colors disabled:opacity-50"
             >
-              <Download className="w-4 h-4" />
-              Exportar CSV ({items.length})
+              {isExporting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Download className="w-4 h-4" />
+              )}
+              {isExporting ? "Exportando…" : `Exportar CSV (${totalCount})`}
+            </button>
+            <button
+              onClick={handleApply}
+              disabled={isPending}
+              className="px-4 py-2 bg-[#0ea5e9] text-white text-sm font-semibold rounded-xl hover:bg-[#0284c7] transition-colors disabled:opacity-50"
+            >
+              {isPending ? "Carregando…" : "Aplicar"}
             </button>
           </div>
         </div>

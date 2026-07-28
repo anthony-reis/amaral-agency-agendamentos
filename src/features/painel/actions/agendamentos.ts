@@ -112,43 +112,55 @@ export async function getAgendamentosStats(
   extra?: { instructor_name?: string; category?: string; search?: string }
 ): Promise<AgendamentoStats> {
   const supabase = createServiceClient()
-  let query = supabase
-    .from('agendamentos')
-    .select('status')
-    .eq('autoescola_id', autoescola_id)
-    .gte('date', date_start)
-    .lte('date', date_end)
 
-  if (extra?.instructor_name && extra.instructor_name !== 'TODOS') {
-    query = query.eq('instructor_name', extra.instructor_name)
-  }
+  let categoryNames: string[] | null = null
   if (extra?.category && extra.category !== 'TODAS') {
     const { data: insts } = await supabase
       .from('instructors')
       .select('name')
       .eq('category', extra.category)
       .eq('autoescola_id', autoescola_id)
-    const names = (insts ?? []).map((i) => i.name)
-    query = query.in('instructor_name', names.length > 0 ? names : ['__NO_MATCH__'])
-  }
-  if (extra?.search) {
-    query = query.or(
-      `student_name.ilike.%${extra.search}%,cpf_cnh.ilike.%${extra.search}%,student_document.ilike.%${extra.search}%`
-    )
+    categoryNames = (insts ?? []).map((i) => i.name)
+    if (categoryNames.length === 0) categoryNames = ['__NO_MATCH__']
   }
 
-  const { data, error } = await query
-  if (error) throw new Error(error.message)
+  // Conta via count exato (head:true, sem transferir linhas) — o PostgREST limita a
+  // 1000 linhas por requisição por padrão, então contar rows.length subestimava o
+  // total em bases grandes.
+  function countWhere(status?: string) {
+    let query = supabase
+      .from('agendamentos')
+      .select('*', { count: 'exact', head: true })
+      .eq('autoescola_id', autoescola_id)
+      .gte('date', date_start)
+      .lte('date', date_end)
 
-  const rows = data ?? []
-  return {
-    total: rows.length,
-    agendadas: rows.filter((r) => r.status === 'scheduled').length,
-    confirmadas: rows.filter((r) => r.status === 'confirmed').length,
-    concluidas: rows.filter((r) => r.status === 'completed').length,
-    desmarcadas: rows.filter((r) => r.status === 'cancelled').length,
-    faltas: rows.filter((r) => r.status === 'absent').length,
+    if (status) query = query.eq('status', status)
+    if (extra?.instructor_name && extra.instructor_name !== 'TODOS') {
+      query = query.eq('instructor_name', extra.instructor_name)
+    }
+    if (categoryNames) query = query.in('instructor_name', categoryNames)
+    if (extra?.search) {
+      query = query.or(
+        `student_name.ilike.%${extra.search}%,cpf_cnh.ilike.%${extra.search}%,student_document.ilike.%${extra.search}%`
+      )
+    }
+    return query.then(({ count, error }) => {
+      if (error) throw new Error(error.message)
+      return count ?? 0
+    })
   }
+
+  const [total, agendadas, confirmadas, concluidas, desmarcadas, faltas] = await Promise.all([
+    countWhere(),
+    countWhere('scheduled'),
+    countWhere('confirmed'),
+    countWhere('completed'),
+    countWhere('cancelled'),
+    countWhere('absent'),
+  ])
+
+  return { total, agendadas, confirmadas, concluidas, desmarcadas, faltas }
 }
 
 export async function getDesempenhoInstrutores(
