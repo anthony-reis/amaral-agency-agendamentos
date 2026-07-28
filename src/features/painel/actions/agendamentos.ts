@@ -258,11 +258,13 @@ function motivoInconsistencia(km_inicial: number, km_final: number | null): Moti
 export async function getKmStats(
   autoescola_id: string,
   date_start: string,
-  date_end: string
+  date_end: string,
+  instructor_name?: string,
+  category?: string
 ): Promise<KmStats> {
   const supabase = createServiceClient()
 
-  const { data } = await supabase
+  let query = supabase
     .from('agendamentos')
     .select('id, date, time_slot, instructor_name, student_name, instructorCategory, km_inicial, km_final, km_rodado')
     .eq('autoescola_id', autoescola_id)
@@ -270,6 +272,21 @@ export async function getKmStats(
     .gte('date', date_start)
     .lte('date', date_end)
     .not('instructor_name', 'is', null)
+
+  if (instructor_name && instructor_name !== 'TODOS') {
+    query = query.eq('instructor_name', instructor_name)
+  }
+  if (category && category !== 'TODAS') {
+    const { data: insts } = await supabase
+      .from('instructors')
+      .select('name')
+      .eq('category', category)
+      .eq('autoescola_id', autoescola_id)
+    const names = (insts ?? []).map((i) => i.name)
+    query = query.in('instructor_name', names.length > 0 ? names : ['__NO_MATCH__'])
+  }
+
+  const { data } = await query
 
   const rows = data ?? []
 

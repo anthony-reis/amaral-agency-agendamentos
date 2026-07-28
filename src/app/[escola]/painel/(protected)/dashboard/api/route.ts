@@ -30,9 +30,12 @@ export async function GET(
   const category = sp.get('category') ?? 'TODAS'
 
   const [stats, desempenho, kmStats] = await Promise.all([
-    getAgendamentosStats(session.autoescola_id, dateStart, dateEnd),
+    getAgendamentosStats(session.autoescola_id, dateStart, dateEnd, {
+      instructor_name: instructor,
+      category,
+    }),
     getDesempenhoInstrutores(session.autoescola_id, dateStart, dateEnd, instructor, category),
-    getKmStats(session.autoescola_id, dateStart, dateEnd),
+    getKmStats(session.autoescola_id, dateStart, dateEnd, instructor, category),
   ])
 
   return NextResponse.json({ stats, desempenho, kmStats })

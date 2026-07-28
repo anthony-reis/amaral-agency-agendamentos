@@ -1,8 +1,22 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useMemo } from "react";
 import { motion } from "framer-motion";
-import { BarChart2, Trophy, TrendingUp, Calendar, Filter, Gauge, AlertTriangle, Route } from "lucide-react";
+import {
+  BarChart2,
+  Trophy,
+  TrendingUp,
+  CalendarClock,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  Filter,
+  Route,
+  X,
+  ChevronUp,
+  ChevronDown,
+  ArrowUpDown,
+} from "lucide-react";
 import type { AgendamentoStats, InstrutorDesempenho } from "../types";
 import type { KmStats } from "../actions/agendamentos";
 import { InconsistenciasKmModal } from "./InconsistenciasKmModal";
@@ -22,6 +36,31 @@ interface Props {
 
 const MEDAL = ["🥇", "🥈", "🥉"];
 
+type SortCol =
+  | "instructor_name"
+  | "concluidas"
+  | "agendadas"
+  | "canceladas"
+  | "taxa"
+  | "km_total"
+  | "km_medio";
+
+interface MergedRow {
+  instructor_name: string;
+  categoria: string | null;
+  concluidas: number;
+  agendadas: number;
+  canceladas: number;
+  taxa: number;
+  km_total: number | null;
+  km_medio: number | null;
+}
+
+function formatDateBR(d: string) {
+  const [y, m, day] = d.split("-");
+  return `${day}/${m}/${y}`;
+}
+
 export function DashboardStats({
   stats,
   desempenho,
@@ -39,38 +78,111 @@ export function DashboardStats({
   const [instructor, setInstructor] = useState("TODOS");
   const [category, setCategory] = useState("TODAS");
   const [data, setData] = useState({ stats, desempenho, kmStats: initKmStats });
+  const [appliedRange, setAppliedRange] = useState({ start: initStart, end: initEnd });
   const [isPending, startTransition] = useTransition();
   const [inconsistenciasOpen, setInconsistenciasOpen] = useState(false);
+  const [sortCol, setSortCol] = useState<SortCol>("concluidas");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
-  async function applyFilter() {
-    startTransition(async () => {
-      const params = new URLSearchParams({
-        dateStart,
-        dateEnd,
-        instructor,
-        category,
-      });
-      const res = await fetch(`/${escola}/painel/dashboard/api?${params}`);
-      if (res.ok) {
-        const json = await res.json();
-        setData(json);
-      }
-    });
+  async function fetchWith(f: { dateStart: string; dateEnd: string; instructor: string; category: string }) {
+    const params = new URLSearchParams(f);
+    const res = await fetch(`/${escola}/painel/dashboard/api?${params}`);
+    if (res.ok) {
+      const json = await res.json();
+      setData(json);
+      setAppliedRange({ start: f.dateStart, end: f.dateEnd });
+    }
+  }
+
+  function applyFilter() {
+    startTransition(() => fetchWith({ dateStart, dateEnd, instructor, category }));
+  }
+
+  function clearFilters() {
+    setInstructor("TODOS");
+    setCategory("TODAS");
+    setDateStart(initStart);
+    setDateEnd(initEnd);
+    startTransition(() =>
+      fetchWith({ dateStart: initStart, dateEnd: initEnd, instructor: "TODOS", category: "TODAS" })
+    );
   }
 
   const km = data.kmStats;
+
+  const hasActiveFilters =
+    instructor !== "TODOS" ||
+    category !== "TODAS" ||
+    dateStart !== initStart ||
+    dateEnd !== initEnd;
+
+  const attendanceDenom = data.stats.concluidas + data.stats.desmarcadas + data.stats.faltas;
+  const taxaComparecimento =
+    attendanceDenom > 0 ? Math.round((data.stats.concluidas / attendanceDenom) * 100) : 0;
+  const attendanceColor =
+    taxaComparecimento >= 80 ? "bg-emerald-500" : taxaComparecimento >= 60 ? "bg-orange-500" : "bg-red-500";
+
+  const mergedRows: MergedRow[] = useMemo(() => {
+    const kmMap = new Map((km?.por_instrutor ?? []).map((r) => [r.instructor_name, r]));
+    return data.desempenho.map((d) => {
+      const k = kmMap.get(d.instructor_name);
+      return {
+        instructor_name: d.instructor_name,
+        categoria: d.categoria,
+        concluidas: d.concluidas,
+        agendadas: d.agendadas,
+        canceladas: d.canceladas,
+        taxa: d.taxa,
+        km_total: k?.km_total ?? null,
+        km_medio: k?.km_medio ?? null,
+      };
+    });
+  }, [data.desempenho, km]);
+
+  const sortedRows = useMemo(() => {
+    const rows = [...mergedRows];
+    rows.sort((a, b) => {
+      let cmp: number;
+      if (sortCol === "instructor_name") {
+        cmp = a.instructor_name.localeCompare(b.instructor_name);
+      } else {
+        cmp = (a[sortCol] ?? 0) - (b[sortCol] ?? 0);
+      }
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return rows;
+  }, [mergedRows, sortCol, sortDir]);
+
+  function handleSort(col: SortCol) {
+    setSortDir(sortCol === col ? (sortDir === "asc" ? "desc" : "asc") : "desc");
+    setSortCol(col);
+  }
+
+  const showMedals = sortCol === "concluidas" && sortDir === "desc";
+
+  const columns: { key: SortCol; label: string; show: boolean }[] = [
+    { key: "instructor_name", label: "Instrutor", show: true },
+    { key: "concluidas", label: "Concluídas", show: true },
+    { key: "agendadas", label: "Agendadas", show: true },
+    { key: "canceladas", label: "Canceladas", show: true },
+    { key: "taxa", label: "Taxa Conclusão", show: true },
+    { key: "km_total", label: "KM Total", show: registrarKm },
+    { key: "km_medio", label: "Média KM/Aula", show: registrarKm },
+  ];
 
   return (
     <div className="space-y-6">
       {/* Page header */}
       <div className="flex items-center gap-3">
-        <BarChart2 className="w-6 h-6 text-[#0ea5e9]" />
+        <div className="w-10 h-10 rounded-xl bg-[#0ea5e9]/10 flex items-center justify-center shrink-0">
+          <BarChart2 className="w-5 h-5 text-[#0ea5e9]" />
+        </div>
         <div>
           <h1 className="text-xl font-bold text-[--p-text-1]">
             Dashboard de Aulas
           </h1>
           <p className="text-sm text-[--p-text-3]">
-            Estatísticas e desempenho dos instrutores
+            Visão geral do negócio no período selecionado
           </p>
         </div>
       </div>
@@ -79,7 +191,7 @@ export function DashboardStats({
       <div className="bg-[--p-bg-card] rounded-2xl p-5 border border-[--p-border]">
         <div className="flex items-center gap-2 mb-4">
           <Filter className="w-4 h-4 text-[--p-text-3]" />
-          <span className="text-sm font-medium text-slate-300">Filtros</span>
+          <span className="text-sm font-semibold text-[--p-text-1]">Filtros</span>
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <div>
@@ -136,7 +248,17 @@ export function DashboardStats({
             />
           </div>
         </div>
-        <div className="mt-3 flex justify-end">
+        <div className="mt-3 flex items-center justify-end gap-4">
+          {hasActiveFilters && (
+            <button
+              onClick={clearFilters}
+              disabled={isPending}
+              className="flex items-center gap-1 text-sm font-medium text-[--p-text-3] hover:text-red-400 transition-colors disabled:opacity-50"
+            >
+              <X className="w-3.5 h-3.5" />
+              Limpar
+            </button>
+          )}
           <button
             onClick={applyFilter}
             disabled={isPending}
@@ -147,119 +269,66 @@ export function DashboardStats({
         </div>
       </div>
 
-      {/* Stats cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* KPIs do período */}
+      <div className={`grid grid-cols-2 lg:grid-cols-3 ${registrarKm ? "xl:grid-cols-6" : "xl:grid-cols-5"} gap-4`}>
         <StatCard
-          label="Total de Aulas Concluídas"
+          label="Aulas Concluídas"
           value={data.stats.concluidas}
-          color="bg-blue-500"
-          icon={<Trophy className="w-8 h-8 text-white/80" />}
-        />
-        <StatCard
-          label="Média por Instrutor"
-          value={
-            data.desempenho.length > 0
-              ? (data.stats.concluidas / data.desempenho.length).toFixed(1)
-              : "0"
-          }
           color="bg-emerald-500"
-          icon={<TrendingUp className="w-8 h-8 text-white/80" />}
+          icon={<CheckCircle2 className="w-8 h-8 text-white/80" />}
         />
         <StatCard
           label="Aulas Agendadas"
           value={data.stats.agendadas}
-          color="bg-orange-500"
-          icon={<Calendar className="w-8 h-8 text-white/80" />}
+          color="bg-[#0ea5e9]"
+          icon={<CalendarClock className="w-8 h-8 text-white/80" />}
         />
+        <StatCard
+          label="Desmarcadas"
+          value={data.stats.desmarcadas}
+          color="bg-red-500"
+          icon={<XCircle className="w-8 h-8 text-white/80" />}
+        />
+        <StatCard
+          label="Faltas"
+          value={data.stats.faltas}
+          color="bg-orange-500"
+          icon={<AlertTriangle className="w-8 h-8 text-white/80" />}
+        />
+        <StatCard
+          label="Taxa de Comparecimento"
+          value={`${taxaComparecimento}%`}
+          color={attendanceColor}
+          icon={<TrendingUp className="w-8 h-8 text-white/80" />}
+        />
+        {registrarKm && km && (
+          <StatCard
+            label="KM Rodado"
+            value={`${km.km_total.toLocaleString("pt-BR")} km`}
+            color="bg-violet-600"
+            icon={<Route className="w-8 h-8 text-white/80" />}
+          />
+        )}
       </div>
 
-      {/* Seção KM — só exibida se registrar_km ativo */}
-      {registrarKm && km && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <Gauge className="w-5 h-5 text-violet-400" />
-            <h2 className="text-base font-bold text-[--p-text-1]">KM Rodado no Período</h2>
-          </div>
-
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard
-              label="KM Total"
-              value={`${km.km_total.toLocaleString('pt-BR')} km`}
-              color="bg-violet-600"
-              icon={<Route className="w-8 h-8 text-white/80" />}
-            />
-            <StatCard
-              label="Média por Aula"
-              value={`${km.km_medio} km`}
-              color="bg-violet-500"
-              icon={<Gauge className="w-8 h-8 text-white/80" />}
-            />
-            <StatCard
-              label="Aulas com KM"
-              value={km.total_aulas_com_km}
-              color="bg-violet-400"
-              icon={<TrendingUp className="w-8 h-8 text-white/80" />}
-            />
-            <button
-              type="button"
-              onClick={() => setInconsistenciasOpen(true)}
-              disabled={km.inconsistencias === 0}
-              className={`${km.inconsistencias > 0 ? 'bg-red-600 hover:bg-red-500 cursor-pointer' : 'bg-slate-600 cursor-default'} rounded-2xl p-5 flex items-center justify-between text-left transition-colors`}
-            >
-              <div>
-                <p className="text-xs text-white/70 font-medium mb-1">Inconsistências</p>
-                <p className="text-3xl font-bold text-white/80">{km.inconsistencias}</p>
-                {km.inconsistencias > 0 && (
-                  <p className="text-[11px] text-white/70 mt-1 underline">ver e resolver</p>
-                )}
-              </div>
-              <AlertTriangle className="w-8 h-8 text-white/80" />
-            </button>
-          </div>
-
-          {/* Tabela KM por instrutor */}
-          {km.por_instrutor.length > 0 && (
-            <div className="bg-[--p-bg-card] rounded-2xl border border-[--p-border] overflow-hidden">
-              <div className="flex items-center gap-2 px-6 py-4 border-b border-[--p-border]">
-                <Gauge className="w-4 h-4 text-violet-400" />
-                <h3 className="text-sm font-semibold text-[--p-text-1]">KM por Instrutor</h3>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-[--p-border]">
-                      <th className="text-left text-xs font-semibold text-[--p-text-3] uppercase px-6 py-3">Instrutor</th>
-                      <th className="text-left text-xs font-semibold text-[--p-text-3] uppercase px-4 py-3">Categoria</th>
-                      <th className="text-right text-xs font-semibold text-[--p-text-3] uppercase px-4 py-3">Aulas</th>
-                      <th className="text-right text-xs font-semibold text-[--p-text-3] uppercase px-4 py-3">KM Total</th>
-                      <th className="text-right text-xs font-semibold text-[--p-text-3] uppercase px-4 py-3">Média/Aula</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[--p-border]">
-                    {km.por_instrutor.map((row) => (
-                      <tr key={row.instructor_name} className="hover:bg-[--p-hover] transition-colors">
-                        <td className="px-6 py-3.5 font-semibold text-[--p-text-1]">{row.instructor_name}</td>
-                        <td className="px-4 py-3.5">
-                          <span className={`px-2 py-0.5 text-xs font-bold rounded-md ${
-                            row.categoria === 'CARRO' ? 'bg-blue-500/20 text-blue-300' : 'bg-purple-500/20 text-purple-300'
-                          }`}>
-                            {row.categoria ?? '—'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3.5 text-right text-[--p-text-2]">{row.total_aulas}</td>
-                        <td className="px-4 py-3.5 text-right font-bold text-violet-400">{row.km_total.toLocaleString('pt-BR')} km</td>
-                        <td className="px-4 py-3.5 text-right text-[--p-text-3]">{row.km_medio} km</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
+      {/* Alerta de inconsistências de KM */}
+      {registrarKm && km && km.inconsistencias > 0 && (
+        <button
+          type="button"
+          onClick={() => setInconsistenciasOpen(true)}
+          className="w-full flex items-center gap-3 px-5 py-3.5 rounded-2xl bg-red-500/10 border border-red-500/20 hover:bg-red-500/15 transition-colors text-left"
+        >
+          <AlertTriangle className="w-5 h-5 text-red-400 shrink-0" />
+          <p className="text-sm text-red-300 flex-1">
+            <span className="font-semibold">{km.inconsistencias}</span>{" "}
+            {km.inconsistencias === 1 ? "inconsistência de KM encontrada" : "inconsistências de KM encontradas"} —
+            leituras de hodômetro que precisam de revisão
+          </p>
+          <span className="text-xs font-semibold text-red-300 underline shrink-0">Ver e resolver</span>
+        </button>
       )}
 
-      {/* Instructor performance table */}
+      {/* Desempenho por Instrutor — concluídas, agendadas, canceladas, taxa e KM em uma única tabela */}
       <div className="bg-[--p-bg-card] rounded-2xl border border-[--p-border] overflow-hidden">
         <div className="flex items-center gap-2 px-6 py-4 border-b border-[--p-border]">
           <Trophy className="w-4 h-4 text-[--p-text-3]" />
@@ -268,40 +337,46 @@ export function DashboardStats({
           </h2>
         </div>
 
-        {data.desempenho.length === 0 ? (
+        {sortedRows.length === 0 ? (
           <div className="px-6 py-12 text-center text-[--p-text-3] text-sm">
             Nenhum dado para o período selecionado.
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 z-10 bg-[--p-bg-card]">
+              <thead>
                 <tr className="border-b border-[--p-border]">
                   <th className="text-left text-xs font-semibold text-[--p-text-3] uppercase px-6 py-3">
                     Ranking
                   </th>
-                  <th className="text-left text-xs font-semibold text-[--p-text-3] uppercase px-4 py-3">
-                    Instrutor
-                  </th>
-                  <th className="text-left text-xs font-semibold text-[--p-text-3] uppercase px-4 py-3">
-                    Categoria
-                  </th>
-                  <th className="text-right text-xs font-semibold text-[--p-text-3] uppercase px-4 py-3">
-                    Concluídas
-                  </th>
-                  <th className="text-right text-xs font-semibold text-[--p-text-3] uppercase px-4 py-3">
-                    Agendadas
-                  </th>
-                  <th className="text-right text-xs font-semibold text-[--p-text-3] uppercase px-4 py-3">
-                    Canceladas
-                  </th>
-                  <th className="text-left text-xs font-semibold text-[--p-text-3] uppercase px-4 py-3">
-                    Taxa Conclusão
-                  </th>
+                  {columns.filter((c) => c.show).map((col) => {
+                    const isName = col.key === "instructor_name";
+                    return (
+                      <th key={col.key} className={`px-4 py-3 ${isName ? "text-left" : "text-right"}`}>
+                        <button
+                          onClick={() => handleSort(col.key)}
+                          className={`flex items-center gap-1 text-xs font-semibold uppercase transition-colors ${
+                            isName ? "" : "ml-auto"
+                          } ${sortCol === col.key ? "text-[#0ea5e9]" : "text-[--p-text-3] hover:text-[--p-text-1]"}`}
+                        >
+                          {col.label}
+                          {sortCol === col.key ? (
+                            sortDir === "asc" ? (
+                              <ChevronUp className="w-3.5 h-3.5" />
+                            ) : (
+                              <ChevronDown className="w-3.5 h-3.5" />
+                            )
+                          ) : (
+                            <ArrowUpDown className="w-3 h-3 opacity-40" />
+                          )}
+                        </button>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody className="divide-y divide-[--p-border]">
-                {data.desempenho.map((row, idx) => (
+                {sortedRows.map((row, idx) => (
                   <motion.tr
                     key={row.instructor_name}
                     initial={{ opacity: 0 }}
@@ -310,18 +385,16 @@ export function DashboardStats({
                     className="hover:bg-[--p-hover] transition-colors"
                   >
                     <td className="px-6 py-3.5 text-lg">
-                      {MEDAL[idx] ?? (
-                        <span className="text-[--p-text-3] text-sm font-medium">
-                          #{idx + 1}
-                        </span>
+                      {showMedals && MEDAL[idx] ? (
+                        MEDAL[idx]
+                      ) : (
+                        <span className="text-[--p-text-3] text-sm font-medium">#{idx + 1}</span>
                       )}
                     </td>
-                    <td className="px-4 py-3.5 font-semibold text-[--p-text-1]">
-                      {row.instructor_name}
-                    </td>
                     <td className="px-4 py-3.5">
+                      <p className="font-semibold text-[--p-text-1]">{row.instructor_name}</p>
                       <span
-                        className={`px-2 py-0.5 text-xs font-bold rounded-md ${
+                        className={`inline-block mt-0.5 px-2 py-0.5 text-xs font-bold rounded-md ${
                           row.categoria === "CARRO"
                             ? "bg-blue-500/20 text-blue-300"
                             : "bg-purple-500/20 text-purple-300"
@@ -340,18 +413,28 @@ export function DashboardStats({
                       {row.canceladas}
                     </td>
                     <td className="px-4 py-3.5">
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                      <div className="flex items-center justify-end gap-2">
+                        <div className="w-16 h-1.5 bg-white/10 rounded-full overflow-hidden">
                           <div
                             className="h-full bg-emerald-400 rounded-full"
                             style={{ width: `${row.taxa}%` }}
                           />
                         </div>
-                        <span className="text-xs text-[--p-text-3] w-8 text-right">
+                        <span className="text-xs text-[--p-text-3] w-9 text-right">
                           {row.taxa}%
                         </span>
                       </div>
                     </td>
+                    {registrarKm && (
+                      <>
+                        <td className="px-4 py-3.5 text-right font-bold text-violet-400">
+                          {row.km_total != null ? `${row.km_total.toLocaleString("pt-BR")} km` : "—"}
+                        </td>
+                        <td className="px-4 py-3.5 text-right text-[--p-text-3]">
+                          {row.km_medio != null ? `${row.km_medio} km` : "—"}
+                        </td>
+                      </>
+                    )}
                   </motion.tr>
                 ))}
               </tbody>
@@ -359,7 +442,7 @@ export function DashboardStats({
           </div>
         )}
         <div className="px-6 py-3 border-t border-[--p-border] text-xs text-[--p-text-3] text-center">
-          Exibindo dados de {initStart} até {initEnd}
+          Exibindo dados de {formatDateBR(appliedRange.start)} até {formatDateBR(appliedRange.end)}
         </div>
       </div>
 
@@ -389,7 +472,7 @@ function StatCard({
 }) {
   return (
     <div
-      className={`${color} rounded-2xl p-5 flex items-center justify-between`}
+      className={`${color} rounded-2xl p-5 flex items-center justify-between transition-transform duration-150 hover:-translate-y-0.5`}
     >
       <div>
         <p className="text-xs text-white/70 font-medium mb-1">{label}</p>
