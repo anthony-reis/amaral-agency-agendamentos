@@ -27,7 +27,7 @@ export async function obterCredenciaisMP(autoescola_id: string): Promise<Credenc
   const supabase = createServiceClient()
   const { data } = await supabase
     .from('autoescola_pagamentos')
-    .select('mp_access_token, mp_public_key, mp_webhook_secret, ativo, sandbox, updated_at')
+    .select('mp_access_token_secret_id, mp_public_key, mp_webhook_secret_id, ativo, sandbox, updated_at')
     .eq('autoescola_id', autoescola_id)
     .maybeSingle()
 
@@ -43,11 +43,19 @@ export async function obterCredenciaisMP(autoescola_id: string): Promise<Credenc
     }
   }
 
+  let tokenUltimos4: string | null = null
+  if (data.mp_access_token_secret_id) {
+    const { data: token } = await supabase.rpc('vault_read_secret', {
+      p_secret_id: data.mp_access_token_secret_id,
+    })
+    tokenUltimos4 = token ? String(token).slice(-4) : null
+  }
+
   return {
     configurado: true,
     mp_public_key: data.mp_public_key,
-    token_ultimos4: data.mp_access_token ? data.mp_access_token.slice(-4) : null,
-    secret_configurado: !!data.mp_webhook_secret,
+    token_ultimos4: tokenUltimos4,
+    secret_configurado: !!data.mp_webhook_secret_id,
     ativo: data.ativo,
     sandbox: data.sandbox,
     updated_at: data.updated_at,
@@ -62,7 +70,7 @@ export async function salvarCredenciaisMP(
 
   const { data: existente } = await supabase
     .from('autoescola_pagamentos')
-    .select('autoescola_id')
+    .select('autoescola_id, mp_access_token_secret_id, mp_webhook_secret_id')
     .eq('autoescola_id', autoescola_id)
     .maybeSingle()
 
@@ -74,11 +82,25 @@ export async function salvarCredenciaisMP(
     if (!token || !secret) {
       return { success: false, error: 'Access token e webhook secret são obrigatórios no primeiro cadastro.' }
     }
+    const { data: tokenSecretId, error: tokenVaultError } = await supabase.rpc('vault_upsert_secret', {
+      p_secret_id: null,
+      p_secret: token,
+      p_name: `mp_access_token_${autoescola_id}`,
+    })
+    if (tokenVaultError) return { success: false, error: tokenVaultError.message }
+
+    const { data: webhookSecretId, error: secretVaultError } = await supabase.rpc('vault_upsert_secret', {
+      p_secret_id: null,
+      p_secret: secret,
+      p_name: `mp_webhook_secret_${autoescola_id}`,
+    })
+    if (secretVaultError) return { success: false, error: secretVaultError.message }
+
     const { error } = await supabase.from('autoescola_pagamentos').insert({
       autoescola_id,
-      mp_access_token: token,
+      mp_access_token_secret_id: tokenSecretId,
       mp_public_key: publicKey || null,
-      mp_webhook_secret: secret,
+      mp_webhook_secret_id: webhookSecretId,
       ativo: input.ativo,
       sandbox: input.sandbox,
     })
@@ -90,8 +112,25 @@ export async function salvarCredenciaisMP(
       sandbox: input.sandbox,
       updated_at: new Date().toISOString(),
     }
-    if (token) updates.mp_access_token = token
-    if (secret) updates.mp_webhook_secret = secret
+
+    if (token) {
+      const { data: tokenSecretId, error: tokenVaultError } = await supabase.rpc('vault_upsert_secret', {
+        p_secret_id: existente.mp_access_token_secret_id,
+        p_secret: token,
+        p_name: `mp_access_token_${autoescola_id}`,
+      })
+      if (tokenVaultError) return { success: false, error: tokenVaultError.message }
+      updates.mp_access_token_secret_id = tokenSecretId
+    }
+    if (secret) {
+      const { data: webhookSecretId, error: secretVaultError } = await supabase.rpc('vault_upsert_secret', {
+        p_secret_id: existente.mp_webhook_secret_id,
+        p_secret: secret,
+        p_name: `mp_webhook_secret_${autoescola_id}`,
+      })
+      if (secretVaultError) return { success: false, error: secretVaultError.message }
+      updates.mp_webhook_secret_id = webhookSecretId
+    }
     if (publicKey !== undefined) updates.mp_public_key = publicKey || null
 
     const { error } = await supabase

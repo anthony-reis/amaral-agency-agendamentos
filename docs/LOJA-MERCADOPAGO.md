@@ -56,18 +56,21 @@ As demais informações que o MP mostra (**N.º da aplicação**, **User ID**, u
 
 ⚠️ **Nunca** commitar, colar em chat/print ou expor o Access Token e o Webhook Secret. Se vazar, revogue e gere novos na aplicação do MP (e atualize no /admin). O sistema só exibe os últimos 4 dígitos após salvar.
 
+**Nota técnica**: desde a migration `vault_credenciais_mp`, o Access Token e o Webhook Secret de cada autoescola são armazenados criptografados via **Supabase Vault** (não em coluna de texto simples) — protege contra exposição em caso de vazamento de backup/dump do banco. A leitura só acontece em runtime, via função `vault_read_secret`, restrita ao `service_role`.
+
 ---
 
 ## 3. Checklist de onboarding de uma autoescola nova (produção)
 
 1. [ ] Autoescola cria conta Mercado Pago **PJ** (própria) e completa a verificação.
 2. [ ] Criar aplicação em Suas integrações (seção 2).
-3. [ ] Configurar webhook com a URL da autoescola + evento Pagamentos → obter secret.
-4. [ ] Cadastrar Access Token + Public Key + Webhook Secret no `/admin` → Pagamentos, **Sandbox ❌**, **Ativos ✅**.
-5. [ ] Autoescola monta o catálogo no painel: **Painel → Vendas → Catálogo** (pacotes, avulsas, serviços, preços).
-6. [ ] Teste real de ponta a ponta com um valor baixo (ex.: produto de R$ 1,00 via Pix) e estorno depois, se quiser.
-7. [ ] Conferir: pedido `aprovado` em Painel → Vendas, créditos do aluno somados, linha em Auditoria.
-8. [ ] (Opcional) Orientar a autoescola sobre prazos de recebimento do MP (Pix/boleto na hora; cartão conforme configuração da conta dela em "Prazos de liberação").
+3. [ ] **Confirmar que a autoescola tem uma chave Pix cadastrada na conta MP dela** (Seu negócio → Pix). Sem isso, a opção Pix simplesmente não aparece no checkout — não tem como contornar via preference/código.
+4. [ ] Configurar webhook com a URL da autoescola + evento Pagamentos → obter secret.
+5. [ ] Cadastrar Access Token + Public Key + Webhook Secret no `/admin` → Pagamentos, **Sandbox ❌**, **Ativos ✅**.
+6. [ ] Autoescola monta o catálogo no painel: **Painel → Vendas → Catálogo** (pacotes, avulsas, serviços, preços).
+7. [ ] Teste real de ponta a ponta com um valor baixo (ex.: produto de R$ 1,00 via Pix) e estorno depois, se quiser.
+8. [ ] Conferir: pedido `aprovado` em Painel → Vendas, créditos do aluno somados, linha em Auditoria.
+9. [ ] (Opcional) Orientar a autoescola sobre prazos de recebimento do MP (Pix/boleto na hora; cartão conforme configuração da conta dela em "Prazos de liberação").
 
 ---
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Check, Copy, CreditCard, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, Check, Copy, CreditCard, ShieldCheck } from 'lucide-react'
 import {
   salvarCredenciaisMP,
   type CredenciaisMPMascaradas,
@@ -67,6 +67,22 @@ export function PagamentosMPForm({ autoescola_id, credenciais: initial, webhookU
               {cred.configurado
                 ? `Token •••• ${cred.token_ultimos4} · ${cred.sandbox ? 'Sandbox (teste)' : 'Produção'} · ${cred.ativo ? 'Ativo' : 'Desativado'}`
                 : 'Cadastre as credenciais da conta Mercado Pago da autoescola.'}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Checklist de onboarding — Pix */}
+      <div className="bg-amber-50 rounded-2xl border border-amber-200 p-5">
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-amber-800">Antes de ativar: confirme a chave Pix</p>
+            <p className="text-xs text-amber-700 mt-1">
+              A opção de Pix só aparece no checkout se a conta Mercado Pago da autoescola tiver uma
+              chave Pix cadastrada. Isso é configurado direto no painel do Mercado Pago dela (Seu
+              negócio → Pix), não tem como habilitar por aqui. Confirme com a autoescola antes de
+              marcar &quot;Pagamentos ativos&quot;.
             </p>
           </div>
         </div>

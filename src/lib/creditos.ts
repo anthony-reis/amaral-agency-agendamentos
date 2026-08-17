@@ -18,48 +18,24 @@ export async function creditarPedido(supabase: SupabaseClient, pedido: PedidoLoj
 
   if (quantidades.length === 0) return // produto tipo 'servico' — nada a creditar
 
-  // Fallback: aluno importado sem row de créditos
-  const { data: creditos } = await supabase
-    .from('student_credits')
-    .select('*')
-    .eq('student_id', pedido.student_id)
-    .eq('autoescola_id', pedido.autoescola_id)
-    .maybeSingle()
+  const qtdPorCategoria = Object.fromEntries(quantidades.map(({ cat, qtd }) => [cat, qtd])) as Partial<
+    Record<(typeof CATEGORIAS_CREDITO)[number], number>
+  >
 
-  let atual = creditos
-  if (!atual) {
-    const { data: novo } = await supabase
-      .from('student_credits')
-      .insert({
-        student_id: pedido.student_id,
-        autoescola_id: pedido.autoescola_id,
-        aulas_cat_a: 0,
-        aulas_cat_b: 0,
-        aulas_cat_c: 0,
-        aulas_cat_d: 0,
-        aulas_cat_e: 0,
-        aulas_disponiveis: 0,
-      })
-      .select()
-      .single()
-    atual = novo
-  }
-  if (!atual) throw new Error(`[creditos] Não foi possível obter/criar student_credits do aluno ${pedido.student_id}`)
+  // UPDATE atômico (col = col + qtd) via RPC — evita a janela de corrida do
+  // padrão SELECT + soma em memória + UPDATE para créditos concorrentes do mesmo aluno.
+  const { error: creditoError } = await supabase.rpc('creditar_pedido_loja', {
+    p_student_id: pedido.student_id,
+    p_autoescola_id: pedido.autoescola_id,
+    p_qtd_a: qtdPorCategoria.a ?? 0,
+    p_qtd_b: qtdPorCategoria.b ?? 0,
+    p_qtd_c: qtdPorCategoria.c ?? 0,
+    p_qtd_d: qtdPorCategoria.d ?? 0,
+    p_qtd_e: qtdPorCategoria.e ?? 0,
+  })
 
-  const updates: Record<string, number> = {}
-  for (const { cat, qtd } of quantidades) {
-    const col = `aulas_cat_${cat}`
-    updates[col] = ((atual as Record<string, number>)[col] ?? 0) + qtd
-  }
-
-  const { error: updateError } = await supabase
-    .from('student_credits')
-    .update(updates)
-    .eq('student_id', pedido.student_id)
-    .eq('autoescola_id', pedido.autoescola_id)
-
-  if (updateError) {
-    throw new Error(`[creditos] Erro ao creditar pedido ${pedido.id}: ${updateError.message}`)
+  if (creditoError) {
+    throw new Error(`[creditos] Erro ao creditar pedido ${pedido.id}: ${creditoError.message}`)
   }
 
   // Histórico de créditos (uma linha por categoria, seguindo convenção existente)

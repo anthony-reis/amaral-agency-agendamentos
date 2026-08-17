@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Receipt, RefreshCw } from 'lucide-react'
-import { listarVendas, type PedidoComAluno } from '../actions/vendas'
+import { Receipt, RefreshCw, Undo2 } from 'lucide-react'
+import { listarVendas, reembolsarPedido, type PedidoComAluno } from '../actions/vendas'
 import { formatarPrecoCentavos, type PedidoLojaStatus } from '@/lib/loja-types'
 
 interface Props {
@@ -50,11 +50,26 @@ export function VendasList({ autoescola_id, vendas: initial }: Props) {
   const [vendas, setVendas] = useState<PedidoComAluno[]>(initial)
   const [filtro, setFiltro] = useState<PedidoLojaStatus | 'todos'>('todos')
   const [isPending, startTransition] = useTransition()
+  const [reembolsando, setReembolsando] = useState<string | null>(null)
+  const [erroReembolso, setErroReembolso] = useState('')
 
   function aplicarFiltro(novo: PedidoLojaStatus | 'todos') {
     setFiltro(novo)
     startTransition(async () => {
       const data = await listarVendas(autoescola_id, { status: novo })
+      setVendas(data)
+    })
+  }
+
+  function handleReembolso(pedidoId: string) {
+    if (!confirm('Confirma o reembolso desse pedido no Mercado Pago? Os créditos NÃO são removidos automaticamente.')) return
+    setErroReembolso('')
+    setReembolsando(pedidoId)
+    startTransition(async () => {
+      const result = await reembolsarPedido(autoescola_id, pedidoId)
+      setReembolsando(null)
+      if (!result.success) { setErroReembolso(result.error); return }
+      const data = await listarVendas(autoescola_id, { status: filtro })
       setVendas(data)
     })
   }
@@ -97,6 +112,8 @@ export function VendasList({ autoescola_id, vendas: initial }: Props) {
         )}
       </p>
 
+      {erroReembolso && <p className="text-sm text-red-500">{erroReembolso}</p>}
+
       {vendas.length === 0 ? (
         <div className="bg-[--p-bg-card] border border-[--p-border] rounded-2xl py-14 text-center">
           <Receipt className="w-8 h-8 text-[--p-text-3] mx-auto mb-3" />
@@ -114,6 +131,7 @@ export function VendasList({ autoescola_id, vendas: initial }: Props) {
                   <th className="px-4 py-3 text-xs font-semibold text-[--p-text-3]">Valor</th>
                   <th className="px-4 py-3 text-xs font-semibold text-[--p-text-3]">Método</th>
                   <th className="px-4 py-3 text-xs font-semibold text-[--p-text-3]">Status</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-[--p-text-3]"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[--p-border]">
@@ -137,6 +155,19 @@ export function VendasList({ autoescola_id, vendas: initial }: Props) {
                       <span className={`text-[10px] font-semibold px-2 py-1 rounded-full border whitespace-nowrap ${STATUS_BADGE[v.status]}`}>
                         {STATUS_LABEL[v.status]}
                       </span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {v.status === 'aprovado' && (
+                        <button
+                          onClick={() => handleReembolso(v.id)}
+                          disabled={reembolsando === v.id}
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-red-500 hover:text-red-600 disabled:opacity-50"
+                          title="Reembolsar pedido"
+                        >
+                          <Undo2 className="w-3.5 h-3.5" />
+                          {reembolsando === v.id ? 'Reembolsando...' : 'Reembolsar'}
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

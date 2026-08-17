@@ -13,13 +13,27 @@ export interface MPPreferenceInput {
   valorCentavos: number
   autoescolaId: string
   escolaSlug: string
+  statementDescriptor?: string | null
   payerEmail?: string | null
+  payerFirstName?: string | null
+  payerLastName?: string | null
+  payerPhone?: string | null
 }
 
 export interface MPPreference {
   id: string
   init_point: string
   sandbox_init_point: string
+}
+
+// Extrai DDD + número de um telefone BR em formato livre. Retorna undefined
+// se não conseguir reconhecer um número válido — melhor omitir do que mandar
+// dado malformado pro Mercado Pago.
+function parsePhoneBR(raw: string | null | undefined): { area_code: string; number: string } | undefined {
+  if (!raw) return undefined
+  const digits = raw.replace(/\D/g, '')
+  if (digits.length < 10 || digits.length > 11) return undefined
+  return { area_code: digits.slice(0, 2), number: digits.slice(2) }
 }
 
 export async function criarPreference(
@@ -30,6 +44,16 @@ export async function criarPreference(
   if (!appUrl) throw new Error('NEXT_PUBLIC_APP_URL não configurada.')
 
   const retornoUrl = `${appUrl}/${input.escolaSlug}/aluno/loja/retorno?pedido=${input.pedidoId}`
+
+  const payer =
+    input.payerEmail || input.payerFirstName || input.payerLastName || input.payerPhone
+      ? {
+          email: input.payerEmail || undefined,
+          first_name: input.payerFirstName || undefined,
+          last_name: input.payerLastName || undefined,
+          phone: parsePhoneBR(input.payerPhone),
+        }
+      : undefined
 
   const res = await fetch(`${MP_API}/checkout/preferences`, {
     method: 'POST',
@@ -44,6 +68,7 @@ export async function criarPreference(
           id: input.pedidoId,
           title: input.titulo,
           description: input.descricao || undefined,
+          category_id: 'education',
           quantity: 1,
           currency_id: 'BRL',
           unit_price: input.valorCentavos / 100,
@@ -58,7 +83,10 @@ export async function criarPreference(
       },
       auto_return: 'approved',
       payment_methods: { installments: 12 },
-      payer: input.payerEmail ? { email: input.payerEmail } : undefined,
+      // binary_mode NÃO é usado: é incompatível com Pix/boleto (métodos
+      // assíncronos que a loja precisa manter disponíveis).
+      statement_descriptor: input.statementDescriptor?.slice(0, 22) || undefined,
+      payer,
     }),
   })
 
@@ -95,6 +123,21 @@ export async function buscarPayment(
     throw new Error(`Mercado Pago: erro ao buscar payment ${paymentId} (${res.status}): ${body}`)
   }
   return (await res.json()) as MPPayment
+}
+
+export async function criarReembolso(paymentId: string, accessToken: string, idempotencyKey: string): Promise<void> {
+  const res = await fetch(`${MP_API}/v1/payments/${paymentId}/refunds`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+      'X-Idempotency-Key': idempotencyKey,
+    },
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Mercado Pago: erro ao reembolsar payment ${paymentId} (${res.status}): ${body}`)
+  }
 }
 
 /**

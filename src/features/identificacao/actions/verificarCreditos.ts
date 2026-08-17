@@ -2,6 +2,7 @@
 
 import { cookies } from 'next/headers'
 import { createServiceClient } from '@/lib/supabase/server'
+import { signStudentId } from '@/lib/studentSession'
 import type { VerificarCreditosResponse } from '../types'
 
 export async function verificarCreditos(
@@ -63,6 +64,15 @@ export async function verificarCreditos(
   })
   cookieStore.set('student_document', student.document_id, {
     httpOnly: false,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 60 * 60 * 4,
+    path: '/',
+  })
+  // Cookie auxiliar assinado — validado só nas rotas de pagamento (loja),
+  // que não podem confiar num student_id editável via DevTools.
+  cookieStore.set('student_sig', signStudentId(student.id), {
+    httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     maxAge: 60 * 60 * 4,

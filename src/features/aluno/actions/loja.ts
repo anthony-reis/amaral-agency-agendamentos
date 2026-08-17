@@ -3,8 +3,20 @@
 import { cookies } from 'next/headers'
 import { createServiceClient } from '@/lib/supabase/server'
 import { criarPreference } from '@/lib/mercadopago'
+import { verifyStudentSignature } from '@/lib/studentSession'
 import type { PedidoLoja, PedidoLojaStatus, Produto, ProdutoSnapshot } from '@/lib/loja-types'
 import type { ActionResult } from '@/features/admin/types'
+
+// Lê e valida o student_id do cookie contra o cookie auxiliar assinado
+// (student_sig). Usado só nas rotas de pagamento — um student_id sem
+// assinatura correta (cookie editado manualmente) é tratado como não logado.
+async function getAuthenticatedStudentId(): Promise<string | null> {
+  const cookieStore = await cookies()
+  const studentId = cookieStore.get('student_id')?.value
+  const signature = cookieStore.get('student_sig')?.value
+  if (!studentId || !verifyStudentSignature(studentId, signature)) return null
+  return studentId
+}
 
 export async function listarProdutosLoja(autoescola_id: string): Promise<Produto[]> {
   const supabase = createServiceClient()
@@ -21,8 +33,7 @@ export async function criarCheckout(
   produto_id: string,
   escola: string
 ): Promise<ActionResult<{ initPoint: string }>> {
-  const cookieStore = await cookies()
-  const studentId = cookieStore.get('student_id')?.value
+  const studentId = await getAuthenticatedStudentId()
   if (!studentId) return { success: false, error: 'Sessão expirada. Identifique-se novamente.' }
 
   const supabase = createServiceClient()
@@ -37,7 +48,7 @@ export async function criarCheckout(
   // Aluno precisa pertencer ao tenant da URL
   const { data: student } = await supabase
     .from('students')
-    .select('id, name, email')
+    .select('id, name, email, phone, document_id')
     .eq('id', studentId)
     .eq('autoescola_id', autoescola.id)
     .single()
@@ -52,13 +63,20 @@ export async function criarCheckout(
     .single()
   if (!produto) return { success: false, error: 'Produto indisponível.' }
 
-  const { data: credenciais } = await supabase
+  const { data: credenciaisRow } = await supabase
     .from('autoescola_pagamentos')
-    .select('mp_access_token, ativo, sandbox')
+    .select('mp_access_token_secret_id, ativo, sandbox')
     .eq('autoescola_id', autoescola.id)
     .eq('ativo', true)
     .maybeSingle()
-  if (!credenciais) return { success: false, error: 'Pagamentos indisponíveis no momento.' }
+  if (!credenciaisRow?.mp_access_token_secret_id) {
+    return { success: false, error: 'Pagamentos indisponíveis no momento.' }
+  }
+
+  const { data: accessToken } = await supabase.rpc('vault_read_secret', {
+    p_secret_id: credenciaisRow.mp_access_token_secret_id,
+  })
+  if (!accessToken) return { success: false, error: 'Pagamentos indisponíveis no momento.' }
 
   const snapshot: ProdutoSnapshot = {
     nome: produto.nome,
@@ -86,6 +104,9 @@ export async function criarCheckout(
     .single()
   if (pedidoError || !pedido) return { success: false, error: 'Erro ao criar pedido.' }
 
+  const [payerFirstName, ...payerLastNameParts] = student.name.trim().split(/\s+/)
+  const payerLastName = payerLastNameParts.join(' ') || undefined
+
   try {
     const preference = await criarPreference(
       {
@@ -95,9 +116,13 @@ export async function criarCheckout(
         valorCentavos: produto.preco_centavos,
         autoescolaId: autoescola.id,
         escolaSlug: escola,
+        statementDescriptor: autoescola.nome,
         payerEmail: student.email,
+        payerFirstName,
+        payerLastName,
+        payerPhone: student.phone,
       },
-      credenciais.mp_access_token
+      accessToken
     )
 
     await supabase
@@ -126,8 +151,7 @@ export async function criarCheckout(
 export async function consultarPedido(
   pedido_id: string
 ): Promise<{ status: PedidoLojaStatus; creditos_liberados: boolean } | null> {
-  const cookieStore = await cookies()
-  const studentId = cookieStore.get('student_id')?.value
+  const studentId = await getAuthenticatedStudentId()
   if (!studentId) return null
 
   const supabase = createServiceClient()
@@ -142,8 +166,7 @@ export async function consultarPedido(
 }
 
 export async function listarMinhasCompras(): Promise<PedidoLoja[]> {
-  const cookieStore = await cookies()
-  const studentId = cookieStore.get('student_id')?.value
+  const studentId = await getAuthenticatedStudentId()
   if (!studentId) return []
 
   const supabase = createServiceClient()

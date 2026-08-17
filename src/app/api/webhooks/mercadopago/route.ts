@@ -24,14 +24,23 @@ export async function POST(req: NextRequest) {
 
   const supabase = createServiceClient()
 
-  const { data: credenciais } = await supabase
+  const { data: credenciaisRow } = await supabase
     .from('autoescola_pagamentos')
-    .select('mp_access_token, mp_webhook_secret')
+    .select('mp_access_token_secret_id, mp_webhook_secret_id')
     .eq('autoescola_id', autoescolaId)
     .maybeSingle()
 
-  if (!credenciais) {
+  if (!credenciaisRow?.mp_access_token_secret_id || !credenciaisRow.mp_webhook_secret_id) {
     console.warn(`[webhook-mp] Sem credenciais para autoescola ${autoescolaId}`)
+    return ok('sem credenciais')
+  }
+
+  const [{ data: accessToken }, { data: webhookSecret }] = await Promise.all([
+    supabase.rpc('vault_read_secret', { p_secret_id: credenciaisRow.mp_access_token_secret_id }),
+    supabase.rpc('vault_read_secret', { p_secret_id: credenciaisRow.mp_webhook_secret_id }),
+  ])
+  if (!accessToken || !webhookSecret) {
+    console.warn(`[webhook-mp] Credenciais incompletas no Vault para autoescola ${autoescolaId}`)
     return ok('sem credenciais')
   }
 
@@ -39,7 +48,7 @@ export async function POST(req: NextRequest) {
     xSignature: req.headers.get('x-signature'),
     xRequestId: req.headers.get('x-request-id'),
     dataId,
-    secret: credenciais.mp_webhook_secret,
+    secret: webhookSecret,
   })
   if (!assinaturaValida) {
     console.warn(`[webhook-mp] Assinatura inválida (autoescola ${autoescolaId}, payment ${dataId})`)
@@ -47,7 +56,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Fonte de verdade: buscar o pagamento na API do MP com o token do tenant
-  const payment = await buscarPayment(dataId, credenciais.mp_access_token)
+  const payment = await buscarPayment(dataId, accessToken)
   if (!payment) {
     console.warn(`[webhook-mp] Payment ${dataId} não encontrado na API do MP`)
     return ok('payment não encontrado')
