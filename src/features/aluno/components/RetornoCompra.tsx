@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { CheckCircle2, Clock, XCircle, Loader2, ShoppingBag, CalendarDays } from 'lucide-react'
-import { consultarPedido } from '../actions/loja'
+import { reconciliarPedido } from '../actions/loja'
 import type { PedidoLojaStatus } from '@/lib/loja-types'
 
 interface Props {
@@ -12,8 +12,9 @@ interface Props {
   pedidoId: string
 }
 
-const POLL_MS = 3000
-const MAX_POLLS = 20 // ~60s
+const POLL_MS = 2500
+const MAX_POLLS = 30 // ~75s — cada tick já reconcilia direto com a API do MP,
+// não depende só do webhook chegar a tempo
 
 export function RetornoCompra({ escola, pedidoId }: Props) {
   const [status, setStatus] = useState<PedidoLojaStatus | 'carregando'>('carregando')
@@ -26,7 +27,7 @@ export function RetornoCompra({ escola, pedidoId }: Props) {
     let timer: ReturnType<typeof setTimeout> | null = null
 
     async function checar() {
-      const pedido = await consultarPedido(pedidoId)
+      const pedido = await reconciliarPedido(pedidoId)
       if (!ativo) return
       if (pedido) {
         setStatus(pedido.status)

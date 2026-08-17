@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { buscarPayment, validarAssinaturaWebhook } from '@/lib/mercadopago'
-import { creditarPedido } from '@/lib/creditos'
+import { processarPagamentoPedido } from '@/lib/pagamentoLoja'
 import type { PedidoLoja } from '@/lib/loja-types'
 
 export const dynamic = 'force-dynamic'
@@ -82,86 +82,6 @@ export async function POST(req: NextRequest) {
     return ok('tenant divergente')
   }
 
-  const agora = new Date().toISOString()
-
-  switch (payment.status) {
-    case 'approved': {
-      // Conferência de valor antes de creditar
-      const valorEsperado = pedido.valor_centavos / 100
-      if (Math.abs(payment.transaction_amount - valorEsperado) > 0.009) {
-        console.error(
-          `[webhook-mp] CRÍTICO: valor divergente no pedido ${pedidoId} — esperado ${valorEsperado}, pago ${payment.transaction_amount}. NÃO creditado.`
-        )
-        return ok('valor divergente')
-      }
-
-      // Idempotência: só a "primeira" chamada consegue virar creditos_liberados
-      const { data: atualizados } = await supabase
-        .from('pedidos_loja')
-        .update({
-          status: 'aprovado',
-          mp_payment_id: String(payment.id),
-          payment_method: payment.payment_type_id,
-          creditos_liberados: true,
-          paid_at: payment.date_approved ?? agora,
-          updated_at: agora,
-        })
-        .eq('id', pedido.id)
-        .eq('creditos_liberados', false)
-        .select()
-
-      if (!atualizados || atualizados.length === 0) {
-        return ok('já creditado') // webhook duplicado
-      }
-
-      await creditarPedido(supabase, atualizados[0] as PedidoLoja)
-      return ok('creditado')
-    }
-
-    case 'rejected':
-    case 'cancelled': {
-      // Nunca rebaixar um pedido já aprovado/creditado
-      await supabase
-        .from('pedidos_loja')
-        .update({
-          status: payment.status === 'rejected' ? 'rejeitado' : 'cancelado',
-          mp_payment_id: String(payment.id),
-          payment_method: payment.payment_type_id,
-          updated_at: agora,
-        })
-        .eq('id', pedido.id)
-        .in('status', ['pendente', 'expirado'])
-      return ok('status atualizado')
-    }
-
-    case 'refunded':
-    case 'charged_back': {
-      await supabase
-        .from('pedidos_loja')
-        .update({ status: 'reembolsado', updated_at: agora })
-        .eq('id', pedido.id)
-
-      await supabase.from('activity_logs_painel').insert({
-        username: 'mercadopago',
-        action_type: 'venda',
-        description: `ATENÇÃO: estorno/chargeback recebido no pedido ${pedido.id.slice(0, 8)} (${pedido.produto_snapshot.nome}). Créditos NÃO foram removidos automaticamente — ajuste manualmente se necessário.`,
-        autoescola_id: pedido.autoescola_id,
-      })
-      return ok('reembolso registrado')
-    }
-
-    default: {
-      // pending / in_process / authorized: mantém pendente, guarda referências
-      await supabase
-        .from('pedidos_loja')
-        .update({
-          mp_payment_id: String(payment.id),
-          payment_method: payment.payment_type_id,
-          updated_at: agora,
-        })
-        .eq('id', pedido.id)
-        .eq('status', 'pendente')
-      return ok('pendente')
-    }
-  }
+  const resultado = await processarPagamentoPedido(supabase, pedido, payment)
+  return ok(`processado: ${resultado.status}`)
 }
