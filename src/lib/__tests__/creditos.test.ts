@@ -30,6 +30,8 @@ function pedidoFixture(snapshot: Partial<ProdutoSnapshot>): PedidoLoja {
     paid_at: new Date().toISOString(),
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
+    origem: 'mercado_pago',
+    vendedor_user_id: null,
   }
 }
 

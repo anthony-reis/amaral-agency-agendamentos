@@ -36,6 +36,7 @@ import {
   ShoppingCart,
   Package,
   Receipt,
+  Wallet,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { contarNaoVisualizadas } from "@/features/painel/actions/solicitacoes";
@@ -66,23 +67,26 @@ function buildDashboardItem(escola: string): NavItem {
   };
 }
 
-function buildNavGroups(escola: string, lojaAtiva: boolean): NavGroup[] {
+function buildNavGroups(escola: string): NavGroup[] {
   const base = `/${escola}/painel`;
   return [
-    // Grupo Vendas: feature gate por tenant (credencial Mercado Pago ativa)
-    ...(lojaAtiva
-      ? [
-          {
-            id: "vendas",
-            label: "Vendas",
-            icon: ShoppingCart,
-            items: [
-              { label: "Catálogo", href: `${base}/catalogo`, icon: Package },
-              { label: "Vendas", href: `${base}/vendas`, icon: Receipt },
-            ],
-          },
-        ]
-      : []),
+    {
+      id: "vendas",
+      label: "Vendas",
+      icon: ShoppingCart,
+      items: [
+        { label: "Catálogo", href: `${base}/catalogo`, icon: Package },
+        { label: "Vendas", href: `${base}/vendas`, icon: Receipt },
+      ],
+    },
+    {
+      id: "financeiro",
+      label: "Financeiro",
+      icon: Wallet,
+      items: [
+        { label: "Financeiro", href: `${base}/financeiro`, icon: Wallet },
+      ],
+    },
     {
       id: "agendamentos",
       label: "Agendamentos",
@@ -93,6 +97,11 @@ function buildNavGroups(escola: string, lojaAtiva: boolean): NavGroup[] {
           label: "Agend. em Massa",
           href: `${base}/agendamento-massa`,
           icon: CalendarPlus,
+        },
+        {
+          label: "Datas de Exame",
+          href: `${base}/datas-exame`,
+          icon: FileCheck,
         },
         {
           label: "Lista de Agend.",
@@ -165,7 +174,6 @@ interface Props {
   userRole: string;
   autoescolaId: string;
   solicitacoesAtivo: boolean;
-  lojaAtiva?: boolean;
   onLogout: () => Promise<void>;
 }
 
@@ -177,14 +185,13 @@ export function PainelNav({
   userRole,
   autoescolaId,
   solicitacoesAtivo,
-  lojaAtiva = false,
   onLogout,
 }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const dashboardItem = buildDashboardItem(escola);
-  const navGroups = buildNavGroups(escola, lojaAtiva);
+  const navGroups = buildNavGroups(escola);
   const solicitacoesHref = `/${escola}/painel/solicitacoes`;
 
   // ─── Solicitações: badge + modal de alta prioridade ────────────────────────

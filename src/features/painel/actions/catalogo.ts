@@ -6,6 +6,43 @@ import type { ActionResult } from '../types'
 import type { NovoProdutoInput, Produto } from '@/lib/loja-types'
 import { somaCreditos } from '@/lib/loja-types'
 
+export async function uploadImagemProduto(formData: FormData): Promise<ActionResult<string>> {
+  const file = formData.get('imagem') as File | null
+  const device = formData.get('device') as string | null
+  const autoescola_id = formData.get('autoescola_id') as string | null
+
+  if (!file || file.size === 0) {
+    return { success: false, error: 'Nenhum arquivo selecionado.' }
+  }
+  if (device !== 'desktop' && device !== 'mobile') {
+    return { success: false, error: 'Tipo de imagem inválido.' }
+  }
+  if (!autoescola_id) {
+    return { success: false, error: 'Autoescola não informada.' }
+  }
+  if (file.size > 3 * 1024 * 1024) {
+    return { success: false, error: 'Arquivo muito grande. Máximo: 3MB.' }
+  }
+  const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+  if (!allowed.includes(file.type)) {
+    return { success: false, error: 'Formato inválido. Use JPG, PNG ou WebP.' }
+  }
+
+  const ext = file.name.split('.').pop()
+  const path = `produtos/${autoescola_id}/${Date.now()}-${device}.${ext}`
+  const buffer = Buffer.from(await file.arrayBuffer())
+
+  const supabase = createServiceClient()
+  const { error } = await supabase.storage
+    .from('logos')
+    .upload(path, buffer, { contentType: file.type, upsert: false })
+
+  if (error) return { success: false, error: 'Erro ao fazer upload da imagem.' }
+
+  const { data: { publicUrl } } = supabase.storage.from('logos').getPublicUrl(path)
+  return { success: true, data: publicUrl }
+}
+
 function validarProduto(input: NovoProdutoInput): string | null {
   if (!input.nome.trim()) return 'Nome é obrigatório.'
   if (!Number.isInteger(input.preco_centavos) || input.preco_centavos <= 0) {
@@ -52,6 +89,8 @@ export async function criarProduto(
       qtd_cat_d: input.qtd_cat_d,
       qtd_cat_e: input.qtd_cat_e,
       ativo: input.ativo,
+      imagem_desktop_url: input.imagem_desktop_url ?? null,
+      imagem_mobile_url: input.imagem_mobile_url ?? null,
     })
     .select()
     .single()
@@ -92,6 +131,8 @@ export async function editarProduto(
       qtd_cat_d: input.qtd_cat_d,
       qtd_cat_e: input.qtd_cat_e,
       ativo: input.ativo,
+      imagem_desktop_url: input.imagem_desktop_url ?? null,
+      imagem_mobile_url: input.imagem_mobile_url ?? null,
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)

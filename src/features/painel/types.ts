@@ -8,6 +8,7 @@ export interface Instrutor {
   autoescola_id: string
   created_at: string
   valor_hora_aula: number | null
+  valor_banca: number | null
 }
 
 export type NovoInstrutorInput = {
@@ -31,6 +32,7 @@ export interface HorarioDisponivel {
 // ─── Agendamento ──────────────────────────────────────────────────────────────
 
 export type AgendamentoStatus = 'scheduled' | 'confirmed' | 'in_progress' | 'completed' | 'absent' | 'cancelled'
+export type AgendamentoTipo = 'aula' | 'banca'
 
 export interface Agendamento {
   id: string
@@ -42,6 +44,7 @@ export interface Agendamento {
   student_document: string | null
   cpf_cnh: string | null
   status: AgendamentoStatus
+  tipo: AgendamentoTipo
   notes: string | null
   cancel_reason: string | null
   is_blocked_on_cancel: boolean | null
@@ -280,6 +283,8 @@ export interface Solicitacao {
   finalizado_em: string | null
   created_at: string
   updated_at: string
+  data_preferida: string | null
+  agendamento_id: string | null
 }
 
 export interface SolicitacaoComAluno extends Solicitacao {
@@ -306,6 +311,7 @@ export type SituacaoCreditos = 'com_creditos' | 'sem_creditos' | 'indisponivel'
 export interface SolicitacaoDetalhe extends SolicitacaoComAluno {
   eventos: SolicitacaoEvento[]
   aulasConcluidas: number
+  aulasConcluidasCategoria: number | null
   situacaoCreditos: SituacaoCreditos
   totalCreditos: number | null
 }
@@ -316,6 +322,7 @@ export type NovaSolicitacaoInput = {
   student_name: string
   tipo: SolicitacaoTipo
   categoria?: string | null
+  data_preferida?: string | null
   observacao_aluno?: string | null
 }
 

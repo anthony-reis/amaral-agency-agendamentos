@@ -21,6 +21,8 @@ export interface Produto {
   ativo: boolean
   created_at: string
   updated_at: string
+  imagem_desktop_url: string | null
+  imagem_mobile_url: string | null
 }
 
 export interface NovoProdutoInput {
@@ -35,6 +37,8 @@ export interface NovoProdutoInput {
   qtd_cat_d: number
   qtd_cat_e: number
   ativo: boolean
+  imagem_desktop_url?: string | null
+  imagem_mobile_url?: string | null
 }
 
 export interface ProdutoSnapshot {
@@ -57,6 +61,8 @@ export type PedidoLojaStatus =
   | 'expirado'
   | 'reembolsado'
 
+export type PedidoLojaOrigem = 'mercado_pago' | 'manual'
+
 export interface PedidoLoja {
   id: string
   autoescola_id: string
@@ -72,6 +78,8 @@ export interface PedidoLoja {
   paid_at: string | null
   created_at: string
   updated_at: string
+  origem: PedidoLojaOrigem
+  vendedor_user_id: string | null
 }
 
 export function formatarPrecoCentavos(centavos: number): string {

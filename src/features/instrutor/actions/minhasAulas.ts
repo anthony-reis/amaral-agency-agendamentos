@@ -14,6 +14,8 @@ export interface AulaInstrutor {
   cpf_cnh: string | null
   instructorCategory: string | null
   status: string
+  tipo: 'aula' | 'banca'
+  resultado_exame: 'aprovado' | 'reprovado' | null
   notes: string | null
   autoescola_id: string
   aulas_concluidas: number
@@ -44,7 +46,7 @@ export async function getMinhasAulasHoje(
 
   const { data: agendamentos } = await supabase
     .from('agendamentos')
-    .select('id, date, time_slot, student_name, student_document, cpf_cnh, instructorCategory, status, notes, autoescola_id, km_inicial, km_final, km_rodado')
+    .select('id, date, time_slot, student_name, student_document, cpf_cnh, instructorCategory, status, tipo, resultado_exame, notes, autoescola_id, km_inicial, km_final, km_rodado')
     .eq('autoescola_id', autoescola_id)
     .eq('instructor_name', instructor_name)
     .eq('date', targetDate)
@@ -304,6 +306,43 @@ export async function iniciarAula(
     action_type: 'agendamento',
     description: `Instrutor ${instructor_name} iniciou a aula com KM ${km_inicial} (agendamento ${agendamento_id})`,
     metadata: { agendamento_id, km_inicial },
+    autoescola_id,
+  })
+
+  revalidatePath('/', 'layout')
+  return { success: true, data: undefined }
+}
+
+export async function marcarResultadoExame(
+  agendamento_id: string,
+  resultado: 'aprovado' | 'reprovado',
+  instructor_name: string,
+  autoescola_id: string
+): Promise<ActionResult> {
+  const supabase = createServiceClient()
+
+  const { data: agendamento } = await supabase
+    .from('agendamentos')
+    .select('tipo, status')
+    .eq('id', agendamento_id)
+    .eq('autoescola_id', autoescola_id)
+    .single()
+
+  if (!agendamento) return { success: false, error: 'Agendamento não encontrado.' }
+  if (agendamento.tipo !== 'banca') return { success: false, error: 'Só é possível marcar resultado em bancas de exame.' }
+
+  const { error } = await supabase
+    .from('agendamentos')
+    .update({ status: 'completed', resultado_exame: resultado })
+    .eq('id', agendamento_id)
+    .eq('autoescola_id', autoescola_id)
+
+  if (error) return { success: false, error: error.message }
+
+  await supabase.from('activity_logs_painel').insert({
+    username: instructor_name,
+    action_type: 'agendamento',
+    description: `Instrutor ${instructor_name} marcou exame como ${resultado} (agendamento ${agendamento_id})`,
     autoescola_id,
   })
 

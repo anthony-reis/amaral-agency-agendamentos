@@ -2,8 +2,16 @@
 
 import { revalidatePath } from 'next/cache'
 import { createServiceClient } from '@/lib/supabase/server'
-import { getCurrentUsername } from './authPainel'
+import { getCurrentUsername, getCurrentUserId } from './authPainel'
+import { creditarPedido } from '@/lib/creditos'
+import type { Produto, PedidoLoja, ProdutoSnapshot } from '@/lib/loja-types'
 import type { AlunoComCreditos, AlunoCreditos, NovoAlunoInput, ActionResult } from '../types'
+
+export interface VendaNoCadastroInput {
+  produto_id: string
+  quantidade: number
+  payment_method: string
+}
 
 export async function listarAlunos(
   autoescola_id: string,
@@ -30,7 +38,10 @@ export async function listarAlunos(
   })) as AlunoComCreditos[]
 }
 
-export async function criarAluno(input: NovoAlunoInput): Promise<ActionResult<AlunoComCreditos>> {
+export async function criarAluno(
+  input: NovoAlunoInput,
+  venda?: VendaNoCadastroInput
+): Promise<ActionResult<AlunoComCreditos>> {
   const supabase = createServiceClient()
 
   const docLimpo = input.document_id.replace(/\D/g, '')
@@ -46,6 +57,27 @@ export async function criarAluno(input: NovoAlunoInput): Promise<ActionResult<Al
     .maybeSingle()
 
   if (existe) return { success: false, error: 'Já existe um aluno com este CPF/CNH.' }
+
+  // Se houver venda, valida o produto ANTES de criar o aluno (evita cadastro parcial).
+  let produto: Produto | null = null
+  const quantidade = Math.max(1, Math.floor(venda?.quantidade ?? 1))
+  if (venda) {
+    const { data: produtoRow } = await supabase
+      .from('produtos')
+      .select('*')
+      .eq('id', venda.produto_id)
+      .eq('autoescola_id', input.autoescola_id)
+      .eq('ativo', true)
+      .maybeSingle()
+    if (!produtoRow) return { success: false, error: 'Plano/produto selecionado não encontrado ou inativo.' }
+    produto = produtoRow as Produto
+    if (produto.tipo === 'pacote' && quantidade !== 1) {
+      return { success: false, error: 'Plano (pacote) só pode ser vendido com quantidade 1.' }
+    }
+    if (produto.tipo === 'servico') {
+      return { success: false, error: 'Serviços não concedem aulas e não podem ser vendidos no cadastro.' }
+    }
+  }
 
   const { data: aluno, error } = await supabase
     .from('students')
@@ -85,7 +117,57 @@ export async function criarAluno(input: NovoAlunoInput): Promise<ActionResult<Al
     autoescola_id: input.autoescola_id,
   })
 
-  return { success: true, data: { ...aluno, creditos: creditos ?? null } as AlunoComCreditos }
+  let creditosFinal = creditos ?? null
+  if (produto) {
+    const snapshot: ProdutoSnapshot = {
+      nome: quantidade > 1 ? `${produto.nome} x${quantidade}` : produto.nome,
+      tipo: produto.tipo,
+      automatico: produto.automatico,
+      preco_centavos: produto.preco_centavos * quantidade,
+      qtd_cat_a: produto.qtd_cat_a * quantidade,
+      qtd_cat_b: produto.qtd_cat_b * quantidade,
+      qtd_cat_c: produto.qtd_cat_c * quantidade,
+      qtd_cat_d: produto.qtd_cat_d * quantidade,
+      qtd_cat_e: produto.qtd_cat_e * quantidade,
+    }
+
+    const agora = new Date().toISOString()
+    const vendedorId = await getCurrentUserId()
+    const { data: pedido } = await supabase
+      .from('pedidos_loja')
+      .insert({
+        autoescola_id: input.autoescola_id,
+        student_id: aluno.id,
+        produto_id: produto.id,
+        produto_snapshot: snapshot,
+        valor_centavos: snapshot.preco_centavos,
+        status: 'aprovado',
+        payment_method: venda!.payment_method,
+        creditos_liberados: true,
+        paid_at: agora,
+        origem: 'manual',
+        vendedor_user_id: vendedorId,
+      })
+      .select()
+      .single()
+
+    if (pedido) {
+      await creditarPedido(supabase, pedido as PedidoLoja, {
+        username: userAct,
+        label: `Venda manual (${userAct})`,
+      })
+
+      const { data: creditosAtualizados } = await supabase
+        .from('student_credits')
+        .select('*')
+        .eq('student_id', aluno.id)
+        .eq('autoescola_id', input.autoescola_id)
+        .single()
+      if (creditosAtualizados) creditosFinal = creditosAtualizados
+    }
+  }
+
+  return { success: true, data: { ...aluno, creditos: creditosFinal } as AlunoComCreditos }
 }
 
 export async function editarAluno(
@@ -225,4 +307,92 @@ export async function ajustarCredito(
   })
 
   return { success: true, data: updated as AlunoCreditos }
+}
+
+export interface QuantidadesPorCategoria {
+  a?: number
+  b?: number
+  c?: number
+  d?: number
+  e?: number
+}
+
+/**
+ * Adicionar crédito é sempre uma venda: exige valor + forma de pagamento
+ * antes de aplicar. Reaproveita o mesmo mecanismo de venda manual usado no
+ * cadastro de aluno (pedidos_loja + creditarPedido), então cai automaticamente
+ * no histórico financeiro da autoescola e do vendedor (usuário logado).
+ */
+export async function venderCreditosAluno(
+  student_id: string,
+  autoescola_id: string,
+  quantidades: QuantidadesPorCategoria,
+  valor_centavos: number,
+  payment_method: string
+): Promise<ActionResult<AlunoComCreditos>> {
+  const total = (quantidades.a ?? 0) + (quantidades.b ?? 0) + (quantidades.c ?? 0) + (quantidades.d ?? 0) + (quantidades.e ?? 0)
+  if (total <= 0) return { success: false, error: 'Nenhuma quantidade de crédito informada.' }
+  if (!Number.isInteger(valor_centavos) || valor_centavos <= 0) {
+    return { success: false, error: 'Informe o valor da venda.' }
+  }
+
+  const supabase = createServiceClient()
+
+  const { data: aluno } = await supabase
+    .from('students')
+    .select('*')
+    .eq('id', student_id)
+    .eq('autoescola_id', autoescola_id)
+    .single()
+
+  if (!aluno) return { success: false, error: 'Aluno não encontrado.' }
+
+  const snapshot: ProdutoSnapshot = {
+    nome: 'Ajuste de créditos (venda manual)',
+    tipo: 'pacote',
+    automatico: false,
+    preco_centavos: valor_centavos,
+    qtd_cat_a: quantidades.a ?? 0,
+    qtd_cat_b: quantidades.b ?? 0,
+    qtd_cat_c: quantidades.c ?? 0,
+    qtd_cat_d: quantidades.d ?? 0,
+    qtd_cat_e: quantidades.e ?? 0,
+  }
+
+  const userAct = await getCurrentUsername()
+  const vendedorId = await getCurrentUserId()
+
+  const { data: pedido, error: pedidoError } = await supabase
+    .from('pedidos_loja')
+    .insert({
+      autoescola_id,
+      student_id,
+      produto_id: null,
+      produto_snapshot: snapshot,
+      valor_centavos,
+      status: 'aprovado',
+      payment_method,
+      creditos_liberados: true,
+      paid_at: new Date().toISOString(),
+      origem: 'manual',
+      vendedor_user_id: vendedorId,
+    })
+    .select()
+    .single()
+
+  if (pedidoError || !pedido) return { success: false, error: 'Erro ao registrar a venda.' }
+
+  await creditarPedido(supabase, pedido as PedidoLoja, {
+    username: userAct,
+    label: `Venda manual (${userAct})`,
+  })
+
+  const { data: creditos } = await supabase
+    .from('student_credits')
+    .select('*')
+    .eq('student_id', student_id)
+    .eq('autoescola_id', autoescola_id)
+    .single()
+
+  return { success: true, data: { ...aluno, creditos: creditos ?? null } as AlunoComCreditos }
 }

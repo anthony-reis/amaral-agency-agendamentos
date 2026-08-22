@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { cookies } from 'next/headers'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getCurrentUsername } from './authPainel'
+import { contarAulasConcluidasPorCategoria } from './exameElegibilidade'
 import type {
   ActionResult,
   DadosAtendimento,
@@ -160,9 +161,12 @@ export async function getSolicitacao(
     .eq('solicitacao_id', id)
     .order('created_at', { ascending: true })
 
-  const [aulasConcluidas, credito] = await Promise.all([
+  const [aulasConcluidas, credito, aulasConcluidasCategoria] = await Promise.all([
     contarAulasConcluidas(autoescola_id, student?.document_id ?? ''),
     getSituacaoCreditos(row.student_id),
+    row.tipo === 'exame' && row.categoria
+      ? contarAulasConcluidasPorCategoria(autoescola_id, student?.document_id ?? '', row.categoria)
+      : Promise.resolve(null),
   ])
 
   return {
@@ -172,6 +176,7 @@ export async function getSolicitacao(
     student_phone: student?.phone ?? null,
     eventos: (eventosRaw ?? []) as SolicitacaoEvento[],
     aulasConcluidas,
+    aulasConcluidasCategoria,
     situacaoCreditos: credito.situacao,
     totalCreditos: credito.total,
   }
@@ -266,13 +271,20 @@ export async function agendarSolicitacao(
 
   const { data: atual } = await supabase
     .from('solicitacoes')
-    .select('status')
+    .select('status, tipo')
     .eq('id', id)
     .eq('autoescola_id', autoescola_id)
     .single()
 
   if (!atual || !['pendente', 'em_analise'].includes(atual.status)) {
     return { success: false, error: 'Essa solicitação não pode mais ser agendada.' }
+  }
+
+  if (atual.tipo === 'exame') {
+    return {
+      success: false,
+      error: 'Solicitações de exame agora são agendadas pelo mutirão de exames (menu "Datas de Exame").',
+    }
   }
 
   const { error } = await supabase

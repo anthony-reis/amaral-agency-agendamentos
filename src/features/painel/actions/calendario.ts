@@ -26,6 +26,7 @@ export interface SlotDia {
     student_email: string | null
     cpf_cnh: string | null
     status: string
+    tipo: 'aula' | 'banca'
     instructorCategory: string | null
     notes: string | null
   } | null
@@ -207,7 +208,7 @@ export async function getSlotsDoDia(
   // 3. Agendamentos existentes do instrutor nesse dia (todos os status para exibir)
   const { data: agsRaw } = await supabase
     .from('agendamentos')
-    .select('id, time_slot, student_name, cpf_cnh, student_document, status, instructorCategory, notes')
+    .select('id, time_slot, student_name, cpf_cnh, student_document, status, tipo, instructorCategory, notes')
     .eq('autoescola_id', autoescola_id)
     .eq('date', date)
     .eq('instructor_name', instructor_name)
@@ -289,6 +290,7 @@ export async function getSlotsDoDia(
         student_email: contact?.email ?? null,
         cpf_cnh: ag.cpf_cnh,
         status: ag.status,
+        tipo: (ag.tipo as 'aula' | 'banca') ?? 'aula',
         instructorCategory: trueCat,
         notes: ag.notes,
       },
@@ -364,6 +366,25 @@ export async function atualizarStatusAgendamento(
   return { error: null }
 }
 
+export async function atualizarTipoAgendamento(
+  id: string,
+  tipo: 'aula' | 'banca',
+  autoescola_id: string
+): Promise<{ error: string | null }> {
+  const supabase = createServiceClient()
+
+  const { error } = await supabase
+    .from('agendamentos')
+    .update({ tipo })
+    .eq('id', id)
+    .eq('autoescola_id', autoescola_id)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/', 'layout')
+  return { error: null }
+}
+
 export interface AlunoParaAgendar {
   id: string
   name: string
@@ -401,6 +422,7 @@ export async function agendarAulaCalendario(data: {
   student_id: string
   student_name: string
   student_document: string
+  tipo?: 'aula' | 'banca'
 }): Promise<{ error: string | null }> {
   const supabase = createServiceClient()
 
@@ -445,6 +467,7 @@ export async function agendarAulaCalendario(data: {
     student_document: data.student_document,
     cpf_cnh: data.student_document,
     status: 'scheduled',
+    tipo: data.tipo ?? 'aula',
   }).select('id').single()
 
   if (insertError) return { error: insertError.message }

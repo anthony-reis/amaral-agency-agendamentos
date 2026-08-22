@@ -33,7 +33,7 @@ export default async function LojaPage({ params }: Props) {
   const produtos = await listarProdutosLoja(autoescola.id)
 
   return (
-    <div className="px-4 pt-6 pb-8 max-w-2xl mx-auto w-full">
+    <div className="px-4 pt-6 pb-8 max-w-4xl mx-auto w-full">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-[--p-accent]/10 flex items-center justify-center">

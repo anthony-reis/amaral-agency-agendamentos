@@ -2,7 +2,6 @@ import { redirect } from 'next/navigation'
 import { Receipt } from 'lucide-react'
 import { getPainelSession } from '@/features/painel/actions/authPainel'
 import { listarVendas } from '@/features/painel/actions/vendas'
-import { lojaHabilitada } from '@/lib/loja'
 import { VendasList } from '@/features/painel/components/VendasList'
 
 interface Props {
@@ -14,11 +13,6 @@ export default async function VendasPage({ params }: Props) {
   const session = await getPainelSession(escola)
   if (!session) redirect(`/${escola}/painel/login`)
 
-  // Feature gate: sem credencial MP ativa a rota não existe para o tenant
-  if (!(await lojaHabilitada(session.autoescola_id))) {
-    redirect(`/${escola}/painel/dashboard`)
-  }
-
   const vendas = await listarVendas(session.autoescola_id)
 
   return (
@@ -29,7 +23,7 @@ export default async function VendasPage({ params }: Props) {
         </div>
         <div>
           <h1 className="text-xl font-bold text-[--p-text-1]">Vendas</h1>
-          <p className="text-sm text-[--p-text-3]">Compras realizadas pelos alunos na loja</p>
+          <p className="text-sm text-[--p-text-3]">Compras dos alunos na loja e vendas registradas manualmente</p>
         </div>
       </div>
 

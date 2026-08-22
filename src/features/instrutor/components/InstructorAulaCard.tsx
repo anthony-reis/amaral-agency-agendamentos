@@ -2,8 +2,8 @@
 
 import { useState, useTransition } from 'react'
 import { motion } from 'framer-motion'
-import { Clock, Car, User, FileText, BarChart2, Calendar, Gauge } from 'lucide-react'
-import { atualizarStatusAula } from '../actions/minhasAulas'
+import { Clock, Car, User, FileText, BarChart2, Calendar, Gauge, FileCheck, ThumbsUp, ThumbsDown } from 'lucide-react'
+import { atualizarStatusAula, marcarResultadoExame } from '../actions/minhasAulas'
 import type { AulaInstrutor } from '../actions/minhasAulas'
 import type { InstructorConfig } from '@/features/painel/actions/configuracoes'
 import { ConfirmarAcaoModal } from './ConfirmarAcaoModal'
@@ -27,7 +27,7 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   cancelled: { label: 'DESMARCADA', color: 'bg-slate-500/20 text-slate-400' },
 }
 
-type ModalAberto = 'falta' | 'desmarcar' | 'finalizar' | 'iniciar' | null
+type ModalAberto = 'falta' | 'desmarcar' | 'finalizar' | 'iniciar' | 'aprovado' | 'reprovado' | null
 
 export function InstructorAulaCard({ aula, instructorName, onUpdate, instructorConfig }: Props) {
   const [isPending, startTransition] = useTransition()
@@ -38,6 +38,16 @@ export function InstructorAulaCard({ aula, instructorName, onUpdate, instructorC
       const result = await atualizarStatusAula(aula.id, status, instructorName, aula.autoescola_id)
       if (result.success) {
         onUpdate(aula.id, status)
+        setModalAberto(null)
+      }
+    })
+  }
+
+  function handleConfirmarResultado(resultado: 'aprovado' | 'reprovado') {
+    startTransition(async () => {
+      const result = await marcarResultadoExame(aula.id, resultado, instructorName, aula.autoescola_id)
+      if (result.success) {
+        onUpdate(aula.id, 'completed', { resultado_exame: resultado })
         setModalAberto(null)
       }
     })
@@ -93,9 +103,21 @@ export function InstructorAulaCard({ aula, instructorName, onUpdate, instructorC
                     </span>
                   )}
                 </span>
+                {aula.tipo === 'banca' && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-500/20 text-amber-300 text-[10px] font-bold rounded">
+                    <FileCheck className="w-3 h-3" /> BANCA DE EXAME
+                  </span>
+                )}
                 <span className={`px-2 py-0.5 text-[10px] font-bold rounded ${statusInfo.color}`}>
                   {statusInfo.label}
                 </span>
+                {aula.tipo === 'banca' && aula.resultado_exame && (
+                  <span className={`px-2 py-0.5 text-[10px] font-bold rounded ${
+                    aula.resultado_exame === 'aprovado' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-300'
+                  }`}>
+                    {aula.resultado_exame === 'aprovado' ? 'APROVADO' : 'REPROVADO'}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -199,7 +221,24 @@ export function InstructorAulaCard({ aula, instructorName, onUpdate, instructorC
                     Desmarcar
                   </button>
                 )}
-                {instructorConfig.registrar_km ? (
+                {aula.tipo === 'banca' ? (
+                  <>
+                    <button
+                      onClick={() => setModalAberto('aprovado')}
+                      disabled={isPending}
+                      className="py-2.5 px-3 text-sm font-bold rounded-xl bg-emerald-500 text-white hover:bg-emerald-400 disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      <ThumbsUp className="w-4 h-4" /> Aprovado
+                    </button>
+                    <button
+                      onClick={() => setModalAberto('reprovado')}
+                      disabled={isPending}
+                      className="py-2.5 px-3 text-sm font-bold rounded-xl bg-red-500 text-white hover:bg-red-400 disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      <ThumbsDown className="w-4 h-4" /> Reprovado
+                    </button>
+                  </>
+                ) : instructorConfig.registrar_km ? (
                   <button
                     onClick={() => setModalAberto('iniciar')}
                     disabled={isPending}
@@ -249,6 +288,36 @@ export function InstructorAulaCard({ aula, instructorName, onUpdate, instructorC
         confirmClass="bg-red-500 hover:bg-red-400"
         isPending={isPending}
         onConfirm={() => handleConfirmarAcao('absent')}
+        onCancel={() => setModalAberto(null)}
+      />
+
+      {/* Modal: Marcar Aprovado */}
+      <ConfirmarAcaoModal
+        open={modalAberto === 'aprovado'}
+        titulo="Marcar Aprovado"
+        descricao="Confirme que este aluno foi APROVADO no exame."
+        nomeAluno={aula.student_name}
+        data={aula.date}
+        horario={aula.time_slot}
+        confirmLabel="Confirmar Aprovado"
+        confirmClass="bg-emerald-500 hover:bg-emerald-400"
+        isPending={isPending}
+        onConfirm={() => handleConfirmarResultado('aprovado')}
+        onCancel={() => setModalAberto(null)}
+      />
+
+      {/* Modal: Marcar Reprovado */}
+      <ConfirmarAcaoModal
+        open={modalAberto === 'reprovado'}
+        titulo="Marcar Reprovado"
+        descricao="Confirme que este aluno foi REPROVADO no exame."
+        nomeAluno={aula.student_name}
+        data={aula.date}
+        horario={aula.time_slot}
+        confirmLabel="Confirmar Reprovado"
+        confirmClass="bg-red-500 hover:bg-red-400"
+        isPending={isPending}
+        onConfirm={() => handleConfirmarResultado('reprovado')}
         onCancel={() => setModalAberto(null)}
       />
 

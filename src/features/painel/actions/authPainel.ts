@@ -116,3 +116,16 @@ export async function getCurrentUsername(): Promise<string> {
     return 'sistema'
   }
 }
+
+export async function getCurrentUserId(): Promise<string | null> {
+  const cookieStore = await cookies()
+  const raw = cookieStore.get(COOKIE_NAME)?.value
+  if (!raw) return null
+
+  try {
+    const session = JSON.parse(raw) as PainelSession
+    return session.userId || null
+  } catch {
+    return null
+  }
+}

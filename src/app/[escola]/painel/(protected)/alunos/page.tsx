@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getPainelSession } from '@/features/painel/actions/authPainel'
 import { listarAlunos } from '@/features/painel/actions/alunos'
+import { listarProdutos } from '@/features/painel/actions/catalogo'
 import { AlunosList } from '@/features/painel/components/AlunosList'
 
 interface Props {
@@ -12,7 +13,10 @@ export default async function AlunosPage({ params }: Props) {
   const session = await getPainelSession(escola)
   if (!session) redirect(`/${escola}/painel/login`)
 
-  const alunos = await listarAlunos(session.autoescola_id)
+  const [alunos, produtos] = await Promise.all([
+    listarAlunos(session.autoescola_id),
+    listarProdutos(session.autoescola_id),
+  ])
 
-  return <AlunosList alunos={alunos} autoescola_id={session.autoescola_id} />
+  return <AlunosList alunos={alunos} autoescola_id={session.autoescola_id} produtos={produtos} escola={escola} />
 }

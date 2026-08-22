@@ -128,6 +128,7 @@ export function VendasList({ autoescola_id, vendas: initial }: Props) {
                   <th className="px-4 py-3 text-xs font-semibold text-[--p-text-3]">Data</th>
                   <th className="px-4 py-3 text-xs font-semibold text-[--p-text-3]">Aluno</th>
                   <th className="px-4 py-3 text-xs font-semibold text-[--p-text-3]">Produto</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-[--p-text-3]">Origem</th>
                   <th className="px-4 py-3 text-xs font-semibold text-[--p-text-3]">Valor</th>
                   <th className="px-4 py-3 text-xs font-semibold text-[--p-text-3]">Método</th>
                   <th className="px-4 py-3 text-xs font-semibold text-[--p-text-3]">Status</th>
@@ -145,6 +146,16 @@ export function VendasList({ autoescola_id, vendas: initial }: Props) {
                       )}
                     </td>
                     <td className="px-4 py-3 text-[--p-text-2]">{v.produto_snapshot?.nome ?? '—'}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {v.origem === 'manual' ? (
+                        <div>
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-500 border border-sky-500/20">Manual</span>
+                          {v.vendedor && <p className="text-[10px] text-[--p-text-3] mt-0.5">{v.vendedor.full_name}</p>}
+                        </div>
+                      ) : (
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-500/10 text-slate-400 border border-slate-500/20">Mercado Pago</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-[--p-text-1] font-semibold whitespace-nowrap">
                       {formatarPrecoCentavos(v.valor_centavos)}
                     </td>

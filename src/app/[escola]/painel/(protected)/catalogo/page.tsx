@@ -3,7 +3,6 @@ import { Package } from 'lucide-react'
 import { getPainelSession } from '@/features/painel/actions/authPainel'
 import { listarProdutos } from '@/features/painel/actions/catalogo'
 import { listarCategorias } from '@/features/admin/actions/categorias'
-import { lojaHabilitada } from '@/lib/loja'
 import { CatalogoManager } from '@/features/painel/components/CatalogoManager'
 
 interface Props {
@@ -14,11 +13,6 @@ export default async function CatalogoPage({ params }: Props) {
   const { escola } = await params
   const session = await getPainelSession(escola)
   if (!session) redirect(`/${escola}/painel/login`)
-
-  // Feature gate: sem credencial MP ativa a rota não existe para o tenant
-  if (!(await lojaHabilitada(session.autoescola_id))) {
-    redirect(`/${escola}/painel/dashboard`)
-  }
 
   const [produtos, categorias] = await Promise.all([
     listarProdutos(session.autoescola_id),

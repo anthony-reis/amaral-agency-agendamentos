@@ -7,6 +7,7 @@ import type { ActionResult } from '@/features/admin/types'
 
 export interface PedidoComAluno extends PedidoLoja {
   aluno: { name: string; document_id: string } | null
+  vendedor: { full_name: string; username: string } | null
 }
 
 export async function listarVendas(
@@ -17,7 +18,7 @@ export async function listarVendas(
 
   let query = supabase
     .from('pedidos_loja')
-    .select('*, aluno:students(name, document_id)')
+    .select('*, aluno:students(name, document_id), vendedor:users_painel(full_name, username)')
     .eq('autoescola_id', autoescola_id)
     .order('created_at', { ascending: false })
     .limit(300)
@@ -32,6 +33,7 @@ export async function listarVendas(
   return (data ?? []).map((row) => ({
     ...row,
     aluno: Array.isArray(row.aluno) ? row.aluno[0] ?? null : row.aluno ?? null,
+    vendedor: Array.isArray(row.vendedor) ? row.vendedor[0] ?? null : row.vendedor ?? null,
   })) as PedidoComAluno[]
 }
 

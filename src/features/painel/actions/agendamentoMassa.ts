@@ -3,6 +3,7 @@
 import { getDisponibilidade } from '@/lib/getDisponibilidade'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getCurrentUsername } from './authPainel'
+import { reservarProximasAulas, liberarReservasVencidas } from '@/lib/reservasPosPacote'
 
 // Feriados nacionais fixos (MM-DD)
 const FERIADOS_FIXOS = new Set([
@@ -29,6 +30,8 @@ export async function buscarDisponibilidadeMassa(
   daysNeeded: number,
   instructorFilter?: string
 ): Promise<DiaDisponivel[]> {
+  await liberarReservasVencidas(autoescola_id)
+
   const result: DiaDisponivel[] = []
   const current = new Date(startDate + 'T12:00:00')
   const maxScan = 90
@@ -75,6 +78,7 @@ export async function criarAgendamentosMassa(data: {
   studentDocument: string
   category: string
   agendamentos: AgendamentoMassaItem[]
+  bloquearProximas?: number
 }): Promise<{ success: boolean; created: number; error?: string }> {
   const supabase = createServiceClient()
   const rpcCat = data.category === 'CARRO' ? 'aulas_cat_b' : 'aulas_cat_a'
@@ -127,6 +131,23 @@ export async function criarAgendamentosMassa(data: {
     description: `Agendamento em massa: ${data.agendamentos.length} aulas para ${data.studentName} (${data.category})`,
     autoescola_id: data.autoescola_id,
   })
+
+  // Reserva pós-pacote: segura os próximos N horários do instrutor da última
+  // aula do pacote pro mesmo aluno, dando tempo pro atendente tentar revenda.
+  if (data.bloquearProximas && data.bloquearProximas > 0) {
+    const ultimaAula = [...data.agendamentos].sort((a, b) => (a.date < b.date ? 1 : -1))[0]
+    const diaSeguinte = new Date(ultimaAula.date + 'T12:00:00')
+    diaSeguinte.setDate(diaSeguinte.getDate() + 1)
+
+    await reservarProximasAulas({
+      autoescola_id: data.autoescola_id,
+      student_id: data.studentId,
+      instructor_name: ultimaAula.instructorName,
+      category: data.category,
+      startDate: diaSeguinte.toISOString().split('T')[0],
+      quantidade: data.bloquearProximas,
+    })
+  }
 
   return { success: true, created: data.agendamentos.length }
 }

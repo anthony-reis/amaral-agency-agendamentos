@@ -62,7 +62,7 @@ export function FechamentoMensal({ initialData, escola, autoescola_id }: Props) 
   }
 
   function exportarCSV() {
-    const header = ['Data', 'Horário', 'Aluno', 'Instrutor', 'Categoria', 'KM Inicial', 'KM Final', 'KM Rodado', 'Valor Hora/Aula', 'Valor a Pagar']
+    const header = ['Data', 'Horário', 'Aluno', 'Instrutor', 'Categoria', 'Tipo', 'KM Inicial', 'KM Final', 'KM Rodado', 'Valor Hora/Aula', 'Valor Banca', 'Valor a Pagar']
     const rows: string[][] = []
     for (const inst of data.instrutores) {
       for (const aula of inst.aulas) {
@@ -72,10 +72,12 @@ export function FechamentoMensal({ initialData, escola, autoescola_id }: Props) 
           aula.student_name,
           inst.instructor_name,
           inst.categoria ?? '',
+          aula.tipo === 'banca' ? 'Banca' : 'Aula',
           aula.km_inicial != null ? String(aula.km_inicial) : '',
           aula.km_final != null ? String(aula.km_final) : '',
           aula.km_rodado != null ? String(aula.km_rodado) : '',
           inst.valor_hora_aula != null ? fmtMoeda(inst.valor_hora_aula) : '',
+          inst.valor_banca != null ? fmtMoeda(inst.valor_banca) : '',
           inst.valor_total_pagar != null ? fmtMoeda(inst.valor_total_pagar) : '',
         ])
       }
@@ -153,13 +155,20 @@ export function FechamentoMensal({ initialData, escola, autoescola_id }: Props) 
       </div>
 
       {/* Cards resumo */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="bg-violet-600 rounded-2xl p-5 flex items-center justify-between">
           <div>
             <p className="text-xs text-white/70 mb-1">Aulas Concluídas</p>
             <p className="text-3xl font-bold text-white/90">{data.total_aulas}</p>
           </div>
           <Car className="w-8 h-8 text-white/60" />
+        </div>
+        <div className="bg-amber-600 rounded-2xl p-5 flex items-center justify-between">
+          <div>
+            <p className="text-xs text-white/70 mb-1">Bancas</p>
+            <p className="text-3xl font-bold text-white/90">{data.total_bancas}</p>
+          </div>
+          <FileSpreadsheet className="w-8 h-8 text-white/60" />
         </div>
         <div className="bg-violet-500 rounded-2xl p-5 flex items-center justify-between">
           <div>
@@ -216,6 +225,12 @@ export function FechamentoMensal({ initialData, escola, autoescola_id }: Props) 
                       <p className="text-xs text-[--p-text-3]">Aulas</p>
                       <p className="font-bold text-[--p-text-1]">{inst.total_aulas}</p>
                     </div>
+                    {inst.total_bancas > 0 && (
+                      <div className="text-right">
+                        <p className="text-xs text-[--p-text-3]">Bancas</p>
+                        <p className="font-bold text-amber-500">{inst.total_bancas}</p>
+                      </div>
+                    )}
                     <div className="text-right">
                       <p className="text-xs text-[--p-text-3]">KM Total</p>
                       <p className="font-bold text-violet-400">{inst.km_total.toLocaleString('pt-BR')} km</p>
@@ -244,6 +259,7 @@ export function FechamentoMensal({ initialData, escola, autoescola_id }: Props) 
                           <th className="text-left text-xs font-semibold text-[--p-text-3] px-5 py-2.5">Data</th>
                           <th className="text-left text-xs font-semibold text-[--p-text-3] px-4 py-2.5">Horário</th>
                           <th className="text-left text-xs font-semibold text-[--p-text-3] px-4 py-2.5">Aluno</th>
+                          <th className="text-left text-xs font-semibold text-[--p-text-3] px-4 py-2.5">Tipo</th>
                           <th className="text-right text-xs font-semibold text-[--p-text-3] px-4 py-2.5">KM Ini.</th>
                           <th className="text-right text-xs font-semibold text-[--p-text-3] px-4 py-2.5">KM Fin.</th>
                           <th className="text-right text-xs font-semibold text-[--p-text-3] px-4 py-2.5">Rodado</th>
@@ -255,6 +271,13 @@ export function FechamentoMensal({ initialData, escola, autoescola_id }: Props) 
                             <td className="px-5 py-2.5 text-[--p-text-2]">{aula.date.split('-').reverse().join('/')}</td>
                             <td className="px-4 py-2.5 text-[--p-text-3]">{aula.time_slot}</td>
                             <td className="px-4 py-2.5 font-medium text-[--p-text-1] truncate max-w-[160px]">{aula.student_name}</td>
+                            <td className="px-4 py-2.5">
+                              {aula.tipo === 'banca' ? (
+                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">Banca</span>
+                              ) : (
+                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 dark:bg-slate-500/10 dark:text-slate-400">Aula</span>
+                              )}
+                            </td>
                             <td className="px-4 py-2.5 text-right text-[--p-text-3]">
                               {aula.km_inicial != null ? aula.km_inicial.toLocaleString('pt-BR') : '—'}
                             </td>

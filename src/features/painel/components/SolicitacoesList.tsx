@@ -182,6 +182,7 @@ export function SolicitacoesList({ escola, autoescolaId, solicitacoesIniciais }:
                 <tr className="border-b border-[--p-border]">
                   <th className="text-left text-xs font-semibold text-[--p-text-3] uppercase px-5 py-3">Aluno</th>
                   <th className="text-left text-xs font-semibold text-[--p-text-3] uppercase px-4 py-3">Tipo</th>
+                  <th className="text-left text-xs font-semibold text-[--p-text-3] uppercase px-4 py-3">Categoria</th>
                   <th className="text-left text-xs font-semibold text-[--p-text-3] uppercase px-4 py-3">Status</th>
                   <th className="text-left text-xs font-semibold text-[--p-text-3] uppercase px-4 py-3">Criada em</th>
                   <th className="text-left text-xs font-semibold text-[--p-text-3] uppercase px-4 py-3">Atualizada em</th>
@@ -208,6 +209,13 @@ export function SolicitacoesList({ escola, autoescolaId, solicitacoesIniciais }:
                         {s.tipo === 'exame' ? <FileCheck className="w-3.5 h-3.5" /> : <BookOpenCheck className="w-3.5 h-3.5" />}
                         {TIPO_LABEL[s.tipo]}
                       </span>
+                    </td>
+                    <td className="px-4 py-3 text-[--p-text-2]">
+                      {s.tipo === 'exame' && s.categoria ? (
+                        <span title={s.data_preferida ? `Data preferida: ${s.data_preferida.split('-').reverse().join('/')}` : undefined}>
+                          {s.categoria}
+                        </span>
+                      ) : '—'}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`px-2.5 py-0.5 text-xs font-bold rounded-md ${STATUS_BADGE[s.status]}`}>

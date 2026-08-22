@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   X,
@@ -15,6 +16,7 @@ import {
   History,
   Send,
   Clock,
+  ArrowRight,
 } from 'lucide-react'
 import {
   getSolicitacao,
@@ -53,6 +55,7 @@ function fmtDataHora(iso: string) {
 }
 
 export function SolicitacaoDrawer({ solicitacaoId, autoescolaId, escola, onClose, onChanged }: Props) {
+  const router = useRouter()
   const [detalhe, setDetalhe] = useState<SolicitacaoDetalhe | null>(null)
   const [loading, setLoading] = useState(true)
   const [isPending, startTransition] = useTransition()
@@ -130,6 +133,14 @@ export function SolicitacaoDrawer({ solicitacaoId, autoescolaId, escola, onClose
     })
   }
 
+  function irParaMutirao() {
+    if (!detalhe?.categoria) return
+    const params = new URLSearchParams({ categoria: detalhe.categoria })
+    if (detalhe.data_preferida) params.set('data', detalhe.data_preferida)
+    onClose()
+    router.push(`/${escola}/painel/datas-exame?${params}`)
+  }
+
   const podeAgir = detalhe && ['pendente', 'em_analise'].includes(detalhe.status)
   const whatsappHref = detalhe?.student_phone
     ? `https://wa.me/55${detalhe.student_phone.replace(/\D/g, '')}`
@@ -189,6 +200,20 @@ export function SolicitacaoDrawer({ solicitacaoId, autoescolaId, escola, onClose
                 <p className="text-xs text-[--p-text-3]">Criada em {fmtDataHora(detalhe.created_at)}</p>
               </div>
             </div>
+
+            {detalhe.tipo === 'exame' && detalhe.categoria && (
+              <div className="bg-[--p-bg-input] rounded-xl p-3 text-sm">
+                <p className="text-[--p-text-1]">
+                  Categoria: <span className="font-semibold">{detalhe.categoria}</span>
+                  {detalhe.aulasConcluidasCategoria !== null && (
+                    <span className="text-[--p-text-3]"> · {detalhe.aulasConcluidasCategoria} aulas concluídas nessa categoria</span>
+                  )}
+                </p>
+                {detalhe.data_preferida && (
+                  <p className="text-[--p-text-3] mt-0.5">Data preferida: {detalhe.data_preferida.split('-').reverse().join('/')}</p>
+                )}
+              </div>
+            )}
 
             {detalhe.observacao_aluno && (
               <div className="text-sm text-[--p-text-2]">
@@ -285,13 +310,23 @@ export function SolicitacaoDrawer({ solicitacaoId, autoescolaId, escola, onClose
                     <Search className="w-4 h-4" /> Iniciar análise
                   </button>
                 )}
-                <button
-                  onClick={() => setShowAgendar(true)}
-                  disabled={isPending}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500/10 text-emerald-500 text-sm font-semibold hover:bg-emerald-500/20 disabled:opacity-50 transition-colors"
-                >
-                  <CalendarCheck2 className="w-4 h-4" /> Agendar / Atender
-                </button>
+                {detalhe.tipo === 'exame' ? (
+                  <button
+                    onClick={irParaMutirao}
+                    disabled={isPending}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500/10 text-emerald-500 text-sm font-semibold hover:bg-emerald-500/20 disabled:opacity-50 transition-colors"
+                  >
+                    <ArrowRight className="w-4 h-4" /> Ir para mutirão de exame
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setShowAgendar(true)}
+                    disabled={isPending}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500/10 text-emerald-500 text-sm font-semibold hover:bg-emerald-500/20 disabled:opacity-50 transition-colors"
+                  >
+                    <CalendarCheck2 className="w-4 h-4" /> Agendar / Atender
+                  </button>
+                )}
                 <button
                   onClick={() => setShowRecusar(true)}
                   disabled={isPending}

@@ -8,6 +8,7 @@ import {
   getInstrutoresDoDia,
   getSlotsDoDia,
   atualizarStatusAgendamento,
+  atualizarTipoAgendamento,
   listarAlunosParaAgendar,
   agendarAulaCalendario,
   type DiaCalendario,
@@ -29,6 +30,16 @@ const STATUS_OPTIONS = [
   { value: 'absent', label: 'Falta' },
   { value: 'cancelled', label: 'Cancelado' },
 ]
+
+const TIPO_OPTIONS = [
+  { value: 'aula', label: 'Aula' },
+  { value: 'banca', label: 'Banca' },
+]
+
+const TIPO_CLS: Record<string, string> = {
+  aula: 'bg-slate-100 text-slate-600 dark:bg-slate-500/10 dark:text-slate-400',
+  banca: 'bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400',
+}
 
 const STATUS_DOT: Record<string, string> = {
   scheduled: 'bg-sky-400',
@@ -104,6 +115,7 @@ function AgendarForm({
 }) {
   const [search, setSearch] = useState('')
   const [selectedAluno, setSelectedAluno] = useState<AlunoParaAgendar | null>(null)
+  const [tipo, setTipo] = useState<'aula' | 'banca'>('aula')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -131,6 +143,7 @@ function AgendarForm({
       student_id: selectedAluno.id,
       student_name: selectedAluno.name,
       student_document: selectedAluno.document_id,
+      tipo,
     })
     if (result.error) {
       setError(result.error)
@@ -147,6 +160,7 @@ function AgendarForm({
         student_email: null,
         cpf_cnh: selectedAluno.document_id,
         status: 'scheduled',
+        tipo,
         instructorCategory,
         notes: null,
       },
@@ -236,6 +250,21 @@ function AgendarForm({
 
         {error && <p className="text-xs text-red-500">{error}</p>}
 
+        {selectedAluno && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-[--p-text-3]">Tipo:</span>
+            <select
+              value={tipo}
+              onChange={(e) => setTipo(e.target.value as 'aula' | 'banca')}
+              className="text-xs font-medium px-2 py-1 rounded-lg bg-[--p-bg-card] border border-[--p-border] text-[--p-text-1] focus:outline-none focus:ring-1 focus:ring-[#0ea5e9]"
+            >
+              {TIPO_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <div className="flex items-center gap-2">
           <button
             onClick={handleAgendar}
@@ -266,6 +295,7 @@ function SlotRow({
   date,
   alunos,
   onStatusChange,
+  onTipoChange,
   onBooked,
 }: {
   slot: SlotDia
@@ -275,6 +305,7 @@ function SlotRow({
   date: string
   alunos: AlunoParaAgendar[]
   onStatusChange: (id: string, status: string) => void
+  onTipoChange: (id: string, tipo: 'aula' | 'banca') => void
   onBooked: (updated: SlotDia) => void
 }) {
   const [showForm, setShowForm] = useState(false)
@@ -285,7 +316,7 @@ function SlotRow({
     return (
       <tr className="border-b border-[--p-border] last:border-0 opacity-50">
         <td className="px-4 py-2.5 text-sm font-mono text-[--p-text-3] w-20">{slot.horario}</td>
-        <td className="px-4 py-2.5 text-xs text-red-500 dark:text-red-400 italic" colSpan={4}>Bloqueado</td>
+        <td className="px-4 py-2.5 text-xs text-red-500 dark:text-red-400 italic" colSpan={5}>Bloqueado</td>
       </tr>
     )
   }
@@ -295,7 +326,7 @@ function SlotRow({
     return (
       <tr className="border-b border-[--p-border] last:border-0">
         <td className="px-4 py-2.5 text-sm font-mono text-[--p-text-3] w-20 align-top pt-3">{slot.horario}</td>
-        <td className="px-4 py-2.5 align-top" colSpan={4}>
+        <td className="px-4 py-2.5 align-top" colSpan={5}>
           <AnimatePresence mode="wait">
             {!showForm ? (
               <motion.button
@@ -378,6 +409,21 @@ function SlotRow({
             {ag.instructorCategory}
           </span>
         )}
+      </td>
+
+      {/* Tipo select */}
+      <td className="px-4 py-3 align-middle">
+        <select
+          value={ag.tipo ?? 'aula'}
+          onChange={(e) => onTipoChange(ag.id, e.target.value as 'aula' | 'banca')}
+          className={`text-xs font-semibold border-0 focus:outline-none focus:ring-0 cursor-pointer rounded-full px-2 py-0.5 ${TIPO_CLS[ag.tipo ?? 'aula']}`}
+        >
+          {TIPO_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value} className="text-[--p-text-1] bg-[--p-bg-card]">
+              {o.label}
+            </option>
+          ))}
+        </select>
       </td>
 
       {/* Status select */}
@@ -480,6 +526,17 @@ function DayPanel({
     atualizarStatusAgendamento(id, status as Parameters<typeof atualizarStatusAgendamento>[1])
   }
 
+  function handleTipoChange(id: string, tipo: 'aula' | 'banca') {
+    setSlots((prev) =>
+      prev.map((s) =>
+        s.agendamento?.id === id
+          ? { ...s, agendamento: { ...s.agendamento!, tipo } }
+          : s
+      )
+    )
+    atualizarTipoAgendamento(id, tipo, autoescola_id)
+  }
+
   async function onConfirmCancel(options: { blockSlot: boolean; reason?: string }) {
     if (!modalCancel.id) return
 
@@ -580,6 +637,7 @@ function DayPanel({
                     <th className="px-4 py-2 text-left text-xs font-semibold text-[--p-text-3] uppercase">Aluno</th>
                     <th className="px-4 py-2 text-left text-xs font-semibold text-[--p-text-3] uppercase">Contato</th>
                     <th className="px-4 py-2 text-left text-xs font-semibold text-[--p-text-3] uppercase">Cat.</th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-[--p-text-3] uppercase">Tipo</th>
                     <th className="px-4 py-2 text-left text-xs font-semibold text-[--p-text-3] uppercase">Status</th>
                   </tr>
                 </thead>
@@ -594,6 +652,7 @@ function DayPanel({
                       date={date}
                       alunos={alunos}
                       onStatusChange={handleStatusChange}
+                      onTipoChange={handleTipoChange}
                       onBooked={handleBooked}
                     />
                   ))}

@@ -3,13 +3,28 @@ import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { CATEGORIAS_CREDITO, type PedidoLoja } from '@/lib/loja-types'
 
+export interface CreditarPedidoAtor {
+  username: string
+  label: string
+}
+
+const ATOR_MERCADO_PAGO: CreditarPedidoAtor = { username: 'mercadopago', label: 'Mercado Pago' }
+
 /**
  * Credita as aulas de um pedido aprovado em student_credits, usando
  * EXCLUSIVAMENTE o produto_snapshot do pedido (produto pode ter mudado).
  * A idempotência é garantida ANTES da chamada (update condicional de
  * creditos_liberados no webhook) — aqui só aplicamos os créditos.
+ *
+ * `ator` identifica quem originou o crédito no log/histórico: por padrão o
+ * Mercado Pago (compra self-service do aluno); para vendas manuais registradas
+ * pelo operador do painel, passe o usuário logado.
  */
-export async function creditarPedido(supabase: SupabaseClient, pedido: PedidoLoja): Promise<void> {
+export async function creditarPedido(
+  supabase: SupabaseClient,
+  pedido: PedidoLoja,
+  ator: CreditarPedidoAtor = ATOR_MERCADO_PAGO
+): Promise<void> {
   const snapshot = pedido.produto_snapshot
 
   const quantidades = CATEGORIAS_CREDITO
@@ -48,13 +63,13 @@ export async function creditarPedido(supabase: SupabaseClient, pedido: PedidoLoj
       tipo: 'credito',
       quantidade: qtd,
       motivo: `Compra na loja: ${snapshot.nome} - Categoria ${cat.toUpperCase()} (pedido ${pedidoCurto})`,
-      usuario_responsavel: 'Mercado Pago',
+      usuario_responsavel: ator.label,
     }))
   )
 
   // Auditoria do painel
   await supabase.from('activity_logs_painel').insert({
-    username: 'mercadopago',
+    username: ator.username,
     action_type: 'venda',
     description: `Créditos liberados: ${snapshot.nome} (pedido ${pedidoCurto}) — ${quantidades
       .map(({ cat, qtd }) => `${qtd} cat. ${cat.toUpperCase()}`)

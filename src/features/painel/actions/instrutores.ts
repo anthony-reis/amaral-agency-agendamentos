@@ -9,6 +9,7 @@ function normalizarInstrutor(row: Instrutor): Instrutor {
   return {
     ...row,
     valor_hora_aula: row.valor_hora_aula != null ? Number(row.valor_hora_aula) : null,
+    valor_banca: row.valor_banca != null ? Number(row.valor_banca) : null,
   }
 }
 
@@ -63,7 +64,7 @@ export async function criarInstrutor(
 
 export async function atualizarInstrutor(
   id: string,
-  input: Partial<Pick<Instrutor, 'name' | 'category' | 'valor_hora_aula'>>,
+  input: Partial<Pick<Instrutor, 'name' | 'category' | 'valor_hora_aula' | 'valor_banca'>>,
   autoescola_id: string
 ): Promise<ActionResult<Instrutor>> {
   const supabase = createServiceClient()

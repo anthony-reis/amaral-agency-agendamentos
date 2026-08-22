@@ -2,14 +2,26 @@
 
 import { useState, useTransition } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { GraduationCap, Plus, Search, Download, Pencil, Trash2, X, Minus, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
+import { GraduationCap, Plus, Search, Download, Pencil, Trash2, X, Minus, ArrowUp, ArrowDown, ArrowUpDown, FileCheck, Check } from 'lucide-react'
 import { criarAluno, editarAluno, excluirAluno, ajustarCredito, contarAulasAgendadas } from '../actions/alunos'
 import type { AlunoComCreditos } from '../types'
+import { formatarPrecoCentavos, type Produto } from '@/lib/loja-types'
+import { AgendarExameModal } from './AgendarExameModal'
+import { VenderCreditosModal } from './VenderCreditosModal'
 
 interface Props {
   alunos: AlunoComCreditos[]
   autoescola_id: string
+  produtos?: Produto[]
+  escola: string
 }
+
+const PAYMENT_METHODS = [
+  { value: 'dinheiro', label: 'Dinheiro' },
+  { value: 'pix', label: 'Pix' },
+  { value: 'cartao', label: 'Cartão' },
+  { value: 'outro', label: 'Outro' },
+]
 
 const CATS = ['a', 'b', 'c', 'd', 'e'] as const
 type Cat = typeof CATS[number]
@@ -29,7 +41,7 @@ function formatDoc(doc: string) {
 type SortCol = 'a' | 'b' | 'c' | 'd' | 'e' | 'total' | null
 type SortDir = 'asc' | 'desc'
 
-export function AlunosList({ alunos: initial, autoescola_id }: Props) {
+export function AlunosList({ alunos: initial, autoescola_id, produtos = [], escola }: Props) {
   const [alunos, setAlunos] = useState<AlunoComCreditos[]>(initial)
   const [search, setSearch] = useState('')
   const [isPending, startTransition] = useTransition()
@@ -41,8 +53,18 @@ export function AlunosList({ alunos: initial, autoescola_id }: Props) {
   const [modalEditar, setModalEditar] = useState<AlunoComCreditos | null>(null)
   const [formData, setFormData] = useState({ name: '', document_id: '', phone: '', email: '' })
   const [formError, setFormError] = useState('')
+  const [vendaTipo, setVendaTipo] = useState<'nenhuma' | 'plano' | 'avulsa'>('nenhuma')
+  const [vendaProdutoId, setVendaProdutoId] = useState('')
+  const [vendaQuantidade, setVendaQuantidade] = useState('1')
+  const [vendaPaymentMethod, setVendaPaymentMethod] = useState('dinheiro')
+
+  const planos = produtos.filter((p) => p.tipo === 'pacote' && p.ativo)
+  const avulsas = produtos.filter((p) => p.tipo === 'avulsa' && p.ativo)
   const [modalExcluir, setModalExcluir] = useState<{ aluno: AlunoComCreditos; aulasCount: number } | null>(null)
   const [isLoadingCount, setIsLoadingCount] = useState(false)
+  const [examModalAluno, setExamModalAluno] = useState<AlunoComCreditos | null>(null)
+  const [pendingAdd, setPendingAdd] = useState<Record<string, Partial<Record<Cat, number>>>>({})
+  const [vendaModalAluno, setVendaModalAluno] = useState<AlunoComCreditos | null>(null)
 
   function handleSort(col: SortCol) {
     if (sortCol === col) {
@@ -79,6 +101,10 @@ export function AlunosList({ alunos: initial, autoescola_id }: Props) {
   function openNovo() {
     setFormData({ name: '', document_id: '', phone: '', email: '' })
     setFormError('')
+    setVendaTipo('nenhuma')
+    setVendaProdutoId('')
+    setVendaQuantidade('1')
+    setVendaPaymentMethod('dinheiro')
     setModalNovo(true)
   }
 
@@ -91,8 +117,15 @@ export function AlunosList({ alunos: initial, autoescola_id }: Props) {
   function handleCriar(e: React.FormEvent) {
     e.preventDefault()
     setFormError('')
+    const venda = vendaTipo !== 'nenhuma' && vendaProdutoId
+      ? {
+          produto_id: vendaProdutoId,
+          quantidade: vendaTipo === 'avulsa' ? Math.max(1, Number(vendaQuantidade) || 1) : 1,
+          payment_method: vendaPaymentMethod,
+        }
+      : undefined
     startTransition(async () => {
-      const result = await criarAluno({ ...formData, autoescola_id })
+      const result = await criarAluno({ ...formData, autoescola_id }, venda)
       if (!result.success) { setFormError(result.error); return }
       setAlunos((prev) => [result.data, ...prev])
       setModalNovo(false)
@@ -144,6 +177,38 @@ export function AlunosList({ alunos: initial, autoescola_id }: Props) {
           a.id === alunoId ? { ...a, creditos: result.data } : a
         ))
       }
+    })
+  }
+
+  // Adicionar crédito é sempre uma venda — fica pendente na tela até "Salvar
+  // alterações" registrar o valor e a forma de pagamento. Remover crédito
+  // continua salvando na hora (correção/estorno, não é venda nova).
+  function handleMais(alunoId: string, cat: Cat) {
+    setPendingAdd((prev) => ({
+      ...prev,
+      [alunoId]: { ...prev[alunoId], [cat]: (prev[alunoId]?.[cat] ?? 0) + 1 },
+    }))
+  }
+
+  function handleMenos(aluno: AlunoComCreditos, cat: Cat) {
+    const pendente = pendingAdd[aluno.id]?.[cat] ?? 0
+    if (pendente > 0) {
+      // Desfaz um clique de "+" ainda não salvo, sem chamar o servidor.
+      setPendingAdd((prev) => {
+        const next = { ...prev[aluno.id], [cat]: pendente - 1 }
+        if (next[cat] === 0) delete next[cat]
+        return { ...prev, [aluno.id]: next }
+      })
+      return
+    }
+    if (aluno.creditos) handleAjustar(aluno.id, aluno.creditos.id, cat, -1)
+  }
+
+  function cancelarPendente(alunoId: string) {
+    setPendingAdd((prev) => {
+      const next = { ...prev }
+      delete next[alunoId]
+      return next
     })
   }
 
@@ -306,21 +371,23 @@ export function AlunosList({ alunos: initial, autoescola_id }: Props) {
                   </td>
                   {CATS.map((c) => {
                     const val = a.creditos ? (a.creditos[`aulas_cat_${c}` as keyof typeof a.creditos] as number ?? 0) : 0
+                    const pendente = pendingAdd[a.id]?.[c] ?? 0
                     return (
                       <td key={c} className="px-2 py-3.5 text-center">
                         <div className="flex items-center justify-center gap-1">
                           <button
-                            onClick={() => a.creditos && handleAjustar(a.id, a.creditos.id, c, -1)}
-                            disabled={isPending || !a.creditos || val === 0}
+                            onClick={() => handleMenos(a, c)}
+                            disabled={isPending || !a.creditos || (val === 0 && pendente === 0)}
                             className="w-5 h-5 flex items-center justify-center rounded text-red-400 hover:bg-red-500/10 disabled:opacity-30 transition-colors"
                           >
                             <Minus className="w-3 h-3" />
                           </button>
-                          <span className={`w-6 text-center font-semibold text-sm ${val > 0 ? 'text-[--p-text-1]' : 'text-[--p-text-3]'}`}>
+                          <span className={`text-center font-semibold text-sm ${val > 0 ? 'text-[--p-text-1]' : 'text-[--p-text-3]'}`}>
                             {val}
+                            {pendente > 0 && <span className="text-emerald-500">+{pendente}</span>}
                           </span>
                           <button
-                            onClick={() => a.creditos && handleAjustar(a.id, a.creditos.id, c, 1)}
+                            onClick={() => handleMais(a.id, c)}
                             disabled={isPending || !a.creditos}
                             className="w-5 h-5 flex items-center justify-center rounded text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-30 transition-colors"
                           >
@@ -335,6 +402,31 @@ export function AlunosList({ alunos: initial, autoescola_id }: Props) {
                   </td>
                   <td className="px-4 py-3.5">
                     <div className="flex items-center gap-1 justify-end">
+                      {pendingAdd[a.id] && Object.keys(pendingAdd[a.id]).length > 0 && (
+                        <>
+                          <button
+                            onClick={() => setVendaModalAluno(a)}
+                            title="Salvar alterações (registrar venda)"
+                            className="p-1.5 rounded-lg text-emerald-500 hover:bg-emerald-500/10 transition-colors"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => cancelarPendente(a.id)}
+                            title="Cancelar alterações"
+                            className="p-1.5 rounded-lg text-[--p-text-3] hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      )}
+                      <button
+                        onClick={() => setExamModalAluno(a)}
+                        className="p-1.5 rounded-lg text-[--p-text-3] hover:text-amber-500 hover:bg-amber-500/10 transition-colors"
+                        title="Agendar exame"
+                      >
+                        <FileCheck className="w-3.5 h-3.5" />
+                      </button>
                       <button
                         onClick={() => openEditar(a)}
                         className="p-1.5 rounded-lg text-[--p-text-3] hover:text-[#0ea5e9] hover:bg-[#0ea5e9]/10 transition-colors"
@@ -408,6 +500,55 @@ export function AlunosList({ alunos: initial, autoescola_id }: Props) {
                     <label className="block text-xs font-medium text-[--p-text-2] mb-1">E-mail</label>
                     <input type="email" value={formData.email} onChange={(e) => setFormData((p) => ({ ...p, email: e.target.value }))} className={inputCls} placeholder="email@exemplo.com" />
                   </div>
+
+                  {!modalEditar && (planos.length > 0 || avulsas.length > 0) && (
+                    <div className="pt-2 border-t border-[--p-border] space-y-3">
+                      <label className="block text-xs font-medium text-[--p-text-2]">Venda (opcional)</label>
+                      <select
+                        value={vendaTipo}
+                        onChange={(e) => { setVendaTipo(e.target.value as typeof vendaTipo); setVendaProdutoId('') }}
+                        className={inputCls}
+                      >
+                        <option value="nenhuma">Sem venda</option>
+                        {planos.length > 0 && <option value="plano">Plano</option>}
+                        {avulsas.length > 0 && <option value="avulsa">Aulas avulsas</option>}
+                      </select>
+
+                      {vendaTipo === 'plano' && (
+                        <select value={vendaProdutoId} onChange={(e) => setVendaProdutoId(e.target.value)} className={inputCls} required>
+                          <option value="">Selecione o plano…</option>
+                          {planos.map((p) => (
+                            <option key={p.id} value={p.id}>{p.nome} — {formatarPrecoCentavos(p.preco_centavos)}</option>
+                          ))}
+                        </select>
+                      )}
+
+                      {vendaTipo === 'avulsa' && (
+                        <div className="flex gap-2">
+                          <select value={vendaProdutoId} onChange={(e) => setVendaProdutoId(e.target.value)} className={`${inputCls} flex-1`} required>
+                            <option value="">Selecione a aula avulsa…</option>
+                            {avulsas.map((p) => (
+                              <option key={p.id} value={p.id}>{p.nome} — {formatarPrecoCentavos(p.preco_centavos)}</option>
+                            ))}
+                          </select>
+                          <input
+                            type="number"
+                            min={1}
+                            value={vendaQuantidade}
+                            onChange={(e) => setVendaQuantidade(e.target.value)}
+                            className={`${inputCls} w-20`}
+                            title="Quantidade"
+                          />
+                        </div>
+                      )}
+
+                      {vendaTipo !== 'nenhuma' && (
+                        <select value={vendaPaymentMethod} onChange={(e) => setVendaPaymentMethod(e.target.value)} className={inputCls}>
+                          {PAYMENT_METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+                        </select>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {formError && <p className="text-sm text-red-400">{formError}</p>}
@@ -492,6 +633,37 @@ export function AlunosList({ alunos: initial, autoescola_id }: Props) {
               </div>
             </motion.div>
           </>
+        )}
+      </AnimatePresence>
+
+      {/* Modal: Agendar exame */}
+      <AnimatePresence>
+        {examModalAluno && (
+          <AgendarExameModal
+            autoescola_id={autoescola_id}
+            escola={escola}
+            studentId={examModalAluno.id}
+            studentName={examModalAluno.name}
+            documentId={examModalAluno.document_id}
+            onClose={() => setExamModalAluno(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Modal: Registrar venda (salvar créditos adicionados pendentes) */}
+      <AnimatePresence>
+        {vendaModalAluno && pendingAdd[vendaModalAluno.id] && (
+          <VenderCreditosModal
+            autoescola_id={autoescola_id}
+            aluno={vendaModalAluno}
+            quantidades={pendingAdd[vendaModalAluno.id]!}
+            onClose={() => setVendaModalAluno(null)}
+            onSuccess={(atualizado) => {
+              setAlunos((prev) => prev.map((a) => (a.id === atualizado.id ? atualizado : a)))
+              cancelarPendente(atualizado.id)
+              setVendaModalAluno(null)
+            }}
+          />
         )}
       </AnimatePresence>
     </div>

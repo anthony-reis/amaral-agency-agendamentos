@@ -22,6 +22,9 @@ import {
   criarSolicitacao,
   cancelarSolicitacao,
   contarSolicitacoesAtualizadas,
+  listarCategoriasElegiveisExame,
+  listarDatasExameParaSolicitacao,
+  type CategoriaElegivelExame,
 } from '@/features/aluno/actions/solicitacoes'
 import type { Solicitacao, SolicitacaoTipo, SolicitacaoStatus } from '@/features/painel/types'
 
@@ -98,6 +101,12 @@ export function SolicitacoesAluno({
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState('')
   const [cancelandoId, setCancelandoId] = useState<string | null>(null)
+
+  // Fluxo específico de exame: categoria + data preferida
+  const [categoriasExame, setCategoriasExame] = useState<CategoriaElegivelExame[] | null>(null)
+  const [categoriaSelecionada, setCategoriaSelecionada] = useState('')
+  const [datasDisponiveis, setDatasDisponiveis] = useState<{ date: string }[] | null>(null)
+  const [dataSelecionada, setDataSelecionada] = useState('')
 
   const mountedRef = useRef(true)
   const fetchingRef = useRef(false)
@@ -181,19 +190,49 @@ export function SolicitacoesAluno({
   const ativasPorTipo = new Set(
     solicitacoes.filter((s) => ['pendente', 'em_analise', 'agendado'].includes(s.status)).map((s) => s.tipo)
   )
+  // Exame é segregado por categoria — uma categoria já solicitada não bloqueia as outras.
+  const categoriasExameJaSolicitadas = new Set(
+    solicitacoes
+      .filter((s) => s.tipo === 'exame' && ['pendente', 'em_analise', 'agendado'].includes(s.status) && s.categoria)
+      .map((s) => s.categoria as string)
+  )
 
   function abrirEscolha() {
     setError('')
     setShowEscolha(true)
   }
 
+  function fecharConfirmacao() {
+    setTipoEscolhido(null)
+    setObservacao('')
+    setCategoriasExame(null)
+    setCategoriaSelecionada('')
+    setDatasDisponiveis(null)
+    setDataSelecionada('')
+  }
+
   function escolherTipo(tipo: SolicitacaoTipo) {
     setTipoEscolhido(tipo)
     setShowEscolha(false)
+    if (tipo === 'exame') {
+      setCategoriasExame(null)
+      listarCategoriasElegiveisExame(autoescolaId, studentId).then(setCategoriasExame)
+    }
   }
 
+  function handleCategoriaChange(codigo: string) {
+    setCategoriaSelecionada(codigo)
+    setDataSelecionada('')
+    setDatasDisponiveis(null)
+    if (codigo) {
+      listarDatasExameParaSolicitacao(autoescolaId, codigo).then(setDatasDisponiveis)
+    }
+  }
+
+  const exameValido = tipoEscolhido !== 'exame' || (!!categoriaSelecionada && !!dataSelecionada)
+
   function confirmarSolicitacao() {
-    if (!tipoEscolhido) return
+    if (!tipoEscolhido || !exameValido) return
     setError('')
     startTransition(async () => {
       const result = await criarSolicitacao(
@@ -202,6 +241,8 @@ export function SolicitacoesAluno({
           student_id: studentId,
           student_name: studentName,
           tipo: tipoEscolhido,
+          categoria: tipoEscolhido === 'exame' ? categoriaSelecionada : undefined,
+          data_preferida: tipoEscolhido === 'exame' ? dataSelecionada : undefined,
           observacao_aluno: observacao,
         },
         escola
@@ -211,8 +252,7 @@ export function SolicitacoesAluno({
         return
       }
       setSolicitacoes((prev) => [result.data, ...prev])
-      setTipoEscolhido(null)
-      setObservacao('')
+      fecharConfirmacao()
     })
   }
 
@@ -284,6 +324,15 @@ export function SolicitacoesAluno({
                       <p className="text-xs text-[--p-text-3] mb-2">
                         Solicitado em {fmtDataHora(s.created_at)} · Atualizado em {fmtDataHora(s.updated_at)}
                       </p>
+
+                      {s.tipo === 'exame' && s.categoria && (
+                        <p className="text-xs text-[--p-text-3] mb-2">
+                          Categoria: <span className="text-[--p-text-2] font-medium">{s.categoria}</span>
+                          {s.data_preferida && s.status !== 'agendado' && (
+                            <> · Data preferida: <span className="text-[--p-text-2] font-medium">{fmtData(s.data_preferida + 'T12:00:00')}</span></>
+                          )}
+                        </p>
+                      )}
 
                       {s.observacao_aluno && (
                         <p className="text-sm text-[--p-text-2] mb-2">
@@ -369,7 +418,9 @@ export function SolicitacoesAluno({
                 <div className="space-y-2">
                   {(Object.keys(TIPO_INFO) as SolicitacaoTipo[]).map((tipo) => {
                     const info = TIPO_INFO[tipo]
-                    const bloqueado = ativasPorTipo.has(tipo)
+                    // Exame é segregado por categoria (decidido na próxima etapa) — só
+                    // legislação (categoria única) bloqueia aqui.
+                    const bloqueado = tipo === 'legislacao' && ativasPorTipo.has(tipo)
                     return (
                       <button
                         key={tipo}
@@ -409,7 +460,7 @@ export function SolicitacoesAluno({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 bg-black/60 z-40"
-              onClick={() => !isPending && setTipoEscolhido(null)}
+              onClick={() => !isPending && fecharConfirmacao()}
             />
             <motion.div
               initial={{ opacity: 0, scale: 0.96 }}
@@ -421,7 +472,7 @@ export function SolicitacoesAluno({
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-base font-semibold text-[--p-text-1]">Confirmar solicitação</h3>
                   <button
-                    onClick={() => !isPending && setTipoEscolhido(null)}
+                    onClick={() => !isPending && fecharConfirmacao()}
                     className="text-[--p-text-3] hover:text-[--p-text-1]"
                   >
                     <X className="w-4 h-4" />
@@ -435,6 +486,67 @@ export function SolicitacoesAluno({
                     A autoescola vai analisar seu pedido e avisar aqui mesmo quando tiver uma resposta.
                   </p>
                 </div>
+
+                {tipoEscolhido === 'exame' && (
+                  <div className="space-y-3 mb-3">
+                    <div>
+                      <label className="block text-xs text-[--p-text-3] mb-1">Categoria</label>
+                      {categoriasExame === null ? (
+                        <p className="text-xs text-[--p-text-3]">Carregando categorias...</p>
+                      ) : categoriasExame.length === 0 ? (
+                        <p className="text-xs text-amber-500">Nenhuma categoria de exame disponível no momento.</p>
+                      ) : (
+                        <select
+                          value={categoriaSelecionada}
+                          onChange={(e) => handleCategoriaChange(e.target.value)}
+                          className="w-full px-3 py-2.5 rounded-xl bg-[--p-bg-input] border border-[--p-border] text-sm text-[--p-text-1] focus:outline-none focus:ring-1 focus:ring-[--p-accent]/40"
+                        >
+                          <option value="">Selecione a categoria...</option>
+                          {categoriasExame.map((c) => {
+                            const jaSolicitada = categoriasExameJaSolicitadas.has(c.codigo)
+                            const desabilitada = !c.elegivel || jaSolicitada
+                            return (
+                              <option key={c.codigo} value={c.codigo} disabled={desabilitada}>
+                                {c.nome}{desabilitada ? jaSolicitada ? ' (já solicitado)' : ` (${c.aulasConcluidas}/5 aulas concluídas)` : ''}
+                              </option>
+                            )
+                          })}
+                        </select>
+                      )}
+                    </div>
+
+                    {categoriaSelecionada && (
+                      <div>
+                        <label className="block text-xs text-[--p-text-3] mb-1">Data preferida</label>
+                        {datasDisponiveis === null ? (
+                          <p className="text-xs text-[--p-text-3]">Carregando datas...</p>
+                        ) : datasDisponiveis.length === 0 ? (
+                          <p className="text-xs text-amber-500">Nenhuma data de exame configurada para essa categoria ainda.</p>
+                        ) : (
+                          <select
+                            value={dataSelecionada}
+                            onChange={(e) => setDataSelecionada(e.target.value)}
+                            className="w-full px-3 py-2.5 rounded-xl bg-[--p-bg-input] border border-[--p-border] text-sm text-[--p-text-1] focus:outline-none focus:ring-1 focus:ring-[--p-accent]/40"
+                          >
+                            <option value="">Selecione a data...</option>
+                            {datasDisponiveis.map((d) => (
+                              <option key={d.date} value={d.date}>{fmtData(d.date + 'T12:00:00')}</option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                    )}
+
+                    {dataSelecionada && (
+                      <div className="flex items-start gap-2 bg-amber-500/5 border border-amber-500/20 rounded-xl p-3">
+                        <Info className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                        <p className="text-xs text-amber-600 dark:text-amber-400">
+                          Esta é sua data preferida. O exame pode acontecer nesta data ou em outra data disponível, conforme a organização da autoescola.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <label className="block text-xs text-[--p-text-3] mb-1">
                   Observação (opcional)
@@ -451,7 +563,7 @@ export function SolicitacoesAluno({
 
                 <div className="flex gap-2 justify-end">
                   <button
-                    onClick={() => setTipoEscolhido(null)}
+                    onClick={fecharConfirmacao}
                     disabled={isPending}
                     className="px-4 py-2 text-sm text-[--p-text-3] hover:text-[--p-text-1] disabled:opacity-50"
                   >
@@ -459,7 +571,7 @@ export function SolicitacoesAluno({
                   </button>
                   <button
                     onClick={confirmarSolicitacao}
-                    disabled={isPending}
+                    disabled={isPending || !exameValido}
                     className="px-4 py-2 bg-[--p-accent] text-white text-sm font-semibold rounded-xl hover:opacity-90 disabled:opacity-50"
                   >
                     {isPending ? 'Enviando...' : 'Confirmar solicitação'}

@@ -1,17 +1,19 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Package, Plus, Pencil, Trash2, X, Car, Bike, Sparkles, Wrench, Tag,
+  ImagePlus, Upload, Smartphone, Monitor, Eye,
 } from 'lucide-react'
 import {
-  criarProduto, editarProduto, alternarAtivoProduto, excluirProduto,
+  criarProduto, editarProduto, alternarAtivoProduto, excluirProduto, uploadImagemProduto,
 } from '../actions/catalogo'
 import {
   formatarPrecoCentavos, somaCreditos,
   type Produto, type ProdutoTipo, type NovoProdutoInput, type CategoriaCredito,
 } from '@/lib/loja-types'
+import { ProdutoCard } from '@/features/shared/components/ProdutoCard'
 
 interface CategoriaTenant {
   codigo: string // 'A'..'E'
@@ -59,6 +61,23 @@ export function CatalogoManager({ autoescola_id, produtos: initial, categorias }
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState(FORM_VAZIO)
 
+  // Imagens desktop/mobile do produto em edição: url já persistida (ou já enviada
+  // nesta sessão) + arquivo recém-escolhido (preview local via blob: até salvar).
+  const [imgDesktopUrl, setImgDesktopUrl] = useState<string | null>(null)
+  const [imgMobileUrl, setImgMobileUrl] = useState<string | null>(null)
+  const [imgDesktopFile, setImgDesktopFile] = useState<File | null>(null)
+  const [imgMobileFile, setImgMobileFile] = useState<File | null>(null)
+  // Preview local (blob:) do arquivo recém-escolhido, antes de enviar ao storage.
+  const [imgDesktopPreview, setImgDesktopPreview] = useState<string | null>(null)
+  const [imgMobilePreview, setImgMobilePreview] = useState<string | null>(null)
+  const desktopInputRef = useRef<HTMLInputElement>(null)
+  const mobileInputRef = useRef<HTMLInputElement>(null)
+  const [previewDevice, setPreviewDevice] = useState<'mobile' | 'desktop'>('mobile')
+
+  // Preview "todos os planos juntos", como aparecem na loja do aluno.
+  const [vitrineOpen, setVitrineOpen] = useState(false)
+  const [vitrineDevice, setVitrineDevice] = useState<'mobile' | 'desktop'>('mobile')
+
   const cats: CategoriaCredito[] = categorias.length > 0
     ? categorias.map((c) => c.codigo.toLowerCase() as CategoriaCredito)
     : ['a', 'b']
@@ -70,6 +89,12 @@ export function CatalogoManager({ autoescola_id, produtos: initial, categorias }
   function abrirNovo() {
     setForm(FORM_VAZIO)
     setEditingId(null)
+    setImgDesktopUrl(null)
+    setImgMobileUrl(null)
+    setImgDesktopFile(null)
+    setImgMobileFile(null)
+    setImgDesktopPreview(null)
+    setImgMobilePreview(null)
     setFormOpen(true)
     setError('')
   }
@@ -85,11 +110,39 @@ export function CatalogoManager({ autoescola_id, produtos: initial, categorias }
       ativo: p.ativo,
     })
     setEditingId(p.id)
+    setImgDesktopUrl(p.imagem_desktop_url)
+    setImgMobileUrl(p.imagem_mobile_url)
+    setImgDesktopFile(null)
+    setImgMobileFile(null)
+    setImgDesktopPreview(null)
+    setImgMobilePreview(null)
     setFormOpen(true)
     setError('')
   }
 
-  function montarInput(): NovoProdutoInput {
+  function handleImagemChange(e: React.ChangeEvent<HTMLInputElement>, device: 'desktop' | 'mobile') {
+    const file = e.target.files?.[0] ?? null
+    if (!file) return
+    if (file.size > 3 * 1024 * 1024) { setError('Arquivo muito grande. Máximo: 3MB.'); return }
+    const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+    if (!allowed.includes(file.type)) { setError('Formato inválido. Use JPG, PNG ou WebP.'); return }
+    setError('')
+    const preview = URL.createObjectURL(file)
+    if (device === 'desktop') { setImgDesktopFile(file); setImgDesktopPreview(preview) }
+    else { setImgMobileFile(file); setImgMobilePreview(preview) }
+  }
+
+  function removerImagem(device: 'desktop' | 'mobile') {
+    if (device === 'desktop') {
+      setImgDesktopFile(null); setImgDesktopPreview(null); setImgDesktopUrl(null)
+      if (desktopInputRef.current) desktopInputRef.current.value = ''
+    } else {
+      setImgMobileFile(null); setImgMobilePreview(null); setImgMobileUrl(null)
+      if (mobileInputRef.current) mobileInputRef.current.value = ''
+    }
+  }
+
+  function montarInput(desktopUrl?: string | null, mobileUrl?: string | null): NovoProdutoInput {
     const zeraCreditos = form.tipo === 'servico'
     return {
       nome: form.nome,
@@ -103,14 +156,43 @@ export function CatalogoManager({ autoescola_id, produtos: initial, categorias }
       qtd_cat_d: zeraCreditos ? 0 : form.qtds.d,
       qtd_cat_e: zeraCreditos ? 0 : form.qtds.e,
       ativo: form.ativo,
+      imagem_desktop_url: desktopUrl !== undefined ? desktopUrl : imgDesktopUrl,
+      imagem_mobile_url: mobileUrl !== undefined ? mobileUrl : imgMobileUrl,
     }
+  }
+
+  async function enviarImagemSelecionada(file: File, device: 'desktop' | 'mobile'): Promise<string | null> {
+    const fd = new FormData()
+    fd.append('imagem', file)
+    fd.append('device', device)
+    fd.append('autoescola_id', autoescola_id)
+    const result = await uploadImagemProduto(fd)
+    if (!result.success) {
+      setError(result.error)
+      return null
+    }
+    return result.data
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
-    const input = montarInput()
     startTransition(async () => {
+      let desktopUrl = imgDesktopUrl
+      let mobileUrl = imgMobileUrl
+
+      if (imgDesktopFile) {
+        const url = await enviarImagemSelecionada(imgDesktopFile, 'desktop')
+        if (!url) return
+        desktopUrl = url
+      }
+      if (imgMobileFile) {
+        const url = await enviarImagemSelecionada(imgMobileFile, 'mobile')
+        if (!url) return
+        mobileUrl = url
+      }
+
+      const input = montarInput(desktopUrl, mobileUrl)
       const result = editingId
         ? await editarProduto(editingId, input, autoescola_id)
         : await criarProduto(input, autoescola_id)
@@ -155,19 +237,46 @@ export function CatalogoManager({ autoescola_id, produtos: initial, categorias }
     return partes.join(' + ') || 'Sem aulas (serviço)'
   }
 
+  // Card do produto sendo criado/editado, ao vivo, refletindo o form atual.
+  const draftInput = montarInput(imgDesktopPreview ?? imgDesktopUrl, imgMobilePreview ?? imgMobileUrl)
+  const draftProduto = {
+    nome: draftInput.nome,
+    descricao: draftInput.descricao ?? null,
+    tipo: draftInput.tipo,
+    automatico: draftInput.automatico,
+    preco_centavos: draftInput.preco_centavos,
+    qtd_cat_a: draftInput.qtd_cat_a,
+    qtd_cat_b: draftInput.qtd_cat_b,
+    qtd_cat_c: draftInput.qtd_cat_c,
+    qtd_cat_d: draftInput.qtd_cat_d,
+    qtd_cat_e: draftInput.qtd_cat_e,
+    imagem_desktop_url: draftInput.imagem_desktop_url ?? null,
+    imagem_mobile_url: draftInput.imagem_mobile_url ?? null,
+  }
+  const labelCategoria = (cat: CategoriaCredito) => catNome(cat)
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-[--p-text-3]">
           {produtos.length} produto{produtos.length !== 1 ? 's' : ''} no catálogo
         </p>
-        <button
-          onClick={abrirNovo}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[--p-accent] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
-        >
-          <Plus className="w-4 h-4" />
-          Novo produto
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setVitrineOpen(true)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[--p-border] text-[--p-text-2] text-sm font-semibold hover:bg-[--p-hover] transition-colors"
+          >
+            <Eye className="w-4 h-4" />
+            Visualizar loja
+          </button>
+          <button
+            onClick={abrirNovo}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[--p-accent] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
+          >
+            <Plus className="w-4 h-4" />
+            Novo produto
+          </button>
+        </div>
       </div>
 
       {error && <p className="text-sm text-red-500">{error}</p>}
@@ -259,9 +368,10 @@ export function CatalogoManager({ autoescola_id, produtos: initial, categorias }
               exit={{ opacity: 0, scale: 0.97 }}
               className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
             >
+              <div className="pointer-events-auto w-full max-w-4xl max-h-[90vh] grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4 overflow-y-auto lg:overflow-visible">
               <form
                 onSubmit={handleSubmit}
-                className="pointer-events-auto bg-[--p-bg-card] border border-[--p-border] rounded-2xl p-5 w-full max-w-lg max-h-[90vh] overflow-y-auto space-y-4"
+                className="bg-[--p-bg-card] border border-[--p-border] rounded-2xl p-5 w-full lg:max-h-[90vh] lg:overflow-y-auto space-y-4"
               >
                 <div className="flex items-center justify-between">
                   <h2 className="font-bold text-[--p-text-1]">
@@ -350,6 +460,33 @@ export function CatalogoManager({ autoescola_id, produtos: initial, categorias }
                   </div>
                 )}
 
+                <div>
+                  <label className="block text-xs font-medium text-[--p-text-2] mb-1.5">
+                    Imagens da vitrine (opcional)
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <ImagemPicker
+                      label="Desktop"
+                      icon={Monitor}
+                      preview={imgDesktopPreview ?? imgDesktopUrl}
+                      inputRef={desktopInputRef}
+                      onChange={(e) => handleImagemChange(e, 'desktop')}
+                      onRemove={() => removerImagem('desktop')}
+                    />
+                    <ImagemPicker
+                      label="Mobile"
+                      icon={Smartphone}
+                      preview={imgMobilePreview ?? imgMobileUrl}
+                      inputRef={mobileInputRef}
+                      onChange={(e) => handleImagemChange(e, 'mobile')}
+                      onRemove={() => removerImagem('mobile')}
+                    />
+                  </div>
+                  <p className="text-[11px] text-[--p-text-3] mt-1.5">
+                    Se só uma for enviada, ela é usada nas duas telas. Formato paisagem funciona melhor.
+                  </p>
+                </div>
+
                 <div className="flex items-center gap-6">
                   <label className="flex items-center gap-2 text-sm text-[--p-text-2] cursor-pointer">
                     <input
@@ -381,10 +518,157 @@ export function CatalogoManager({ autoescola_id, produtos: initial, categorias }
                   {isPending ? 'Salvando...' : editingId ? 'Salvar alterações' : 'Criar produto'}
                 </button>
               </form>
+
+              {/* Preview ao vivo deste produto, como vai aparecer na loja do aluno */}
+              <aside className="bg-[--p-bg-card] border border-[--p-border] rounded-2xl p-4 h-fit lg:sticky lg:top-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-[--p-text-2] flex items-center gap-1.5">
+                    <Eye className="w-3.5 h-3.5" /> Preview
+                  </p>
+                  <DeviceToggle device={previewDevice} onChange={setPreviewDevice} />
+                </div>
+                <div className={previewDevice === 'mobile' ? 'max-w-[260px] mx-auto' : ''}>
+                  <ProdutoCard produto={draftProduto} forceDevice={previewDevice} categoriaLabel={labelCategoria} />
+                </div>
+              </aside>
+              </div>
             </motion.div>
           </>
         )}
       </AnimatePresence>
+
+      {/* Preview "todos os planos juntos", como aparecem na loja do aluno */}
+      <AnimatePresence>
+        {vitrineOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/60 z-40"
+              onClick={() => setVitrineOpen(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.97 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.97 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
+            >
+              <div className="pointer-events-auto bg-[--p-bg-card] border border-[--p-border] rounded-2xl p-5 w-full max-w-2xl max-h-[90vh] overflow-y-auto space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="font-bold text-[--p-text-1] flex items-center gap-2">
+                    <Eye className="w-4 h-4" /> Como fica na loja do aluno
+                  </h2>
+                  <div className="flex items-center gap-2">
+                    <DeviceToggle device={vitrineDevice} onChange={setVitrineDevice} />
+                    <button type="button" onClick={() => setVitrineOpen(false)} className="p-1.5 text-[--p-text-3] hover:text-[--p-text-1] rounded-lg">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className={`mx-auto transition-all ${
+                  vitrineDevice === 'mobile'
+                    ? 'max-w-[300px] flex flex-col gap-3'
+                    : 'max-w-2xl grid grid-cols-2 gap-4'
+                }`}>
+                  {produtos.filter((p) => p.ativo).length === 0 ? (
+                    <div className="col-span-2 bg-[--p-bg-base] border border-[--p-border] rounded-2xl py-14 text-center">
+                      <Package className="w-8 h-8 text-[--p-text-3] mx-auto mb-3" />
+                      <p className="text-sm text-[--p-text-3]">Nenhum produto ativo para exibir.</p>
+                    </div>
+                  ) : (
+                    produtos.filter((p) => p.ativo).map((p) => (
+                      <ProdutoCard key={p.id} produto={p} forceDevice={vitrineDevice} categoriaLabel={labelCategoria} />
+                    ))
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+function DeviceToggle({
+  device, onChange,
+}: {
+  device: 'mobile' | 'desktop'
+  onChange: (d: 'mobile' | 'desktop') => void
+}) {
+  return (
+    <div className="inline-flex items-center rounded-lg border border-[--p-border] p-0.5">
+      {(['mobile', 'desktop'] as const).map((d) => (
+        <button
+          key={d}
+          type="button"
+          onClick={() => onChange(d)}
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md transition-colors ${
+            device === d ? 'bg-[--p-accent] text-white' : 'text-[--p-text-3] hover:text-[--p-text-1]'
+          }`}
+        >
+          {d === 'mobile' ? <Smartphone className="w-3.5 h-3.5" /> : <Monitor className="w-3.5 h-3.5" />}
+          {d === 'mobile' ? 'Mobile' : 'Desktop'}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function ImagemPicker({
+  label, icon: Icon, preview, inputRef, onChange, onRemove,
+}: {
+  label: string
+  icon: React.ElementType
+  preview: string | null
+  inputRef: React.RefObject<HTMLInputElement | null>
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  onRemove: () => void
+}) {
+  return (
+    <div>
+      <p className="text-[11px] text-[--p-text-3] mb-1 flex items-center gap-1">
+        <Icon className="w-3 h-3" /> {label}
+      </p>
+      {preview ? (
+        <div className="relative group">
+          <img src={preview} alt={label} className="w-full aspect-video object-cover rounded-lg border border-[--p-border]" />
+          <button
+            type="button"
+            onClick={onRemove}
+            className="absolute top-1 right-1 p-1 rounded-md bg-black/60 text-white hover:bg-black/80 transition-colors"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          className="w-full aspect-video flex flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-[--p-border] text-[--p-text-3] hover:text-[--p-accent] hover:border-[--p-accent] transition-colors"
+        >
+          <ImagePlus className="w-4 h-4" />
+          <span className="text-[10px]">Enviar</span>
+        </button>
+      )}
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        onChange={onChange}
+        className="hidden"
+      />
+      {preview && (
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          className="mt-1 w-full inline-flex items-center justify-center gap-1 text-[10px] text-[--p-text-3] hover:text-[--p-accent] transition-colors"
+        >
+          <Upload className="w-3 h-3" /> Trocar
+        </button>
+      )}
     </div>
   )
 }
