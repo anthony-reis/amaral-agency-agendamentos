@@ -37,6 +37,7 @@ import {
   Package,
   Receipt,
   Wallet,
+  Award,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { contarNaoVisualizadas } from "@/features/painel/actions/solicitacoes";
@@ -102,6 +103,11 @@ function buildNavGroups(escola: string): NavGroup[] {
           label: "Datas de Exame",
           href: `${base}/datas-exame`,
           icon: FileCheck,
+        },
+        {
+          label: "Aprov./Reprov.",
+          href: `${base}/resultados-exame`,
+          icon: Award,
         },
         {
           label: "Lista de Agend.",
