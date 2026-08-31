@@ -37,29 +37,66 @@ function SignatureFullscreen({
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [isDrawing, setIsDrawing] = useState(false);
+  const isDrawingRef = useRef(false);
   const [isEmpty, setIsEmpty] = useState(true);
+  const isEmptyRef = useRef(true);
+  // Pointer atualmente em traço — ignora um segundo dedo tocando ao mesmo tempo
+  const activePointerIdRef = useRef<number | null>(null);
+  // Expõe a última versão de resize() para ser chamada fora do efeito (ex: ao soltar o dedo)
+  const resizeRef = useRef<() => void>(() => {});
 
-  // Ajusta canvas ao tamanho do container — sem salvar getImageData (evita cópia extra em memória)
+  // Ajusta canvas ao tamanho do container.
+  // Importante: atribuir canvas.width/height SEMPRE limpa o conteúdo do canvas,
+  // mesmo quando o valor não muda. No Safari iOS o evento "resize" do window
+  // dispara com frequência (barra de endereço recolhendo/aparecendo, inclusive
+  // ao soltar o dedo da tela), então sem essas proteções a assinatura era
+  // apagada sozinha. Por isso: (1) ignoramos resizes sem mudança real de
+  // tamanho ou com o container ainda sem layout (0×0), (2) nunca resetamos o
+  // canvas enquanto o usuário está desenhando, e (3) preservamos o traço já
+  // feito quando o tamanho muda de verdade (ex: rotação de tela).
   useEffect(() => {
     function resize() {
       const canvas = canvasRef.current;
       const container = containerRef.current;
       if (!canvas || !container) return;
+      if (isDrawingRef.current) return;
+
       const { width, height } = container.getBoundingClientRect();
-      // Limita a 600×300 para poupar RAM em dispositivos entry-level
-      canvas.width = Math.min(width, 600);
-      canvas.height = Math.min(height, 300);
+      if (width === 0 || height === 0) return;
+      const newWidth = Math.round(Math.min(width, 600));
+      const newHeight = Math.round(Math.min(height, 300));
+      if (canvas.width === newWidth && canvas.height === newHeight) return;
+
       const ctx = canvas.getContext("2d");
-      if (ctx) {
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-      }
+      if (!ctx) return;
+
+      // Preserva o desenho existente (canvas é pequeno — 600×300 — custo trivial)
+      const hadContent = !isEmptyRef.current && canvas.width > 0 && canvas.height > 0;
+      const snapshot = hadContent ? ctx.getImageData(0, 0, canvas.width, canvas.height) : null;
+
+      canvas.width = newWidth;
+      canvas.height = newHeight;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      if (snapshot) ctx.putImageData(snapshot, 0, 0);
     }
+    resizeRef.current = resize;
     resize();
     window.addEventListener("resize", resize);
+
+    // Trava o scroll/bounce do body enquanto a tela de assinatura está aberta.
+    // Reduz a chance de a barra de endereço do Safari recolher/expandir (o que
+    // dispara "resize") por causa de scroll/rubber-banding atrás da overlay.
+    const { body } = document;
+    const prevOverflow = body.style.overflow;
+    const prevOverscroll = body.style.overscrollBehavior;
+    body.style.overflow = "hidden";
+    body.style.overscrollBehavior = "none";
+
     return () => {
       window.removeEventListener("resize", resize);
+      body.style.overflow = prevOverflow;
+      body.style.overscrollBehavior = prevOverscroll;
       // Destrói o canvas ao desmontar para liberar memória imediatamente
       const canvas = canvasRef.current;
       if (canvas) { canvas.width = 0; canvas.height = 0; }
@@ -79,9 +116,13 @@ function SignatureFullscreen({
 
   function handlePointerDown(e: React.PointerEvent<HTMLCanvasElement>) {
     e.preventDefault();
+    // Ignora um segundo dedo tocando durante o traço (evita marcas/saltos indevidos)
+    if (activePointerIdRef.current !== null) return;
     const ctx = canvasRef.current?.getContext("2d");
     if (!ctx) return;
-    setIsDrawing(true);
+    activePointerIdRef.current = e.pointerId;
+    isDrawingRef.current = true;
+    isEmptyRef.current = false;
     setIsEmpty(false);
     const pos = getPos(e);
     ctx.beginPath();
@@ -90,7 +131,7 @@ function SignatureFullscreen({
   }
 
   function handlePointerMove(e: React.PointerEvent<HTMLCanvasElement>) {
-    if (!isDrawing) return;
+    if (!isDrawingRef.current || e.pointerId !== activePointerIdRef.current) return;
     e.preventDefault();
     const ctx = canvasRef.current?.getContext("2d");
     if (!ctx) return;
@@ -103,9 +144,16 @@ function SignatureFullscreen({
     ctx.stroke();
   }
 
-  function handlePointerUp(e: React.PointerEvent<HTMLCanvasElement>) {
+  // Cobre pointerup, pointerleave e pointercancel (o iOS dispara "cancel" quando
+  // um gesto do sistema — ex: swipe de voltar, Control Center — rouba o toque
+  // no meio do traço, sem um "up" correspondente).
+  function endStroke(e: React.PointerEvent<HTMLCanvasElement>) {
+    if (e.pointerId !== activePointerIdRef.current) return;
     e.preventDefault();
-    setIsDrawing(false);
+    activePointerIdRef.current = null;
+    isDrawingRef.current = false;
+    // Reconcilia qualquer resize real que tenha sido ignorado durante o traço
+    requestAnimationFrame(() => resizeRef.current());
   }
 
   function limpar() {
@@ -114,6 +162,7 @@ function SignatureFullscreen({
     if (!canvas || !ctx) return;
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    isEmptyRef.current = true;
     setIsEmpty(true);
   }
 
@@ -175,8 +224,9 @@ function SignatureFullscreen({
           ref={canvasRef}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerLeave={handlePointerUp}
+          onPointerUp={endStroke}
+          onPointerLeave={endStroke}
+          onPointerCancel={endStroke}
           className="absolute inset-0 w-full h-full touch-none cursor-crosshair"
           style={{ display: "block" }}
         />
