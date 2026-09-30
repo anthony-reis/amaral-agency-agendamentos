@@ -10,6 +10,7 @@ export interface Autoescola {
   logo_url: string | null
   status: AutoescolaStatus
   plano: AutoescolaPlano
+  features?: Record<string, boolean> | null
   created_at: string
   updated_at: string
 }

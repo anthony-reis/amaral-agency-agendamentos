@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createServiceClient } from '@/lib/supabase/server'
+import { bloqueioFeature } from '@/lib/features.server'
 import { listarDatasExame } from '@/features/painel/actions/datasExame'
 import { contarAulasConcluidasPorCategoria, listarCategoriasElegiveisExame as listarCategoriasElegiveisExameCompartilhado } from '@/features/painel/actions/exameElegibilidade'
 import { AULAS_MINIMAS_PARA_EXAME } from '@/lib/examConstants'
@@ -57,6 +58,9 @@ export async function criarSolicitacao(
   escola: string
 ): Promise<ActionResult<Solicitacao>> {
   const { autoescola_id, student_id, student_name, tipo, categoria, data_preferida, observacao_aluno } = input
+
+  const bloqueio = await bloqueioFeature(autoescola_id, 'solicitacoes')
+  if (bloqueio) return { success: false, error: bloqueio }
 
   const supabase = createServiceClient()
 

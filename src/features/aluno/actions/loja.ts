@@ -5,6 +5,7 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { criarPreference, buscarPaymentPorExternalReference } from '@/lib/mercadopago'
 import { processarPagamentoPedido } from '@/lib/pagamentoLoja'
 import { verifyStudentSignature } from '@/lib/studentSession'
+import { lojaHabilitada } from '@/lib/loja'
 import type { PedidoLoja, PedidoLojaStatus, Produto, ProdutoSnapshot } from '@/lib/loja-types'
 import type { ActionResult } from '@/features/admin/types'
 
@@ -63,6 +64,10 @@ export async function criarCheckout(
     .eq('ativo', true)
     .single()
   if (!produto) return { success: false, error: 'Produto indisponível.' }
+
+  if (!(await lojaHabilitada(autoescola.id))) {
+    return { success: false, error: 'Pagamentos indisponíveis no momento.' }
+  }
 
   const { data: credenciaisRow } = await supabase
     .from('autoescola_pagamentos')

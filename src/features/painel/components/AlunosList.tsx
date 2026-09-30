@@ -14,6 +14,10 @@ interface Props {
   autoescola_id: string
   produtos?: Produto[]
   escola: string
+  /** Módulo "vendas": adicionar crédito vira venda + venda no cadastro. */
+  vendasAtivo?: boolean
+  /** Módulo "exames": botão de agendar exame. */
+  examesAtivo?: boolean
 }
 
 const PAYMENT_METHODS = [
@@ -41,7 +45,14 @@ function formatDoc(doc: string) {
 type SortCol = 'a' | 'b' | 'c' | 'd' | 'e' | 'total' | null
 type SortDir = 'asc' | 'desc'
 
-export function AlunosList({ alunos: initial, autoescola_id, produtos = [], escola }: Props) {
+export function AlunosList({
+  alunos: initial,
+  autoescola_id,
+  produtos = [],
+  escola,
+  vendasAtivo = false,
+  examesAtivo = false,
+}: Props) {
   const [alunos, setAlunos] = useState<AlunoComCreditos[]>(initial)
   const [search, setSearch] = useState('')
   const [isPending, startTransition] = useTransition()
@@ -184,6 +195,12 @@ export function AlunosList({ alunos: initial, autoescola_id, produtos = [], esco
   // alterações" registrar o valor e a forma de pagamento. Remover crédito
   // continua salvando na hora (correção/estorno, não é venda nova).
   function handleMais(alunoId: string, cat: Cat) {
+    if (!vendasAtivo) {
+      // Sem o módulo de vendas, "+" ajusta o crédito na hora (fluxo original).
+      const aluno = alunos.find((a) => a.id === alunoId)
+      if (aluno?.creditos) handleAjustar(alunoId, aluno.creditos.id, cat, 1)
+      return
+    }
     setPendingAdd((prev) => ({
       ...prev,
       [alunoId]: { ...prev[alunoId], [cat]: (prev[alunoId]?.[cat] ?? 0) + 1 },
@@ -420,13 +437,15 @@ export function AlunosList({ alunos: initial, autoescola_id, produtos = [], esco
                           </button>
                         </>
                       )}
-                      <button
-                        onClick={() => setExamModalAluno(a)}
-                        className="p-1.5 rounded-lg text-[--p-text-3] hover:text-amber-500 hover:bg-amber-500/10 transition-colors"
-                        title="Agendar exame"
-                      >
-                        <FileCheck className="w-3.5 h-3.5" />
-                      </button>
+                      {examesAtivo && (
+                        <button
+                          onClick={() => setExamModalAluno(a)}
+                          className="p-1.5 rounded-lg text-[--p-text-3] hover:text-amber-500 hover:bg-amber-500/10 transition-colors"
+                          title="Agendar exame"
+                        >
+                          <FileCheck className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       <button
                         onClick={() => openEditar(a)}
                         className="p-1.5 rounded-lg text-[--p-text-3] hover:text-[#0ea5e9] hover:bg-[#0ea5e9]/10 transition-colors"

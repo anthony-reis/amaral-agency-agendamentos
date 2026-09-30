@@ -3,6 +3,7 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { getCurrentUsername } from './authPainel'
+import { bloqueioFeature, autoescolaTemFeature } from '@/lib/features.server'
 
 export interface DiaCalendario {
   date: string          // 'YYYY-MM-DD'
@@ -371,6 +372,9 @@ export async function atualizarTipoAgendamento(
   tipo: 'aula' | 'banca',
   autoescola_id: string
 ): Promise<{ error: string | null }> {
+  const bloqueio = await bloqueioFeature(autoescola_id, 'exames')
+  if (bloqueio) return { error: bloqueio }
+
   const supabase = createServiceClient()
 
   const { error } = await supabase
@@ -467,7 +471,7 @@ export async function agendarAulaCalendario(data: {
     student_document: data.student_document,
     cpf_cnh: data.student_document,
     status: 'scheduled',
-    tipo: data.tipo ?? 'aula',
+    tipo: data.tipo === 'banca' && (await autoescolaTemFeature(data.autoescola_id, 'exames')) ? 'banca' : 'aula',
   }).select('id').single()
 
   if (insertError) return { error: insertError.message }

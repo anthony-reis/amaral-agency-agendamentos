@@ -1,5 +1,6 @@
 'use server'
 
+import { bloqueioFeature } from '@/lib/features.server'
 import { revalidatePath } from 'next/cache'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getCurrentUsername, getCurrentUserId } from './authPainel'
@@ -85,6 +86,9 @@ export async function confirmarAgendamentoExameMassa(
   data: ConfirmarInput
 ): Promise<ActionResult<{ criados: number }>> {
   const { autoescola_id, categoria_codigo, examDate, atribuicoes, mensagemAdmin, escola } = data
+  const bloqueio = await bloqueioFeature(autoescola_id, 'exames')
+  if (bloqueio) return { success: false, error: bloqueio }
+
 
   if (atribuicoes.length === 0) {
     return { success: false, error: 'Selecione ao menos um aluno para agendar.' }
@@ -240,6 +244,9 @@ export async function agendarExameDireto(
   input: AgendarExameDiretoInput
 ): Promise<ActionResult<{ agendamentoId: string }>> {
   const { autoescola_id, student_id, categoria_codigo, examDate, instructorName, timeSlot, escola } = input
+  const bloqueio = await bloqueioFeature(autoescola_id, 'exames')
+  if (bloqueio) return { success: false, error: bloqueio }
+
 
   const supabase = createServiceClient()
 

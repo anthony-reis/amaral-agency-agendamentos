@@ -103,6 +103,7 @@ function AgendarForm({
   alunos,
   onSuccess,
   onCancel,
+  permitirBanca,
 }: {
   horario: string
   instructorName: string
@@ -112,6 +113,7 @@ function AgendarForm({
   alunos: AlunoParaAgendar[]
   onSuccess: (slot: SlotDia) => void
   onCancel: () => void
+  permitirBanca: boolean
 }) {
   const [search, setSearch] = useState('')
   const [selectedAluno, setSelectedAluno] = useState<AlunoParaAgendar | null>(null)
@@ -250,7 +252,7 @@ function AgendarForm({
 
         {error && <p className="text-xs text-red-500">{error}</p>}
 
-        {selectedAluno && (
+        {selectedAluno && permitirBanca && (
           <div className="flex items-center gap-2">
             <span className="text-xs text-[--p-text-3]">Tipo:</span>
             <select
@@ -305,18 +307,20 @@ function SlotRow({
   date: string
   alunos: AlunoParaAgendar[]
   onStatusChange: (id: string, status: string) => void
-  onTipoChange: (id: string, tipo: 'aula' | 'banca') => void
+  /** Ausente = módulo "exames" desligado (sem coluna Tipo). */
+  onTipoChange?: (id: string, tipo: 'aula' | 'banca') => void
   onBooked: (updated: SlotDia) => void
 }) {
   const [showForm, setShowForm] = useState(false)
   const ag = slot.agendamento
+  const colSpan = onTipoChange ? 5 : 4
 
   // ── Bloqueado ─────────────────────────────────────────────────────────────────
   if (!ag && slot.bloqueado) {
     return (
       <tr className="border-b border-[--p-border] last:border-0 opacity-50">
         <td className="px-4 py-2.5 text-sm font-mono text-[--p-text-3] w-20">{slot.horario}</td>
-        <td className="px-4 py-2.5 text-xs text-red-500 dark:text-red-400 italic" colSpan={5}>Bloqueado</td>
+        <td className="px-4 py-2.5 text-xs text-red-500 dark:text-red-400 italic" colSpan={colSpan}>Bloqueado</td>
       </tr>
     )
   }
@@ -326,7 +330,7 @@ function SlotRow({
     return (
       <tr className="border-b border-[--p-border] last:border-0">
         <td className="px-4 py-2.5 text-sm font-mono text-[--p-text-3] w-20 align-top pt-3">{slot.horario}</td>
-        <td className="px-4 py-2.5 align-top" colSpan={5}>
+        <td className="px-4 py-2.5 align-top" colSpan={colSpan}>
           <AnimatePresence mode="wait">
             {!showForm ? (
               <motion.button
@@ -353,6 +357,7 @@ function SlotRow({
                 alunos={alunos}
                 onSuccess={(updated) => { setShowForm(false); onBooked(updated) }}
                 onCancel={() => setShowForm(false)}
+                permitirBanca={!!onTipoChange}
               />
             )}
           </AnimatePresence>
@@ -412,19 +417,21 @@ function SlotRow({
       </td>
 
       {/* Tipo select */}
-      <td className="px-4 py-3 align-middle">
-        <select
-          value={ag.tipo ?? 'aula'}
-          onChange={(e) => onTipoChange(ag.id, e.target.value as 'aula' | 'banca')}
-          className={`text-xs font-semibold border-0 focus:outline-none focus:ring-0 cursor-pointer rounded-full px-2 py-0.5 ${TIPO_CLS[ag.tipo ?? 'aula']}`}
-        >
-          {TIPO_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value} className="text-[--p-text-1] bg-[--p-bg-card]">
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </td>
+      {onTipoChange && (
+        <td className="px-4 py-3 align-middle">
+          <select
+            value={ag.tipo ?? 'aula'}
+            onChange={(e) => onTipoChange(ag.id, e.target.value as 'aula' | 'banca')}
+            className={`text-xs font-semibold border-0 focus:outline-none focus:ring-0 cursor-pointer rounded-full px-2 py-0.5 ${TIPO_CLS[ag.tipo ?? 'aula']}`}
+          >
+            {TIPO_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value} className="text-[--p-text-1] bg-[--p-bg-card]">
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </td>
+      )}
 
       {/* Status select */}
       <td className="px-4 py-3 align-middle">
@@ -452,9 +459,11 @@ function SlotRow({
 function DayPanel({
   autoescola_id,
   date,
+  examesAtivo,
 }: {
   autoescola_id: string
   date: string
+  examesAtivo: boolean
 }) {
   const [instrutores, setInstrutores] = useState<InstrutorDia[] | null>(null)
   const [selectedInstrutor, setSelectedInstrutor] = useState<string | null>(null)
@@ -637,7 +646,9 @@ function DayPanel({
                     <th className="px-4 py-2 text-left text-xs font-semibold text-[--p-text-3] uppercase">Aluno</th>
                     <th className="px-4 py-2 text-left text-xs font-semibold text-[--p-text-3] uppercase">Contato</th>
                     <th className="px-4 py-2 text-left text-xs font-semibold text-[--p-text-3] uppercase">Cat.</th>
-                    <th className="px-4 py-2 text-left text-xs font-semibold text-[--p-text-3] uppercase">Tipo</th>
+                    {examesAtivo && (
+                      <th className="px-4 py-2 text-left text-xs font-semibold text-[--p-text-3] uppercase">Tipo</th>
+                    )}
                     <th className="px-4 py-2 text-left text-xs font-semibold text-[--p-text-3] uppercase">Status</th>
                   </tr>
                 </thead>
@@ -652,7 +663,7 @@ function DayPanel({
                       date={date}
                       alunos={alunos}
                       onStatusChange={handleStatusChange}
-                      onTipoChange={handleTipoChange}
+                      onTipoChange={examesAtivo ? handleTipoChange : undefined}
                       onBooked={handleBooked}
                     />
                   ))}
@@ -685,9 +696,11 @@ interface Props {
   initialData: DiaCalendario[]
   initialYear: number
   initialMonth: number
+  /** Módulo "exames": tipo aula/banca nos agendamentos. */
+  examesAtivo?: boolean
 }
 
-export function Calendario({ autoescola_id, initialData, initialYear, initialMonth }: Props) {
+export function Calendario({ autoescola_id, initialData, initialYear, initialMonth, examesAtivo = false }: Props) {
   const [year, setYear] = useState(initialYear)
   const [month, setMonth] = useState(initialMonth)
   const [dias, setDias] = useState<DiaCalendario[]>(initialData)
@@ -824,7 +837,7 @@ export function Calendario({ autoescola_id, initialData, initialYear, initialMon
           exit={{ opacity: 0, y: -8 }}
           transition={{ duration: 0.15 }}
         >
-          <DayPanel autoescola_id={autoescola_id} date={selectedDate} />
+          <DayPanel autoescola_id={autoescola_id} date={selectedDate} examesAtivo={examesAtivo} />
         </motion.div>
       </AnimatePresence>
     </div>

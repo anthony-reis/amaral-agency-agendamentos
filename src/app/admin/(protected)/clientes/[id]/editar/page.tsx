@@ -3,6 +3,8 @@ import { ArrowLeft, Pencil } from 'lucide-react'
 import Link from 'next/link'
 import { createServiceClient } from '@/lib/supabase/server'
 import { EditarClienteForm } from '@/features/admin/components/EditarClienteForm'
+import { ModulosForm } from '@/features/admin/components/ModulosForm'
+import { normalizarFeatures } from '@/lib/features'
 
 interface Props {
   params: Promise<{ id: string }>
@@ -46,6 +48,10 @@ export default async function EditarClientePage({ params }: Props) {
 
       <div className="bg-white dark:bg-[#1e293b] rounded-2xl border border-slate-200 dark:border-white/5 p-6">
         <EditarClienteForm cliente={cliente} />
+      </div>
+
+      <div className="bg-white dark:bg-[#1e293b] rounded-2xl border border-slate-200 dark:border-white/5 p-6">
+        <ModulosForm autoescola_id={cliente.id} features={normalizarFeatures(cliente.features)} />
       </div>
     </div>
   )

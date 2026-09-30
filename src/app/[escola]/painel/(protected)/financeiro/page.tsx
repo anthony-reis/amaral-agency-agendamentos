@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getPainelSession } from '@/features/painel/actions/authPainel'
+import { exigirFeature } from '@/lib/features.server'
 import { getFinanceiroMensal } from '@/features/painel/actions/financeiro'
 import { FinanceiroDashboard } from '@/features/painel/components/FinanceiroDashboard'
 
@@ -11,6 +12,7 @@ export default async function FinanceiroPage({ params }: Props) {
   const { escola } = await params
   const session = await getPainelSession(escola)
   if (!session) redirect(`/${escola}/painel/login`)
+  await exigirFeature(session.autoescola_id, 'financeiro')
 
   const now = new Date()
   const mes = now.getMonth() + 1

@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { Package } from 'lucide-react'
 import { getPainelSession } from '@/features/painel/actions/authPainel'
+import { exigirFeature } from '@/lib/features.server'
 import { listarProdutos } from '@/features/painel/actions/catalogo'
 import { listarCategorias } from '@/features/admin/actions/categorias'
 import { CatalogoManager } from '@/features/painel/components/CatalogoManager'
@@ -13,6 +14,7 @@ export default async function CatalogoPage({ params }: Props) {
   const { escola } = await params
   const session = await getPainelSession(escola)
   if (!session) redirect(`/${escola}/painel/login`)
+  await exigirFeature(session.autoescola_id, 'vendas')
 
   const [produtos, categorias] = await Promise.all([
     listarProdutos(session.autoescola_id),

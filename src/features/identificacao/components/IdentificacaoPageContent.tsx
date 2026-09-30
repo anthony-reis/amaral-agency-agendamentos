@@ -21,17 +21,21 @@ interface Props {
   initialIdentified: boolean
   initialStudent: { name: string; document_id: string } | null
   initialCredits: StudentCredits | null
+  /** Módulo "login_senha_aluno": etapa de senha após o CPF. */
+  exigeSenha: boolean
+  /** Módulo "dashboard_aluno": sem ele, após identificar vai direto para Agendar. */
+  dashboardAtivo: boolean
 }
 
 type Step = 'cpf' | 'senha' | 'ok'
 
-function Stepper({ step }: { step: Step }) {
+function Stepper({ step, exigeSenha }: { step: Step; exigeSenha: boolean }) {
   const items: { key: Step; label: string; icon: typeof CreditCard }[] = [
     { key: 'cpf', label: 'CPF/CNH', icon: CreditCard },
-    { key: 'senha', label: 'Senha', icon: KeyRound },
+    ...(exigeSenha ? [{ key: 'senha' as const, label: 'Senha', icon: KeyRound }] : []),
     { key: 'ok', label: 'Pronto', icon: CheckCircle2 },
   ]
-  const order: Step[] = ['cpf', 'senha', 'ok']
+  const order = items.map((i) => i.key)
   const currentIdx = order.indexOf(step)
 
   return (
@@ -117,6 +121,7 @@ const inputCls =
 export function IdentificacaoPageContent({
   escola, autoescolaId, produtos, lojaAtiva,
   initialIdentified, initialStudent, initialCredits,
+  exigeSenha, dashboardAtivo,
 }: Props) {
   const router = useRouter()
 
@@ -159,7 +164,20 @@ export function IdentificacaoPageContent({
     setStudent(result.student)
     setCredits(result.credits)
     setPrecisaCriarSenha(result.precisaCriarSenha)
+    if (result.autenticado) {
+      concluirLogin()
+      return
+    }
     setStep('senha')
+  }
+
+  function concluirLogin() {
+    if (!dashboardAtivo) {
+      router.push(`/${escola}/aluno/agendar`)
+      return
+    }
+    setStep('ok')
+    router.refresh()
   }
 
   async function handleSenhaSubmit(e: React.FormEvent) {
@@ -175,8 +193,7 @@ export function IdentificacaoPageContent({
       setSenhaError(result.error)
       return
     }
-    setStep('ok')
-    router.refresh()
+    concluirLogin()
   }
 
   function voltarParaCpf() {
@@ -204,7 +221,7 @@ export function IdentificacaoPageContent({
   return (
     <div className="w-full flex flex-col items-center gap-8">
       <div className="w-full max-w-sm">
-        <Stepper step={step} />
+        <Stepper step={step} exigeSenha={exigeSenha} />
       </div>
 
       <div className="w-full max-w-sm">

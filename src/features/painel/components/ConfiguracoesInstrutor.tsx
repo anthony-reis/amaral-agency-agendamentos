@@ -9,6 +9,8 @@ interface Props {
   autoescola_id: string
   escola: string
   initialConfig: InstructorConfig
+  /** Módulo "financeiro": opção de exibir hora/aula ao instrutor. */
+  mostrarHoraAulaOpcao?: boolean
 }
 
 interface Opcao {
@@ -101,7 +103,11 @@ function ToggleRow({
   )
 }
 
-export function ConfiguracoesInstrutor({ autoescola_id, escola, initialConfig }: Props) {
+export function ConfiguracoesInstrutor({ autoescola_id, escola, initialConfig, mostrarHoraAulaOpcao = false }: Props) {
+  const visibilidade = mostrarHoraAulaOpcao
+    ? VISIBILIDADE
+    : VISIBILIDADE.filter((o) => o.key !== 'mostrar_hora_aula')
+
   const [config, setConfig] = useState<InstructorConfig>(initialConfig)
   const [isPending, startTransition] = useTransition()
   const [saved, setSaved] = useState(false)
@@ -164,7 +170,7 @@ export function ConfiguracoesInstrutor({ autoescola_id, escola, initialConfig }:
           Visibilidade
         </p>
         <div className="bg-[--p-bg-card] border border-[--p-border] rounded-2xl divide-y divide-[--p-border]">
-          {VISIBILIDADE.map((opcao) => (
+          {visibilidade.map((opcao) => (
             <ToggleRow
               key={opcao.key}
               opcao={opcao}
@@ -221,10 +227,12 @@ export function ConfiguracoesInstrutor({ autoescola_id, escola, initialConfig }:
             <span className={`w-2 h-2 rounded-full ${config.registrar_km ? 'bg-violet-400' : 'bg-[--p-border]'}`} />
             Registro de KM: {config.registrar_km ? 'ativo (botão "Iniciar Aula" visível)' : 'desativado'}
           </div>
-          <div className="flex items-center gap-2 text-xs text-[--p-text-2]">
-            <span className={`w-2 h-2 rounded-full ${config.mostrar_hora_aula ? 'bg-emerald-400' : 'bg-[--p-border]'}`} />
-            Hora/Aula: {config.mostrar_hora_aula ? 'visível nas Estatísticas' : 'oculta'}
-          </div>
+          {mostrarHoraAulaOpcao && (
+            <div className="flex items-center gap-2 text-xs text-[--p-text-2]">
+              <span className={`w-2 h-2 rounded-full ${config.mostrar_hora_aula ? 'bg-emerald-400' : 'bg-[--p-border]'}`} />
+              Hora/Aula: {config.mostrar_hora_aula ? 'visível nas Estatísticas' : 'oculta'}
+            </div>
+          )}
         </div>
       </div>
     </div>

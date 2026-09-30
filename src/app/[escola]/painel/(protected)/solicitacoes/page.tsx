@@ -1,7 +1,7 @@
-import { redirect, notFound } from 'next/navigation'
+import { redirect } from 'next/navigation'
 import { getPainelSession } from '@/features/painel/actions/authPainel'
 import { listarSolicitacoes } from '@/features/painel/actions/solicitacoes'
-import { createServiceClient } from '@/lib/supabase/server'
+import { exigirFeature } from '@/lib/features.server'
 import { SolicitacoesList } from '@/features/painel/components/SolicitacoesList'
 
 interface Props {
@@ -13,14 +13,7 @@ export default async function SolicitacoesPage({ params }: Props) {
   const session = await getPainelSession(escola)
   if (!session) redirect(`/${escola}/painel/login`)
 
-  const supabase = createServiceClient()
-  const { data: autoescola } = await supabase
-    .from('autoescolas')
-    .select('solicitacoes_ativo')
-    .eq('id', session.autoescola_id)
-    .single()
-
-  if (!autoescola?.solicitacoes_ativo) notFound()
+  await exigirFeature(session.autoescola_id, 'solicitacoes')
 
   const solicitacoes = await listarSolicitacoes(session.autoescola_id)
 

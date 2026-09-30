@@ -1,13 +1,14 @@
 import 'server-only'
 
 import { createServiceClient } from '@/lib/supabase/server'
+import { autoescolaTemFeature } from '@/lib/features.server'
 
 /**
- * Feature gate da Loja/Vendas: a feature só existe para tenants com
- * credenciais Mercado Pago cadastradas e ativas. Produção sem credencial
- * não vê nada.
+ * Feature gate da Loja/Vendas: a feature só existe para tenants com o módulo
+ * "vendas" ligado no /admin E credenciais Mercado Pago cadastradas e ativas.
  */
 export async function lojaHabilitada(autoescola_id: string): Promise<boolean> {
+  if (!(await autoescolaTemFeature(autoescola_id, 'vendas'))) return false
   const supabase = createServiceClient()
   const { data } = await supabase
     .from('autoescola_pagamentos')

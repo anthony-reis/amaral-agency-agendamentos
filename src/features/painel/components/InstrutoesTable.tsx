@@ -14,9 +14,11 @@ interface Props {
   instrutores: Instrutor[]
   autoescola_id: string
   categoriasOpcoes?: string[]
+  /** Módulo "financeiro": colunas de valor hora/aula e banca. */
+  mostrarValores?: boolean
 }
 
-export function InstrutoesTable({ instrutores: initial, autoescola_id, categoriasOpcoes }: Props) {
+export function InstrutoesTable({ instrutores: initial, autoescola_id, categoriasOpcoes, mostrarValores = false }: Props) {
   const CATEGORIAS = categoriasOpcoes ?? CATEGORIAS_FALLBACK
   const [instrutores, setInstrutores] = useState<Instrutor[]>(initial)
   const [filter, setFilter] = useState<'TODOS' | string>('TODOS')
@@ -191,6 +193,8 @@ export function InstrutoesTable({ instrutores: initial, autoescola_id, categoria
               <tr className="border-b border-[--p-border]">
                 <th className="text-left text-xs font-semibold text-[--p-text-3] uppercase px-6 py-3.5">Instrutor</th>
                 <th className="text-left text-xs font-semibold text-[--p-text-3] uppercase px-4 py-3.5">Categoria</th>
+                {mostrarValores && (
+                  <>
                 <th className="text-left text-xs font-semibold text-[--p-text-3] uppercase px-4 py-3.5">
                   <span className="inline-flex items-center gap-1">
                     <DollarSign className="w-3 h-3" />
@@ -203,6 +207,8 @@ export function InstrutoesTable({ instrutores: initial, autoescola_id, categoria
                     Banca
                   </span>
                 </th>
+                  </>
+                )}
                 <th className="px-4 py-3.5" />
               </tr>
             </thead>
@@ -254,6 +260,8 @@ export function InstrutoesTable({ instrutores: initial, autoescola_id, categoria
                       </span>
                     )}
                   </td>
+                  {mostrarValores && (
+                    <>
                   <td className="px-4 py-3.5">
                     {editingId === instrutor.id ? (
                       <div className="flex items-center gap-1.5">
@@ -298,6 +306,8 @@ export function InstrutoesTable({ instrutores: initial, autoescola_id, categoria
                       <span className="text-[--p-text-3]">—</span>
                     )}
                   </td>
+                    </>
+                  )}
                   <td className="px-4 py-3.5">
                     <div className="flex items-center justify-end gap-1">
                       <button

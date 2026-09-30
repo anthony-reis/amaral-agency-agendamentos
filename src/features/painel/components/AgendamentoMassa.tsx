@@ -31,6 +31,8 @@ interface Props {
   alunos: AlunoComCreditos[];
   instrutores: Instrutor[];
   autoescola_id: string;
+  /** Módulo "reserva_pos_pacote". */
+  reservaPosPacoteAtivo?: boolean;
 }
 
 type Step = 1 | 2 | 3 | 4;
@@ -46,6 +48,7 @@ export function AgendamentoMassa({
   alunos,
   instrutores,
   autoescola_id,
+  reservaPosPacoteAtivo = false,
 }: Props) {
   const [step, setStep] = useState<Step>(1);
   const [isPending, startTransition] = useTransition();
@@ -750,6 +753,7 @@ export function AgendamentoMassa({
                   </tbody>
                 </table>
 
+                {reservaPosPacoteAtivo && (
                 <div className="px-5 py-4 border-t border-[--p-border] space-y-2">
                   <label className="flex items-center gap-2 text-sm text-[--p-text-2] cursor-pointer">
                     <input
@@ -774,6 +778,7 @@ export function AgendamentoMassa({
                     libera automaticamente 48h antes da última aula reservada, caso a revenda não aconteça.
                   </p>
                 </div>
+                )}
 
                 <div className="px-5 py-4 border-t border-[--p-border] bg-[--p-bg-input]/50 flex items-center justify-between">
                   <div className="text-sm text-[--p-text-3]">

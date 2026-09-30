@@ -1,5 +1,6 @@
 'use server'
 
+import { bloqueioFeature } from '@/lib/features.server'
 import { revalidatePath } from 'next/cache'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getCurrentUsername } from './authPainel'
@@ -59,6 +60,9 @@ export async function criarDataExame(
   date: string,
   escola: string
 ): Promise<ActionResult<DataExame>> {
+  const bloqueio = await bloqueioFeature(autoescola_id, 'exames')
+  if (bloqueio) return { success: false, error: bloqueio }
+
   const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('datas_exame')
@@ -88,6 +92,9 @@ export async function removerDataExame(
   autoescola_id: string,
   escola: string
 ): Promise<ActionResult> {
+  const bloqueio = await bloqueioFeature(autoescola_id, 'exames')
+  if (bloqueio) return { success: false, error: bloqueio }
+
   const supabase = createServiceClient()
   const { data: atual } = await supabase
     .from('datas_exame')

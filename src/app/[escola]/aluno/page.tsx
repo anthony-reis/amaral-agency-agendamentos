@@ -1,7 +1,8 @@
 import { cookies } from 'next/headers'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { createServiceClient } from '@/lib/supabase/server'
 import { lojaVisivelParaAluno } from '@/lib/loja'
+import { getAutoescolaFeatures } from '@/lib/features.server'
 import { listarProdutosLoja } from '@/features/aluno/actions/loja'
 import { IdentificacaoPageContent } from '@/features/identificacao/components/IdentificacaoPageContent'
 import type { StudentCredits } from '@/features/identificacao/types'
@@ -22,6 +23,7 @@ export default async function EscolaAlunoPage({ params }: Props) {
 
   if (!autoescola) notFound()
 
+  const features = await getAutoescolaFeatures(autoescola.id)
   const mostrarPlanos = await lojaVisivelParaAluno(autoescola.id)
   const produtos = mostrarPlanos ? await listarProdutosLoja(autoescola.id) : []
 
@@ -50,6 +52,9 @@ export default async function EscolaAlunoPage({ params }: Props) {
     }
   }
 
+  // Sem o dashboard do aluno, quem já está identificado vai direto agendar.
+  if (initialStudent && !features.dashboard_aluno) redirect(`/${escola}/aluno/agendar`)
+
   return (
     <div className={`flex flex-col items-center justify-start pt-10 pb-6 px-4 min-h-full`}>
       <div className={`w-full mx-auto flex flex-col items-center gap-6 ${initialStudent ? 'max-w-5xl' : 'max-w-3xl'}`}>
@@ -70,6 +75,8 @@ export default async function EscolaAlunoPage({ params }: Props) {
           initialIdentified={!!initialStudent}
           initialStudent={initialStudent}
           initialCredits={initialCredits}
+          exigeSenha={features.login_senha_aluno}
+          dashboardAtivo={features.dashboard_aluno}
         />
       </div>
     </div>

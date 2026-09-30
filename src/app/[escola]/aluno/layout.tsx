@@ -5,6 +5,7 @@ import { AlunoSidebar } from '@/features/aluno/components/AlunoSidebar'
 import { ComunicadosModalWrapper } from '@/features/aluno/components/ComunicadosModalWrapper'
 import { buscarComunicadosNaoLidos } from '@/features/aluno/actions/comunicados'
 import { lojaVisivelParaAluno } from '@/lib/loja'
+import { getAutoescolaFeatures } from '@/lib/features.server'
 import type { Comunicado } from '@/features/painel/types'
 
 interface Props {
@@ -22,7 +23,7 @@ export default async function AlunoLayout({ children, params }: Props) {
   const supabase = createServiceClient()
   const { data: autoescola } = await supabase
     .from('autoescolas')
-    .select('id, nome, logo_url, solicitacoes_ativo')
+    .select('id, nome, logo_url')
     .eq('slug', escola)
     .single()
 
@@ -33,6 +34,7 @@ export default async function AlunoLayout({ children, params }: Props) {
     unreadComunicados = await buscarComunicadosNaoLidos(autoescola.id, studentDocument)
   }
 
+  const features = await getAutoescolaFeatures(autoescola.id)
   const lojaAtiva = isIdentified ? await lojaVisivelParaAluno(autoescola.id) : false
 
   async function handleLogout() {
@@ -41,6 +43,7 @@ export default async function AlunoLayout({ children, params }: Props) {
     store.delete('student_id')
     store.delete('student_name')
     store.delete('student_document')
+    store.delete('student_sig')
     redirect(`/${escola}/aluno`)
   }
 
@@ -52,7 +55,8 @@ export default async function AlunoLayout({ children, params }: Props) {
         autoescolaLogoUrl={autoescola.logo_url ?? null}
         studentName={studentName}
         isIdentified={isIdentified}
-        solicitacoesAtivo={autoescola.solicitacoes_ativo ?? false}
+        solicitacoesAtivo={features.solicitacoes}
+        dashboardAtivo={features.dashboard_aluno}
         lojaAtiva={lojaAtiva}
         onLogout={handleLogout}
       />

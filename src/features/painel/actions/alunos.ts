@@ -1,5 +1,6 @@
 'use server'
 
+import { bloqueioFeature } from '@/lib/features.server'
 import { revalidatePath } from 'next/cache'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getCurrentUsername, getCurrentUserId } from './authPainel'
@@ -62,6 +63,8 @@ export async function criarAluno(
   let produto: Produto | null = null
   const quantidade = Math.max(1, Math.floor(venda?.quantidade ?? 1))
   if (venda) {
+    const bloqueio = await bloqueioFeature(input.autoescola_id, 'vendas')
+    if (bloqueio) return { success: false, error: bloqueio }
     const { data: produtoRow } = await supabase
       .from('produtos')
       .select('*')
@@ -330,6 +333,9 @@ export async function venderCreditosAluno(
   valor_centavos: number,
   payment_method: string
 ): Promise<ActionResult<AlunoComCreditos>> {
+  const bloqueio = await bloqueioFeature(autoescola_id, 'vendas')
+  if (bloqueio) return { success: false, error: bloqueio }
+
   const total = (quantidades.a ?? 0) + (quantidades.b ?? 0) + (quantidades.c ?? 0) + (quantidades.d ?? 0) + (quantidades.e ?? 0)
   if (total <= 0) return { success: false, error: 'Nenhuma quantidade de crédito informada.' }
   if (!Number.isInteger(valor_centavos) || valor_centavos <= 0) {

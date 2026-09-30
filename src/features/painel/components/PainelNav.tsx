@@ -41,6 +41,7 @@ import {
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { contarNaoVisualizadas } from "@/features/painel/actions/solicitacoes";
+import type { FeatureKey } from "@/lib/features";
 
 const MODAL_SEEN_KEY = "amaralpro-solicitacoes-modal-seen";
 const POLL_INTERVAL_MS = 30_000;
@@ -49,6 +50,8 @@ interface NavItem {
   label: string;
   href: string;
   icon: React.ElementType;
+  /** Módulo exigido para exibir o item (ausente = sempre visível). */
+  feature?: FeatureKey;
 }
 
 interface NavGroup {
@@ -68,16 +71,19 @@ function buildDashboardItem(escola: string): NavItem {
   };
 }
 
-function buildNavGroups(escola: string): NavGroup[] {
+function buildNavGroups(
+  escola: string,
+  features: Record<FeatureKey, boolean>
+): NavGroup[] {
   const base = `/${escola}/painel`;
-  return [
+  const groups: NavGroup[] = [
     {
       id: "vendas",
       label: "Vendas",
       icon: ShoppingCart,
       items: [
-        { label: "Catálogo", href: `${base}/catalogo`, icon: Package },
-        { label: "Vendas", href: `${base}/vendas`, icon: Receipt },
+        { label: "Catálogo", href: `${base}/catalogo`, icon: Package, feature: "vendas" },
+        { label: "Vendas", href: `${base}/vendas`, icon: Receipt, feature: "vendas" },
       ],
     },
     {
@@ -85,7 +91,7 @@ function buildNavGroups(escola: string): NavGroup[] {
       label: "Financeiro",
       icon: Wallet,
       items: [
-        { label: "Financeiro", href: `${base}/financeiro`, icon: Wallet },
+        { label: "Financeiro", href: `${base}/financeiro`, icon: Wallet, feature: "financeiro" },
       ],
     },
     {
@@ -103,11 +109,13 @@ function buildNavGroups(escola: string): NavGroup[] {
           label: "Datas de Exame",
           href: `${base}/datas-exame`,
           icon: FileCheck,
+          feature: "exames",
         },
         {
           label: "Aprov./Reprov.",
           href: `${base}/resultados-exame`,
           icon: Award,
+          feature: "exames",
         },
         {
           label: "Lista de Agend.",
@@ -170,6 +178,13 @@ function buildNavGroups(escola: string): NavGroup[] {
       ],
     },
   ];
+
+  return groups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => !item.feature || features[item.feature]),
+    }))
+    .filter((group) => group.items.length > 0);
 }
 
 interface Props {
@@ -179,7 +194,7 @@ interface Props {
   userName: string;
   userRole: string;
   autoescolaId: string;
-  solicitacoesAtivo: boolean;
+  features: Record<FeatureKey, boolean>;
   onLogout: () => Promise<void>;
 }
 
@@ -190,14 +205,15 @@ export function PainelNav({
   userName,
   userRole,
   autoescolaId,
-  solicitacoesAtivo,
+  features,
   onLogout,
 }: Props) {
+  const solicitacoesAtivo = features.solicitacoes;
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const dashboardItem = buildDashboardItem(escola);
-  const navGroups = buildNavGroups(escola);
+  const navGroups = buildNavGroups(escola, features);
   const solicitacoesHref = `/${escola}/painel/solicitacoes`;
 
   // ─── Solicitações: badge + modal de alta prioridade ────────────────────────

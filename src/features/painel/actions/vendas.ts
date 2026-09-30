@@ -1,5 +1,6 @@
 'use server'
 
+import { bloqueioFeature } from '@/lib/features.server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { criarReembolso } from '@/lib/mercadopago'
 import type { PedidoLoja, PedidoLojaStatus } from '@/lib/loja-types'
@@ -38,6 +39,9 @@ export async function listarVendas(
 }
 
 export async function reembolsarPedido(autoescola_id: string, pedido_id: string): Promise<ActionResult<null>> {
+  const bloqueio = await bloqueioFeature(autoescola_id, 'vendas')
+  if (bloqueio) return { success: false, error: bloqueio }
+
   const supabase = createServiceClient()
 
   const { data: pedido } = await supabase

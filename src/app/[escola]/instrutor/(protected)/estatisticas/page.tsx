@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getInstructorSession } from '@/features/instrutor/actions/authInstrutor'
 import { getEstatisticasInstrutor } from '@/features/instrutor/actions/estatisticas'
 import { getInstructorConfig } from '@/features/painel/actions/configuracoes'
+import { getAutoescolaFeatures } from '@/lib/features.server'
 import { InstructorEstatisticas } from '@/features/instrutor/components/InstructorEstatisticas'
 
 interface Props {
@@ -27,9 +28,10 @@ export default async function EstatisticasPage({ params }: Props) {
 
   const range = getMesAtualRange()
 
-  const [estatisticas, instructorConfig] = await Promise.all([
+  const [estatisticas, instructorConfig, features] = await Promise.all([
     getEstatisticasInstrutor(session.name, session.autoescola_id, range),
     getInstructorConfig(session.autoescola_id),
+    getAutoescolaFeatures(session.autoescola_id),
   ])
 
   return (
@@ -38,7 +40,7 @@ export default async function EstatisticasPage({ params }: Props) {
       instructorName={session.name}
       autoescola_id={session.autoescola_id}
       registrarKm={instructorConfig.registrar_km}
-      mostrarHoraAula={instructorConfig.mostrar_hora_aula}
+      mostrarHoraAula={features.financeiro && instructorConfig.mostrar_hora_aula}
       rangeInicial={range}
     />
   )

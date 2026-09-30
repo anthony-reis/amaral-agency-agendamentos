@@ -8,6 +8,8 @@ interface Props {
   initialData: FechamentoMensalData
   escola: string
   autoescola_id: string
+  /** Módulo "financeiro": valores a pagar por instrutor. */
+  mostrarValores?: boolean
 }
 
 const MESES = [
@@ -19,13 +21,15 @@ function fmtMoeda(v: number): string {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
-export function FechamentoMensal({ initialData, escola, autoescola_id }: Props) {
+export function FechamentoMensal({ initialData, escola, autoescola_id, mostrarValores = false }: Props) {
   const now = new Date()
   const [mes, setMes] = useState(initialData.mes)
   const [ano, setAno] = useState(initialData.ano)
   const [data, setData] = useState<FechamentoMensalData>(initialData)
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set())
   const [isPending, startTransition] = useTransition()
+  // Card de bancas só faz sentido para quem usa o tipo "banca" (módulo exames).
+  const mostrarBancas = data.total_bancas > 0
 
   function toggleExpandido(name: string) {
     setExpandidos((prev) => {
@@ -62,7 +66,8 @@ export function FechamentoMensal({ initialData, escola, autoescola_id }: Props) 
   }
 
   function exportarCSV() {
-    const header = ['Data', 'Horário', 'Aluno', 'Instrutor', 'Categoria', 'Tipo', 'KM Inicial', 'KM Final', 'KM Rodado', 'Valor Hora/Aula', 'Valor Banca', 'Valor a Pagar']
+    const header = ['Data', 'Horário', 'Aluno', 'Instrutor', 'Categoria', 'Tipo', 'KM Inicial', 'KM Final', 'KM Rodado']
+    if (mostrarValores) header.push('Valor Hora/Aula', 'Valor Banca', 'Valor a Pagar')
     const rows: string[][] = []
     for (const inst of data.instrutores) {
       for (const aula of inst.aulas) {
@@ -76,9 +81,13 @@ export function FechamentoMensal({ initialData, escola, autoescola_id }: Props) 
           aula.km_inicial != null ? String(aula.km_inicial) : '',
           aula.km_final != null ? String(aula.km_final) : '',
           aula.km_rodado != null ? String(aula.km_rodado) : '',
-          inst.valor_hora_aula != null ? fmtMoeda(inst.valor_hora_aula) : '',
-          inst.valor_banca != null ? fmtMoeda(inst.valor_banca) : '',
-          inst.valor_total_pagar != null ? fmtMoeda(inst.valor_total_pagar) : '',
+          ...(mostrarValores
+            ? [
+                inst.valor_hora_aula != null ? fmtMoeda(inst.valor_hora_aula) : '',
+                inst.valor_banca != null ? fmtMoeda(inst.valor_banca) : '',
+                inst.valor_total_pagar != null ? fmtMoeda(inst.valor_total_pagar) : '',
+              ]
+            : []),
         ])
       }
     }
@@ -155,7 +164,9 @@ export function FechamentoMensal({ initialData, escola, autoescola_id }: Props) 
       </div>
 
       {/* Cards resumo */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className={`grid grid-cols-2 gap-4 ${
+        mostrarBancas && mostrarValores ? 'lg:grid-cols-5' : mostrarBancas || mostrarValores ? 'lg:grid-cols-4' : 'lg:grid-cols-3'
+      }`}>
         <div className="bg-violet-600 rounded-2xl p-5 flex items-center justify-between">
           <div>
             <p className="text-xs text-white/70 mb-1">Aulas Concluídas</p>
@@ -163,6 +174,7 @@ export function FechamentoMensal({ initialData, escola, autoescola_id }: Props) 
           </div>
           <Car className="w-8 h-8 text-white/60" />
         </div>
+        {mostrarBancas && (
         <div className="bg-amber-600 rounded-2xl p-5 flex items-center justify-between">
           <div>
             <p className="text-xs text-white/70 mb-1">Bancas</p>
@@ -170,6 +182,7 @@ export function FechamentoMensal({ initialData, escola, autoescola_id }: Props) 
           </div>
           <FileSpreadsheet className="w-8 h-8 text-white/60" />
         </div>
+        )}
         <div className="bg-violet-500 rounded-2xl p-5 flex items-center justify-between">
           <div>
             <p className="text-xs text-white/70 mb-1">KM Total</p>
@@ -177,6 +190,7 @@ export function FechamentoMensal({ initialData, escola, autoescola_id }: Props) 
           </div>
           <Route className="w-8 h-8 text-white/60" />
         </div>
+        {mostrarValores && (
         <div className="bg-emerald-600 rounded-2xl p-5 flex items-center justify-between">
           <div>
             <p className="text-xs text-white/70 mb-1">Total a Pagar</p>
@@ -184,6 +198,7 @@ export function FechamentoMensal({ initialData, escola, autoescola_id }: Props) 
           </div>
           <DollarSign className="w-8 h-8 text-white/60" />
         </div>
+        )}
         <div className="bg-[--p-bg-card] border border-[--p-border] rounded-2xl p-5 flex items-center justify-between">
           <div>
             <p className="text-xs text-[--p-text-3] mb-1">{MESES[mes - 1]} / {ano}</p>
@@ -239,14 +254,16 @@ export function FechamentoMensal({ initialData, escola, autoescola_id }: Props) 
                       <p className="text-xs text-[--p-text-3]">Média/Aula</p>
                       <p className="font-semibold text-[--p-text-2]">{inst.km_medio} km</p>
                     </div>
-                    <div className="text-right min-w-[110px]">
-                      <p className="text-xs text-[--p-text-3]">A Pagar</p>
-                      {inst.valor_total_pagar != null ? (
-                        <p className="font-bold text-emerald-400">{fmtMoeda(inst.valor_total_pagar)}</p>
-                      ) : (
-                        <p className="text-xs text-[--p-text-3] italic">Hora/aula não definida</p>
-                      )}
-                    </div>
+                    {mostrarValores && (
+                      <div className="text-right min-w-[110px]">
+                        <p className="text-xs text-[--p-text-3]">A Pagar</p>
+                        {inst.valor_total_pagar != null ? (
+                          <p className="font-bold text-emerald-400">{fmtMoeda(inst.valor_total_pagar)}</p>
+                        ) : (
+                          <p className="text-xs text-[--p-text-3] italic">Hora/aula não definida</p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </button>
 

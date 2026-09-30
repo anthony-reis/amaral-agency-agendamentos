@@ -1,5 +1,6 @@
 'use server'
 
+import { bloqueioFeature } from '@/lib/features.server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getCurrentUsername } from './authPainel'
 import type { ActionResult } from '../types'
@@ -20,6 +21,8 @@ export async function uploadImagemProduto(formData: FormData): Promise<ActionRes
   if (!autoescola_id) {
     return { success: false, error: 'Autoescola não informada.' }
   }
+  const bloqueio = await bloqueioFeature(autoescola_id, 'vendas')
+  if (bloqueio) return { success: false, error: bloqueio }
   if (file.size > 3 * 1024 * 1024) {
     return { success: false, error: 'Arquivo muito grande. Máximo: 3MB.' }
   }
@@ -70,6 +73,9 @@ export async function criarProduto(
   input: NovoProdutoInput,
   autoescola_id: string
 ): Promise<ActionResult<Produto>> {
+  const bloqueio = await bloqueioFeature(autoescola_id, 'vendas')
+  if (bloqueio) return { success: false, error: bloqueio }
+
   const erro = validarProduto(input)
   if (erro) return { success: false, error: erro }
 
@@ -113,6 +119,9 @@ export async function editarProduto(
   input: NovoProdutoInput,
   autoescola_id: string
 ): Promise<ActionResult<Produto>> {
+  const bloqueio = await bloqueioFeature(autoescola_id, 'vendas')
+  if (bloqueio) return { success: false, error: bloqueio }
+
   const erro = validarProduto(input)
   if (erro) return { success: false, error: erro }
 
@@ -158,6 +167,9 @@ export async function alternarAtivoProduto(
   ativo: boolean,
   autoescola_id: string
 ): Promise<ActionResult<void>> {
+  const bloqueio = await bloqueioFeature(autoescola_id, 'vendas')
+  if (bloqueio) return { success: false, error: bloqueio }
+
   const supabase = createServiceClient()
   const { error } = await supabase
     .from('produtos')
@@ -182,6 +194,9 @@ export async function excluirProduto(
   id: string,
   autoescola_id: string
 ): Promise<ActionResult<{ desativado: boolean }>> {
+  const bloqueio = await bloqueioFeature(autoescola_id, 'vendas')
+  if (bloqueio) return { success: false, error: bloqueio }
+
   const supabase = createServiceClient()
 
   // Se existir pedido vinculado, não exclui — apenas desativa (preserva histórico)

@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers'
-import { redirect, notFound } from 'next/navigation'
+import { redirect } from 'next/navigation'
 import { createServiceClient } from '@/lib/supabase/server'
+import { exigirFeature } from '@/lib/features.server'
 import { listarMinhasSolicitacoes } from '@/features/aluno/actions/solicitacoes'
 import { SolicitacoesAluno } from '@/features/aluno/components/SolicitacoesAluno'
 
@@ -19,12 +20,12 @@ export default async function AlunoSolicitacoesPage({ params }: Props) {
   const supabase = createServiceClient()
   const { data: autoescola } = await supabase
     .from('autoescolas')
-    .select('id, solicitacoes_ativo')
+    .select('id')
     .eq('slug', escola)
     .single()
 
   if (!autoescola) redirect('/')
-  if (!autoescola.solicitacoes_ativo) notFound()
+  await exigirFeature(autoescola.id, 'solicitacoes')
 
   const solicitacoes = await listarMinhasSolicitacoes(autoescola.id, studentId)
 

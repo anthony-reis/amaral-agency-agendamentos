@@ -14,6 +14,8 @@ interface Props {
   studentName: string
   isIdentified: boolean
   solicitacoesAtivo: boolean
+  /** Módulo "dashboard_aluno": item "Início". Desligado, a marca leva para Agendar. */
+  dashboardAtivo?: boolean
   lojaAtiva?: boolean
   onLogout: () => Promise<void>
 }
@@ -40,14 +42,15 @@ export function AlunoSidebar({
   studentName,
   isIdentified,
   solicitacoesAtivo,
+  dashboardAtivo = false,
   lojaAtiva = false,
   onLogout,
 }: Props) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
 
-  const dashboardLink = `/${escola}/aluno`
   const agendarLink = `/${escola}/aluno/agendar`
+  const dashboardLink = dashboardAtivo ? `/${escola}/aluno` : agendarLink
   const aulasLink = `/${escola}/aluno/minhas-aulas`
   const comunicadosLink = `/${escola}/aluno/comunicados`
   const solicitacoesLink = `/${escola}/aluno/solicitacoes`
@@ -90,19 +93,21 @@ export function AlunoSidebar({
 
       {/* Nav items */}
       <nav className="flex-1 px-3 py-4 space-y-0.5">
-        <Link
-          href={dashboardLink}
-          onClick={() => setMobileOpen(false)}
-          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-            pathname === dashboardLink
-              ? 'bg-[--p-accent]/10 text-[--p-accent]'
-              : 'text-[--p-text-3] hover:text-[--p-text-1] hover:bg-[--p-hover]'
-          }`}
-        >
-          <LayoutDashboard className="w-4 h-4 shrink-0" />
-          Início
-          {pathname === dashboardLink && <ChevronRight className="w-3 h-3 ml-auto opacity-60" />}
-        </Link>
+        {dashboardAtivo && (
+          <Link
+            href={dashboardLink}
+            onClick={() => setMobileOpen(false)}
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+              pathname === dashboardLink
+                ? 'bg-[--p-accent]/10 text-[--p-accent]'
+                : 'text-[--p-text-3] hover:text-[--p-text-1] hover:bg-[--p-hover]'
+            }`}
+          >
+            <LayoutDashboard className="w-4 h-4 shrink-0" />
+            Início
+            {pathname === dashboardLink && <ChevronRight className="w-3 h-3 ml-auto opacity-60" />}
+          </Link>
+        )}
         <Link
           href={agendarLink}
           onClick={() => setMobileOpen(false)}

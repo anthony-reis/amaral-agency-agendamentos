@@ -4,6 +4,7 @@ import { getDisponibilidade } from '@/lib/getDisponibilidade'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getCurrentUsername } from './authPainel'
 import { reservarProximasAulas, liberarReservasVencidas } from '@/lib/reservasPosPacote'
+import { autoescolaTemFeature } from '@/lib/features.server'
 
 // Feriados nacionais fixos (MM-DD)
 const FERIADOS_FIXOS = new Set([
@@ -134,7 +135,11 @@ export async function criarAgendamentosMassa(data: {
 
   // Reserva pós-pacote: segura os próximos N horários do instrutor da última
   // aula do pacote pro mesmo aluno, dando tempo pro atendente tentar revenda.
-  if (data.bloquearProximas && data.bloquearProximas > 0) {
+  if (
+    data.bloquearProximas &&
+    data.bloquearProximas > 0 &&
+    (await autoescolaTemFeature(data.autoescola_id, 'reserva_pos_pacote'))
+  ) {
     const ultimaAula = [...data.agendamentos].sort((a, b) => (a.date < b.date ? 1 : -1))[0]
     const diaSeguinte = new Date(ultimaAula.date + 'T12:00:00')
     diaSeguinte.setDate(diaSeguinte.getDate() + 1)

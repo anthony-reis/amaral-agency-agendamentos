@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { getFinanceiroMensal } from '@/features/painel/actions/financeiro'
+import { autoescolaTemFeature } from '@/lib/features.server'
 import type { PainelSession } from '@/features/painel/types'
 
 export async function GET(
@@ -21,6 +22,10 @@ export async function GET(
 
   if (session.autoescola_slug !== escola) {
     return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
+  }
+
+  if (!(await autoescolaTemFeature(session.autoescola_id, 'financeiro'))) {
+    return NextResponse.json({ error: 'Recurso não habilitado' }, { status: 404 })
   }
 
   const sp = request.nextUrl.searchParams

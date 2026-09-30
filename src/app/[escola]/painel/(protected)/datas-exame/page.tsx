@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getPainelSession } from '@/features/painel/actions/authPainel'
+import { exigirFeature } from '@/lib/features.server'
 import { listarCategoriasParaAutoescola, listarDatasExamePorMes } from '@/features/painel/actions/datasExame'
 import { DatasExame } from '@/features/painel/components/DatasExame'
 
@@ -13,6 +14,7 @@ export default async function DatasExamePage({ params, searchParams }: Props) {
   const { categoria, data } = await searchParams
   const session = await getPainelSession(escola)
   if (!session) redirect(`/${escola}/painel/login`)
+  await exigirFeature(session.autoescola_id, 'exames')
 
   const now = new Date()
 
