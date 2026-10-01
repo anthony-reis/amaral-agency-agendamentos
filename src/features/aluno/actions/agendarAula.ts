@@ -3,6 +3,7 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { getDisponibilidade } from '@/lib/getDisponibilidade'
+import { liberarReservasVencidas } from '@/lib/reservasPosPacote'
 
 /**
  * Returns current date string (YYYY-MM-DD) in São Paulo timezone (UTC-3).
@@ -67,6 +68,7 @@ export async function fetchDisponibilidade(
   date: string,
   category: string
 ) {
+  await liberarReservasVencidas(autoescolaId)
   return getDisponibilidade(autoescolaId, date, category)
 }
 

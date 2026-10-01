@@ -33,6 +33,8 @@ interface Props {
   instrutores: Instrutor[];
   autoescola_id: string;
   userRole: string;
+  /** Módulo "reserva_pos_pacote". */
+  reservaPosPacoteAtivo?: boolean;
 }
 
 type Step = 1 | 2 | 3 | 4;
@@ -49,6 +51,7 @@ export function AgendamentoMassa({
   instrutores,
   autoescola_id,
   userRole,
+  reservaPosPacoteAtivo = false,
 }: Props) {
   const canEdit = canEditPainel(userRole);
   const [step, setStep] = useState<Step>(1);
@@ -70,6 +73,8 @@ export function AgendamentoMassa({
   const [dias, setDias] = useState<DiaDisponivel[]>([]);
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
   const [selecionados, setSelecionados] = useState<SlotSelecionado[]>([]);
+  const [bloquearProximas, setBloquearProximas] = useState(false);
+  const [qtdBloqueio, setQtdBloqueio] = useState("5");
 
   // Step 4
   const [resultado, setResultado] = useState<{
@@ -157,6 +162,7 @@ export function AgendamentoMassa({
       timeSlot: s.timeSlot,
       instructorName: s.instructorName,
     }));
+    const qtd = parseInt(qtdBloqueio, 10);
 
     startTransition(async () => {
       const res = await criarAgendamentosMassa({
@@ -166,6 +172,7 @@ export function AgendamentoMassa({
         studentDocument: alunoSelecionado.document_id,
         category,
         agendamentos,
+        bloquearProximas: bloquearProximas && qtd > 0 ? qtd : undefined,
       });
       setResultado(res);
       setStep(4);
@@ -183,6 +190,8 @@ export function AgendamentoMassa({
     setSelecionados([]);
     setResultado(null);
     setExpandedDay(null);
+    setBloquearProximas(false);
+    setQtdBloqueio("5");
   }
 
   const stepLabels = ["Aluno", "Configurar", "Selecionar", "Confirmar"];
@@ -767,6 +776,33 @@ export function AgendamentoMassa({
                     ))}
                   </tbody>
                 </table>
+
+                {reservaPosPacoteAtivo && (
+                <div className="px-5 py-4 border-t border-[--p-border] space-y-2">
+                  <label className="flex items-center gap-2 text-sm text-[--p-text-2] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={bloquearProximas}
+                      onChange={(e) => setBloquearProximas(e.target.checked)}
+                      className="rounded"
+                    />
+                    Bloquear o horário do instrutor pras próximas
+                    <input
+                      type="number"
+                      min={1}
+                      value={qtdBloqueio}
+                      disabled={!bloquearProximas}
+                      onChange={(e) => setQtdBloqueio(e.target.value)}
+                      className="w-14 px-2 py-1 rounded-lg bg-[--p-bg-input] border border-[--p-border] text-sm text-[--p-text-1] text-center disabled:opacity-40"
+                    />
+                    aulas
+                  </label>
+                  <p className="text-xs text-[--p-text-3]">
+                    Segura o horário só pra esse aluno (nenhum outro é agendado nele) até a autoescola tentar uma revenda —
+                    libera automaticamente 48h antes da última aula reservada, caso a revenda não aconteça.
+                  </p>
+                </div>
+                )}
 
                 <div className="px-5 py-4 border-t border-[--p-border] bg-[--p-bg-input]/50 flex items-center justify-between">
                   <div className="text-sm text-[--p-text-3]">

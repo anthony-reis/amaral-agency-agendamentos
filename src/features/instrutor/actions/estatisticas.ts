@@ -9,6 +9,13 @@ export interface EstatisticaBarra {
   faltas: number
 }
 
+export interface AulaConcluidaDetalhe {
+  id: string
+  date: string
+  time_slot: string
+  student_name: string
+}
+
 export interface EstatisticasInstrutor {
   concluidas: number
   desmarcadas: number
@@ -24,6 +31,10 @@ export interface EstatisticasInstrutor {
   kmMedia: number
   aulasComKm: number
   kmInconsistencias: number
+  // Hora/Aula (opcional — só preenchido quando o admin define um valor)
+  valorHoraAula: number | null
+  valorTotalReceber: number | null
+  aulasConcluidasDetalhe: AulaConcluidaDetalhe[]
 }
 
 export interface EstatisticasFiltro {
@@ -53,7 +64,7 @@ export async function getEstatisticasInstrutor(
 
   const { data, error } = await supabase
     .from('agendamentos')
-    .select('date, status, km_inicial, km_final, km_rodado')
+    .select('id, date, time_slot, student_name, status, km_inicial, km_final, km_rodado')
     .eq('autoescola_id', autoescola_id)
     .eq('instructor_name', instructor_name)
     .gte('date', filtro.date_start)
@@ -62,6 +73,16 @@ export async function getEstatisticasInstrutor(
   if (error) throw new Error(error.message)
 
   const rows = data ?? []
+
+  const { data: instrutorRow } = await supabase
+    .from('instructors')
+    .select('valor_hora_aula')
+    .eq('autoescola_id', autoescola_id)
+    .eq('name', instructor_name)
+    .maybeSingle()
+
+  // Postgres `numeric` chega como string via PostgREST — normaliza para number.
+  const valorHoraAula = instrutorRow?.valor_hora_aula != null ? Number(instrutorRow.valor_hora_aula) : null
 
   const concluidas = rows.filter((r) => r.status === 'completed').length
   const desmarcadas = rows.filter((r) => r.status === 'cancelled').length
@@ -136,6 +157,17 @@ export async function getEstatisticasInstrutor(
       (r.km_final == null || r.km_final - r.km_inicial <= 0 || r.km_final - r.km_inicial > KM_MAX_AULA)
   ).length
 
+  const aulasConcluidasDetalhe: AulaConcluidaDetalhe[] = concluidasRows
+    .map((r) => ({
+      id: r.id,
+      date: r.date,
+      time_slot: r.time_slot,
+      student_name: r.student_name,
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date) || a.time_slot.localeCompare(b.time_slot))
+
+  const valorTotalReceber = valorHoraAula != null ? valorHoraAula * concluidas : null
+
   return {
     concluidas,
     desmarcadas,
@@ -150,5 +182,8 @@ export async function getEstatisticasInstrutor(
     kmMedia,
     aulasComKm: aulasComKmRows.length,
     kmInconsistencias,
+    valorHoraAula,
+    valorTotalReceber,
+    aulasConcluidasDetalhe,
   }
 }

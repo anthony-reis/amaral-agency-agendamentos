@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getPainelSession, logoutPainel } from '@/features/painel/actions/authPainel'
 import { PainelNav } from '@/features/painel/components/PainelNav'
+import { getAutoescolaFeatures } from '@/lib/features.server'
 
 interface Props {
   children: React.ReactNode
@@ -23,6 +24,8 @@ export default async function PainelProtectedLayout({ children, params }: Props)
     .eq('slug', escola)
     .single()
 
+  const features = await getAutoescolaFeatures(session.autoescola_id)
+
   async function handleLogout() {
     'use server'
     await logoutPainel(escola)
@@ -37,6 +40,8 @@ export default async function PainelProtectedLayout({ children, params }: Props)
         logoUrl={autoescola?.logo_url ?? null}
         userName={session.full_name}
         userRole={session.role}
+        autoescolaId={session.autoescola_id}
+        features={features}
         onLogout={handleLogout}
       />
       <main className="flex-1 min-w-0 overflow-y-auto">

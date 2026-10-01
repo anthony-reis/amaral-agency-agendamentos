@@ -8,6 +8,7 @@ import {
   getInstrutoresDoDia,
   getSlotsDoDia,
   atualizarStatusAgendamento,
+  atualizarTipoAgendamento,
   listarAlunosParaAgendar,
   agendarAulaCalendario,
   type DiaCalendario,
@@ -30,6 +31,16 @@ const STATUS_OPTIONS = [
   { value: 'absent', label: 'Falta' },
   { value: 'cancelled', label: 'Cancelado' },
 ]
+
+const TIPO_OPTIONS = [
+  { value: 'aula', label: 'Aula' },
+  { value: 'banca', label: 'Banca' },
+]
+
+const TIPO_CLS: Record<string, string> = {
+  aula: 'bg-slate-100 text-slate-600 dark:bg-slate-500/10 dark:text-slate-400',
+  banca: 'bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400',
+}
 
 const STATUS_DOT: Record<string, string> = {
   scheduled: 'bg-sky-400',
@@ -93,6 +104,7 @@ function AgendarForm({
   alunos,
   onSuccess,
   onCancel,
+  permitirBanca,
 }: {
   horario: string
   instructorName: string
@@ -102,9 +114,11 @@ function AgendarForm({
   alunos: AlunoParaAgendar[]
   onSuccess: (slot: SlotDia) => void
   onCancel: () => void
+  permitirBanca: boolean
 }) {
   const [search, setSearch] = useState('')
   const [selectedAluno, setSelectedAluno] = useState<AlunoParaAgendar | null>(null)
+  const [tipo, setTipo] = useState<'aula' | 'banca'>('aula')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -132,6 +146,7 @@ function AgendarForm({
       student_id: selectedAluno.id,
       student_name: selectedAluno.name,
       student_document: selectedAluno.document_id,
+      tipo,
     })
     if (result.error) {
       setError(result.error)
@@ -148,6 +163,7 @@ function AgendarForm({
         student_email: null,
         cpf_cnh: selectedAluno.document_id,
         status: 'scheduled',
+        tipo,
         instructorCategory,
         notes: null,
       },
@@ -237,6 +253,21 @@ function AgendarForm({
 
         {error && <p className="text-xs text-red-500">{error}</p>}
 
+        {selectedAluno && permitirBanca && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-[--p-text-3]">Tipo:</span>
+            <select
+              value={tipo}
+              onChange={(e) => setTipo(e.target.value as 'aula' | 'banca')}
+              className="text-xs font-medium px-2 py-1 rounded-lg bg-[--p-bg-card] border border-[--p-border] text-[--p-text-1] focus:outline-none focus:ring-1 focus:ring-[#0ea5e9]"
+            >
+              {TIPO_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <div className="flex items-center gap-2">
           <button
             onClick={handleAgendar}
@@ -267,6 +298,7 @@ function SlotRow({
   date,
   alunos,
   onStatusChange,
+  onTipoChange,
   onBooked,
   canEdit,
 }: {
@@ -277,18 +309,21 @@ function SlotRow({
   date: string
   alunos: AlunoParaAgendar[]
   onStatusChange: (id: string, status: string) => void
+  /** Ausente = módulo "exames" desligado (sem coluna Tipo). */
+  onTipoChange?: (id: string, tipo: 'aula' | 'banca') => void
   onBooked: (updated: SlotDia) => void
   canEdit: boolean
 }) {
   const [showForm, setShowForm] = useState(false)
   const ag = slot.agendamento
+  const colSpan = onTipoChange ? 5 : 4
 
   // ── Bloqueado ─────────────────────────────────────────────────────────────────
   if (!ag && slot.bloqueado) {
     return (
       <tr className="border-b border-[--p-border] last:border-0 opacity-50">
         <td className="px-4 py-2.5 text-sm font-mono text-[--p-text-3] w-20">{slot.horario}</td>
-        <td className="px-4 py-2.5 text-xs text-red-500 dark:text-red-400 italic" colSpan={4}>Bloqueado</td>
+        <td className="px-4 py-2.5 text-xs text-red-500 dark:text-red-400 italic" colSpan={colSpan}>Bloqueado</td>
       </tr>
     )
   }
@@ -298,7 +333,7 @@ function SlotRow({
     return (
       <tr className="border-b border-[--p-border] last:border-0">
         <td className="px-4 py-2.5 text-sm font-mono text-[--p-text-3] w-20 align-top pt-3">{slot.horario}</td>
-        <td className="px-4 py-2.5 align-top" colSpan={4}>
+        <td className="px-4 py-2.5 align-top" colSpan={colSpan}>
           <AnimatePresence mode="wait">
             {!showForm ? (
               canEdit ? (
@@ -329,6 +364,7 @@ function SlotRow({
                 alunos={alunos}
                 onSuccess={(updated) => { setShowForm(false); onBooked(updated) }}
                 onCancel={() => setShowForm(false)}
+                permitirBanca={!!onTipoChange}
               />
             )}
           </AnimatePresence>
@@ -387,6 +423,29 @@ function SlotRow({
         )}
       </td>
 
+      {/* Tipo select */}
+      {onTipoChange && (
+        <td className="px-4 py-3 align-middle">
+          {canEdit ? (
+            <select
+              value={ag.tipo ?? 'aula'}
+              onChange={(e) => onTipoChange(ag.id, e.target.value as 'aula' | 'banca')}
+              className={`text-xs font-semibold border-0 focus:outline-none focus:ring-0 cursor-pointer rounded-full px-2 py-0.5 ${TIPO_CLS[ag.tipo ?? 'aula']}`}
+            >
+              {TIPO_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value} className="text-[--p-text-1] bg-[--p-bg-card]">
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <span className={`text-xs font-semibold rounded-full px-2 py-0.5 ${TIPO_CLS[ag.tipo ?? 'aula']}`}>
+              {TIPO_OPTIONS.find((o) => o.value === (ag.tipo ?? 'aula'))?.label}
+            </span>
+          )}
+        </td>
+      )}
+
       {/* Status select */}
       <td className="px-4 py-3 align-middle">
         <div className="flex items-center gap-2">
@@ -420,10 +479,12 @@ function DayPanel({
   autoescola_id,
   date,
   canEdit,
+  examesAtivo,
 }: {
   autoescola_id: string
   date: string
   canEdit: boolean
+  examesAtivo: boolean
 }) {
   const [instrutores, setInstrutores] = useState<InstrutorDia[] | null>(null)
   const [selectedInstrutor, setSelectedInstrutor] = useState<string | null>(null)
@@ -493,6 +554,17 @@ function DayPanel({
       )
     )
     atualizarStatusAgendamento(id, status as Parameters<typeof atualizarStatusAgendamento>[1])
+  }
+
+  function handleTipoChange(id: string, tipo: 'aula' | 'banca') {
+    setSlots((prev) =>
+      prev.map((s) =>
+        s.agendamento?.id === id
+          ? { ...s, agendamento: { ...s.agendamento!, tipo } }
+          : s
+      )
+    )
+    atualizarTipoAgendamento(id, tipo, autoescola_id)
   }
 
   async function onConfirmCancel(options: { blockSlot: boolean; reason?: string }) {
@@ -595,6 +667,9 @@ function DayPanel({
                     <th className="px-4 py-2 text-left text-xs font-semibold text-[--p-text-3] uppercase">Aluno</th>
                     <th className="px-4 py-2 text-left text-xs font-semibold text-[--p-text-3] uppercase">Contato</th>
                     <th className="px-4 py-2 text-left text-xs font-semibold text-[--p-text-3] uppercase">Cat.</th>
+                    {examesAtivo && (
+                      <th className="px-4 py-2 text-left text-xs font-semibold text-[--p-text-3] uppercase">Tipo</th>
+                    )}
                     <th className="px-4 py-2 text-left text-xs font-semibold text-[--p-text-3] uppercase">Status</th>
                   </tr>
                 </thead>
@@ -609,6 +684,7 @@ function DayPanel({
                       date={date}
                       alunos={alunos}
                       onStatusChange={handleStatusChange}
+                      onTipoChange={examesAtivo ? handleTipoChange : undefined}
                       onBooked={handleBooked}
                       canEdit={canEdit}
                     />
@@ -643,9 +719,11 @@ interface Props {
   initialYear: number
   initialMonth: number
   userRole: string
+  /** Módulo "exames": tipo aula/banca nos agendamentos. */
+  examesAtivo?: boolean
 }
 
-export function Calendario({ autoescola_id, initialData, initialYear, initialMonth, userRole }: Props) {
+export function Calendario({ autoescola_id, initialData, initialYear, initialMonth, userRole, examesAtivo = false }: Props) {
   const canEdit = canEditPainel(userRole)
   const [year, setYear] = useState(initialYear)
   const [month, setMonth] = useState(initialMonth)
@@ -783,7 +861,7 @@ export function Calendario({ autoescola_id, initialData, initialYear, initialMon
           exit={{ opacity: 0, y: -8 }}
           transition={{ duration: 0.15 }}
         >
-          <DayPanel autoescola_id={autoescola_id} date={selectedDate} canEdit={canEdit} />
+          <DayPanel autoescola_id={autoescola_id} date={selectedDate} canEdit={canEdit} examesAtivo={examesAtivo} />
         </motion.div>
       </AnimatePresence>
     </div>

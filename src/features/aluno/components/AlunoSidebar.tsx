@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { CalendarDays, BookOpen, LogOut, Car, Menu, X, ChevronRight, Megaphone } from 'lucide-react'
+import { CalendarDays, BookOpen, LogOut, Car, Menu, X, ChevronRight, Megaphone, ClipboardList, ShoppingBag, LayoutDashboard } from 'lucide-react'
 import { ThemeToggle } from '@/components/ThemeToggle'
 
 interface Props {
@@ -13,6 +13,10 @@ interface Props {
   autoescolaLogoUrl: string | null
   studentName: string
   isIdentified: boolean
+  solicitacoesAtivo: boolean
+  /** Módulo "dashboard_aluno": item "Início". Desligado, a marca leva para Agendar. */
+  dashboardAtivo?: boolean
+  lojaAtiva?: boolean
   onLogout: () => Promise<void>
 }
 
@@ -37,14 +41,20 @@ export function AlunoSidebar({
   autoescolaLogoUrl,
   studentName,
   isIdentified,
+  solicitacoesAtivo,
+  dashboardAtivo = false,
+  lojaAtiva = false,
   onLogout,
 }: Props) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
 
   const agendarLink = `/${escola}/aluno/agendar`
+  const dashboardLink = dashboardAtivo ? `/${escola}/aluno` : agendarLink
   const aulasLink = `/${escola}/aluno/minhas-aulas`
   const comunicadosLink = `/${escola}/aluno/comunicados`
+  const solicitacoesLink = `/${escola}/aluno/solicitacoes`
+  const lojaLink = `/${escola}/aluno/loja`
 
   // ─── Not identified: minimal sticky header only ───────────────────────────
   if (!isIdentified) {
@@ -61,22 +71,43 @@ export function AlunoSidebar({
     <>
       {/* Brand + ThemeToggle */}
       <div className="flex items-center gap-3 px-5 py-4 border-b border-[--p-border]">
-        {autoescolaLogoUrl ? (
-          <img src={autoescolaLogoUrl} alt={autoescolaNome} className="h-8 w-8 object-contain rounded-lg shrink-0" />
-        ) : (
-          <div className="w-8 h-8 rounded-lg bg-[--p-accent]/20 flex items-center justify-center shrink-0">
-            <Car className="w-4 h-4 text-[--p-accent]" />
+        <Link
+          href={dashboardLink}
+          onClick={() => setMobileOpen(false)}
+          className="flex items-center gap-3 min-w-0 flex-1"
+        >
+          {autoescolaLogoUrl ? (
+            <img src={autoescolaLogoUrl} alt={autoescolaNome} className="h-8 w-8 object-contain rounded-lg shrink-0" />
+          ) : (
+            <div className="w-8 h-8 rounded-lg bg-[--p-accent]/20 flex items-center justify-center shrink-0">
+              <Car className="w-4 h-4 text-[--p-accent]" />
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold text-[--p-text-1] truncate leading-tight">{autoescolaNome}</p>
+            <p className="text-[10px] text-[--p-text-3] uppercase tracking-wider">Área do Aluno</p>
           </div>
-        )}
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-bold text-[--p-text-1] truncate leading-tight">{autoescolaNome}</p>
-          <p className="text-[10px] text-[--p-text-3] uppercase tracking-wider">Área do Aluno</p>
-        </div>
+        </Link>
         <ThemeToggle />
       </div>
 
       {/* Nav items */}
       <nav className="flex-1 px-3 py-4 space-y-0.5">
+        {dashboardAtivo && (
+          <Link
+            href={dashboardLink}
+            onClick={() => setMobileOpen(false)}
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+              pathname === dashboardLink
+                ? 'bg-[--p-accent]/10 text-[--p-accent]'
+                : 'text-[--p-text-3] hover:text-[--p-text-1] hover:bg-[--p-hover]'
+            }`}
+          >
+            <LayoutDashboard className="w-4 h-4 shrink-0" />
+            Início
+            {pathname === dashboardLink && <ChevronRight className="w-3 h-3 ml-auto opacity-60" />}
+          </Link>
+        )}
         <Link
           href={agendarLink}
           onClick={() => setMobileOpen(false)}
@@ -118,6 +149,40 @@ export function AlunoSidebar({
           Comunicados
           {pathname === comunicadosLink && <ChevronRight className="w-3 h-3 ml-auto opacity-60" />}
         </Link>
+        {lojaAtiva && (
+          <Link
+            href={lojaLink}
+            onClick={() => setMobileOpen(false)}
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+              pathname === lojaLink || pathname.startsWith(lojaLink + '/')
+                ? 'bg-[--p-accent]/10 text-[--p-accent]'
+                : 'text-[--p-text-3] hover:text-[--p-text-1] hover:bg-[--p-hover]'
+            }`}
+          >
+            <ShoppingBag className="w-4 h-4 shrink-0" />
+            Loja
+            {(pathname === lojaLink || pathname.startsWith(lojaLink + '/')) && (
+              <ChevronRight className="w-3 h-3 ml-auto opacity-60" />
+            )}
+          </Link>
+        )}
+        {solicitacoesAtivo && (
+          <Link
+            href={solicitacoesLink}
+            onClick={() => setMobileOpen(false)}
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+              pathname === solicitacoesLink || pathname.startsWith(solicitacoesLink + '/')
+                ? 'bg-[--p-accent]/10 text-[--p-accent]'
+                : 'text-[--p-text-3] hover:text-[--p-text-1] hover:bg-[--p-hover]'
+            }`}
+          >
+            <ClipboardList className="w-4 h-4 shrink-0" />
+            Solicitações
+            {(pathname === solicitacoesLink || pathname.startsWith(solicitacoesLink + '/')) && (
+              <ChevronRight className="w-3 h-3 ml-auto opacity-60" />
+            )}
+          </Link>
+        )}
       </nav>
 
       {/* User + Logout */}
@@ -157,7 +222,9 @@ export function AlunoSidebar({
 
       {/* Mobile top bar */}
       <div className="lg:hidden w-full flex items-center justify-between px-4 py-3 bg-[--p-bg-card] border-b border-[--p-border] sticky top-0 z-30">
-        <SchoolBrand logoUrl={autoescolaLogoUrl} nome={autoescolaNome} />
+        <Link href={dashboardLink}>
+          <SchoolBrand logoUrl={autoescolaLogoUrl} nome={autoescolaNome} />
+        </Link>
         <div className="flex items-center gap-1">
           <ThemeToggle />
           <button

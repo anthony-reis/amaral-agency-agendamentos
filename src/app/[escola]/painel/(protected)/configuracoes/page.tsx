@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getPainelSession } from '@/features/painel/actions/authPainel'
-import { getInstructorConfig, getReagendamentoMinHoras } from '@/features/painel/actions/configuracoes'
+import { getInstructorConfig } from '@/features/painel/actions/configuracoes'
+import { getAutoescolaFeatures } from '@/lib/features.server'
 import { ConfiguracoesInstrutor } from '@/features/painel/components/ConfiguracoesInstrutor'
 
 interface Props {
@@ -12,9 +13,9 @@ export default async function ConfiguracoesPage({ params }: Props) {
   const session = await getPainelSession(escola)
   if (!session) redirect(`/${escola}/painel/login`)
 
-  const [config, reagendamentoMinHoras] = await Promise.all([
+  const [config, features] = await Promise.all([
     getInstructorConfig(session.autoescola_id),
-    getReagendamentoMinHoras(session.autoescola_id),
+    getAutoescolaFeatures(session.autoescola_id),
   ])
 
   return (
@@ -22,8 +23,8 @@ export default async function ConfiguracoesPage({ params }: Props) {
       autoescola_id={session.autoescola_id}
       escola={escola}
       initialConfig={config}
-      initialReagendamentoMinHoras={reagendamentoMinHoras}
       userRole={session.role}
+      mostrarHoraAulaOpcao={features.financeiro}
     />
   )
 }

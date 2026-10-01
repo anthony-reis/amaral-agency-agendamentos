@@ -1,0 +1,1 @@
+export const AULAS_MINIMAS_PARA_EXAME = 5

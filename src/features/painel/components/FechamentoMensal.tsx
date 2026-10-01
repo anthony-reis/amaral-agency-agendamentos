@@ -1,13 +1,15 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { FileSpreadsheet, ChevronDown, ChevronRight, Download, Gauge, Route, Car } from 'lucide-react'
+import { FileSpreadsheet, ChevronDown, ChevronRight, Download, Gauge, Route, Car, DollarSign } from 'lucide-react'
 import type { FechamentoMensalData } from '../actions/fechamento'
 
 interface Props {
   initialData: FechamentoMensalData
   escola: string
   autoescola_id: string
+  /** Módulo "financeiro": valores a pagar por instrutor. */
+  mostrarValores?: boolean
 }
 
 const MESES = [
@@ -15,13 +17,19 @@ const MESES = [
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
 ]
 
-export function FechamentoMensal({ initialData, escola, autoescola_id }: Props) {
+function fmtMoeda(v: number): string {
+  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
+
+export function FechamentoMensal({ initialData, escola, autoescola_id, mostrarValores = false }: Props) {
   const now = new Date()
   const [mes, setMes] = useState(initialData.mes)
   const [ano, setAno] = useState(initialData.ano)
   const [data, setData] = useState<FechamentoMensalData>(initialData)
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set())
   const [isPending, startTransition] = useTransition()
+  // Card de bancas só faz sentido para quem usa o tipo "banca" (módulo exames).
+  const mostrarBancas = data.total_bancas > 0
 
   function toggleExpandido(name: string) {
     setExpandidos((prev) => {
@@ -58,7 +66,8 @@ export function FechamentoMensal({ initialData, escola, autoescola_id }: Props) 
   }
 
   function exportarCSV() {
-    const header = ['Data', 'Horário', 'Aluno', 'Instrutor', 'Categoria', 'KM Inicial', 'KM Final', 'KM Rodado']
+    const header = ['Data', 'Horário', 'Aluno', 'Instrutor', 'Categoria', 'Tipo', 'KM Inicial', 'KM Final', 'KM Rodado']
+    if (mostrarValores) header.push('Valor Hora/Aula', 'Valor Banca', 'Valor a Pagar')
     const rows: string[][] = []
     for (const inst of data.instrutores) {
       for (const aula of inst.aulas) {
@@ -68,9 +77,17 @@ export function FechamentoMensal({ initialData, escola, autoescola_id }: Props) 
           aula.student_name,
           inst.instructor_name,
           inst.categoria ?? '',
+          aula.tipo === 'banca' ? 'Banca' : 'Aula',
           aula.km_inicial != null ? String(aula.km_inicial) : '',
           aula.km_final != null ? String(aula.km_final) : '',
           aula.km_rodado != null ? String(aula.km_rodado) : '',
+          ...(mostrarValores
+            ? [
+                inst.valor_hora_aula != null ? fmtMoeda(inst.valor_hora_aula) : '',
+                inst.valor_banca != null ? fmtMoeda(inst.valor_banca) : '',
+                inst.valor_total_pagar != null ? fmtMoeda(inst.valor_total_pagar) : '',
+              ]
+            : []),
         ])
       }
     }
@@ -147,7 +164,9 @@ export function FechamentoMensal({ initialData, escola, autoescola_id }: Props) 
       </div>
 
       {/* Cards resumo */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className={`grid grid-cols-2 gap-4 ${
+        mostrarBancas && mostrarValores ? 'lg:grid-cols-5' : mostrarBancas || mostrarValores ? 'lg:grid-cols-4' : 'lg:grid-cols-3'
+      }`}>
         <div className="bg-violet-600 rounded-2xl p-5 flex items-center justify-between">
           <div>
             <p className="text-xs text-white/70 mb-1">Aulas Concluídas</p>
@@ -155,6 +174,15 @@ export function FechamentoMensal({ initialData, escola, autoescola_id }: Props) 
           </div>
           <Car className="w-8 h-8 text-white/60" />
         </div>
+        {mostrarBancas && (
+        <div className="bg-amber-600 rounded-2xl p-5 flex items-center justify-between">
+          <div>
+            <p className="text-xs text-white/70 mb-1">Bancas</p>
+            <p className="text-3xl font-bold text-white/90">{data.total_bancas}</p>
+          </div>
+          <FileSpreadsheet className="w-8 h-8 text-white/60" />
+        </div>
+        )}
         <div className="bg-violet-500 rounded-2xl p-5 flex items-center justify-between">
           <div>
             <p className="text-xs text-white/70 mb-1">KM Total</p>
@@ -162,7 +190,16 @@ export function FechamentoMensal({ initialData, escola, autoescola_id }: Props) 
           </div>
           <Route className="w-8 h-8 text-white/60" />
         </div>
-        <div className="col-span-2 lg:col-span-1 bg-[--p-bg-card] border border-[--p-border] rounded-2xl p-5 flex items-center justify-between">
+        {mostrarValores && (
+        <div className="bg-emerald-600 rounded-2xl p-5 flex items-center justify-between">
+          <div>
+            <p className="text-xs text-white/70 mb-1">Total a Pagar</p>
+            <p className="text-2xl font-bold text-white/90">{fmtMoeda(data.valor_total_pagar_geral)}</p>
+          </div>
+          <DollarSign className="w-8 h-8 text-white/60" />
+        </div>
+        )}
+        <div className="bg-[--p-bg-card] border border-[--p-border] rounded-2xl p-5 flex items-center justify-between">
           <div>
             <p className="text-xs text-[--p-text-3] mb-1">{MESES[mes - 1]} / {ano}</p>
             <p className="text-lg font-bold text-[--p-text-1]">
@@ -203,6 +240,12 @@ export function FechamentoMensal({ initialData, escola, autoescola_id }: Props) 
                       <p className="text-xs text-[--p-text-3]">Aulas</p>
                       <p className="font-bold text-[--p-text-1]">{inst.total_aulas}</p>
                     </div>
+                    {inst.total_bancas > 0 && (
+                      <div className="text-right">
+                        <p className="text-xs text-[--p-text-3]">Bancas</p>
+                        <p className="font-bold text-amber-500">{inst.total_bancas}</p>
+                      </div>
+                    )}
                     <div className="text-right">
                       <p className="text-xs text-[--p-text-3]">KM Total</p>
                       <p className="font-bold text-violet-400">{inst.km_total.toLocaleString('pt-BR')} km</p>
@@ -211,6 +254,16 @@ export function FechamentoMensal({ initialData, escola, autoescola_id }: Props) 
                       <p className="text-xs text-[--p-text-3]">Média/Aula</p>
                       <p className="font-semibold text-[--p-text-2]">{inst.km_medio} km</p>
                     </div>
+                    {mostrarValores && (
+                      <div className="text-right min-w-[110px]">
+                        <p className="text-xs text-[--p-text-3]">A Pagar</p>
+                        {inst.valor_total_pagar != null ? (
+                          <p className="font-bold text-emerald-400">{fmtMoeda(inst.valor_total_pagar)}</p>
+                        ) : (
+                          <p className="text-xs text-[--p-text-3] italic">Hora/aula não definida</p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </button>
 
@@ -223,6 +276,7 @@ export function FechamentoMensal({ initialData, escola, autoescola_id }: Props) 
                           <th className="text-left text-xs font-semibold text-[--p-text-3] px-5 py-2.5">Data</th>
                           <th className="text-left text-xs font-semibold text-[--p-text-3] px-4 py-2.5">Horário</th>
                           <th className="text-left text-xs font-semibold text-[--p-text-3] px-4 py-2.5">Aluno</th>
+                          <th className="text-left text-xs font-semibold text-[--p-text-3] px-4 py-2.5">Tipo</th>
                           <th className="text-right text-xs font-semibold text-[--p-text-3] px-4 py-2.5">KM Ini.</th>
                           <th className="text-right text-xs font-semibold text-[--p-text-3] px-4 py-2.5">KM Fin.</th>
                           <th className="text-right text-xs font-semibold text-[--p-text-3] px-4 py-2.5">Rodado</th>
@@ -234,6 +288,13 @@ export function FechamentoMensal({ initialData, escola, autoescola_id }: Props) 
                             <td className="px-5 py-2.5 text-[--p-text-2]">{aula.date.split('-').reverse().join('/')}</td>
                             <td className="px-4 py-2.5 text-[--p-text-3]">{aula.time_slot}</td>
                             <td className="px-4 py-2.5 font-medium text-[--p-text-1] truncate max-w-[160px]">{aula.student_name}</td>
+                            <td className="px-4 py-2.5">
+                              {aula.tipo === 'banca' ? (
+                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">Banca</span>
+                              ) : (
+                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 dark:bg-slate-500/10 dark:text-slate-400">Aula</span>
+                              )}
+                            </td>
                             <td className="px-4 py-2.5 text-right text-[--p-text-3]">
                               {aula.km_inicial != null ? aula.km_inicial.toLocaleString('pt-BR') : '—'}
                             </td>

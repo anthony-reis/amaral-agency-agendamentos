@@ -10,6 +10,7 @@ export interface InstructorConfig {
   pode_finalizar: boolean
   mostrar_telefone: boolean
   registrar_km: boolean
+  mostrar_hora_aula: boolean
 }
 
 const DEFAULT_CONFIG: InstructorConfig = {
@@ -18,6 +19,7 @@ const DEFAULT_CONFIG: InstructorConfig = {
   pode_finalizar: true,
   mostrar_telefone: true,
   registrar_km: false,
+  mostrar_hora_aula: true,
 }
 
 const DEFAULT_REAGENDAMENTO_MIN_HORAS = 2
@@ -63,6 +65,7 @@ export async function salvarInstructorConfig(
 
   revalidatePath(`/${escola}/painel/configuracoes`)
   revalidatePath(`/${escola}/instrutor`)
+  revalidatePath(`/${escola}/instrutor/estatisticas`)
   return { success: true }
 }
 
@@ -82,7 +85,7 @@ export async function salvarReagendamentoMinHoras(
 
   if (error) return { success: false, error: error.message }
 
-  revalidatePath(`/${escola}/painel/configuracoes`)
+  revalidatePath(`/${escola}/painel/regras-reagendamento`)
   revalidatePath(`/${escola}/aluno/minhas-aulas`)
   return { success: true }
 }

@@ -4,6 +4,8 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { AlunoSidebar } from '@/features/aluno/components/AlunoSidebar'
 import { ComunicadosModalWrapper } from '@/features/aluno/components/ComunicadosModalWrapper'
 import { buscarComunicadosNaoLidos } from '@/features/aluno/actions/comunicados'
+import { lojaVisivelParaAluno } from '@/lib/loja'
+import { getAutoescolaFeatures } from '@/lib/features.server'
 import type { Comunicado } from '@/features/painel/types'
 
 interface Props {
@@ -32,12 +34,16 @@ export default async function AlunoLayout({ children, params }: Props) {
     unreadComunicados = await buscarComunicadosNaoLidos(autoescola.id, studentDocument)
   }
 
+  const features = await getAutoescolaFeatures(autoescola.id)
+  const lojaAtiva = isIdentified ? await lojaVisivelParaAluno(autoescola.id) : false
+
   async function handleLogout() {
     'use server'
     const store = await cookies()
     store.delete('student_id')
     store.delete('student_name')
     store.delete('student_document')
+    store.delete('student_sig')
     redirect(`/${escola}/aluno`)
   }
 
@@ -49,6 +55,9 @@ export default async function AlunoLayout({ children, params }: Props) {
         autoescolaLogoUrl={autoescola.logo_url ?? null}
         studentName={studentName}
         isIdentified={isIdentified}
+        solicitacoesAtivo={features.solicitacoes}
+        dashboardAtivo={features.dashboard_aluno}
+        lojaAtiva={lojaAtiva}
         onLogout={handleLogout}
       />
       <main className="flex-1 min-w-0">

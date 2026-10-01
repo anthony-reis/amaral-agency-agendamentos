@@ -14,6 +14,10 @@ import {
   Route,
   AlertTriangle,
   Filter,
+  DollarSign,
+  ChevronDown,
+  ChevronRight,
+  Info,
 } from 'lucide-react'
 import { getEstatisticasInstrutor } from '../actions/estatisticas'
 import type { EstatisticasInstrutor, EstatisticasFiltro } from '../actions/estatisticas'
@@ -23,6 +27,7 @@ interface Props {
   instructorName: string
   autoescola_id: string
   registrarKm: boolean
+  mostrarHoraAula: boolean
   rangeInicial: EstatisticasFiltro
 }
 
@@ -32,6 +37,10 @@ const BAR_AREA_PX = 150
 
 function fmt(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function fmtMoeda(v: number): string {
+  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
 type PresetKey = 'mesAtual' | 'mesPassado' | 'tresMeses' | 'ano' | 'custom'
@@ -93,12 +102,14 @@ export function InstructorEstatisticas({
   instructorName,
   autoescola_id,
   registrarKm,
+  mostrarHoraAula,
   rangeInicial,
 }: Props) {
   const [stats, setStats] = useState(estatisticasIniciais)
   const [range, setRange] = useState(rangeInicial)
   const [activePreset, setActivePreset] = useState<PresetKey>('mesAtual')
   const [isPending, startTransition] = useTransition()
+  const [aulasExpandido, setAulasExpandido] = useState(false)
 
   function carregar(novoRange: EstatisticasFiltro) {
     startTransition(async () => {
@@ -272,6 +283,68 @@ export function InstructorEstatisticas({
             </div>
           )}
         </motion.div>
+      )}
+
+      {/* Hora/Aula — a autoescola decide, em Configurações > Visibilidade, se esse bloco aparece */}
+      {mostrarHoraAula && (
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-[--p-bg-card] border border-[--p-border] rounded-2xl p-5 space-y-4"
+      >
+        <div className="flex items-center gap-2 text-sm font-semibold text-[--p-text-1]">
+          <DollarSign className="w-4 h-4 text-[--p-accent]" />
+          Hora/Aula
+        </div>
+
+        {stats.valorHoraAula == null ? (
+          <div className="flex items-start gap-2 text-sm text-[--p-text-3]">
+            <Info className="w-4 h-4 shrink-0 mt-0.5" />
+            Nenhum valor de hora/aula definido pelo administrador. Fale com a autoescola caso queira habilitar esse cálculo.
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="bg-[--p-bg-input] rounded-xl p-3 min-w-0">
+                <p className="text-[--p-text-3] text-xs mb-1">Valor/aula</p>
+                <p className="text-lg sm:text-xl font-bold text-[--p-text-1] truncate">{fmtMoeda(stats.valorHoraAula)}</p>
+              </div>
+              <div className="bg-[--p-bg-input] rounded-xl p-3 min-w-0">
+                <p className="text-[--p-text-3] text-xs mb-1">Aulas concluídas</p>
+                <p className="text-lg sm:text-xl font-bold text-[--p-text-1] truncate">{stats.concluidas}</p>
+              </div>
+              <div className="bg-[--p-bg-input] rounded-xl p-3 min-w-0">
+                <p className="text-[--p-text-3] text-xs mb-1">Total a receber</p>
+                <p className="text-lg sm:text-xl font-bold text-emerald-400 truncate">{fmtMoeda(stats.valorTotalReceber ?? 0)}</p>
+              </div>
+            </div>
+
+            {stats.aulasConcluidasDetalhe.length > 0 && (
+              <div>
+                <button
+                  onClick={() => setAulasExpandido((v) => !v)}
+                  className="w-full flex items-center gap-2 text-sm text-[--p-text-2] hover:text-[--p-text-1] transition-colors"
+                >
+                  {aulasExpandido ? <ChevronDown className="w-4 h-4 shrink-0" /> : <ChevronRight className="w-4 h-4 shrink-0" />}
+                  <span className="truncate">Ver aulas consideradas no cálculo ({stats.aulasConcluidasDetalhe.length})</span>
+                </button>
+                {aulasExpandido && (
+                  <div className="mt-3 border border-[--p-border] rounded-xl divide-y divide-[--p-border] overflow-hidden">
+                    {stats.aulasConcluidasDetalhe.map((aula) => (
+                      <div key={aula.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                        <p className="font-medium text-[--p-text-1] text-sm truncate min-w-0">{aula.student_name}</p>
+                        <p className="text-xs text-[--p-text-3] shrink-0 whitespace-nowrap">
+                          {aula.date.split('-').reverse().join('/')} · {aula.time_slot}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </motion.div>
       )}
 
       {/* Aulas por período — barras agrupadas (concluídas / desmarcadas / faltas) */}

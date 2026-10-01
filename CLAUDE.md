@@ -231,6 +231,13 @@ SUPABASE_SERVICE_ROLE_KEY=
 
 ## Histórico de Decisões e Implementações
 
+### Módulos por autoescola (feature flags)
+- Coluna `autoescolas.features` (jsonb, chave ausente = desligado). Toggles em `/admin/clientes/[id]/editar` → "Módulos" (`ModulosForm` + `salvarModulosAutoescola`).
+- Chaves e descrições em `src/lib/features.ts` (client-safe); leitura/gates em `src/lib/features.server.ts`: `getAutoescolaFeatures` (React cache), `exigirFeature` (páginas → 404), `bloqueioFeature` (server actions → erro).
+- Módulos: `vendas`, `financeiro`, `exames`, `solicitacoes` (substitui `solicitacoes_ativo`, mantida em sincronia), `reserva_pos_pacote`, `dashboard_aluno`, `login_senha_aluno`.
+- **Toda funcionalidade nova que não deve chegar a todas as escolas de uma vez deve entrar atrás de um módulo**: item no `FEATURES`, gate na página, na UI (prop) e na server action.
+- `lojaHabilitada` exige módulo `vendas` + credencial MP ativa. Webhook MP não é gateado (pagamento já feito sempre credita).
+
 ### Agendamento em Massa no Painel (Atual)
 - **Novo item de nav** "Agend. em Massa" com ícone `CalendarPlus` adicionado ao `PainelNav.tsx` entre Alunos e Horários.
 - **Rota** `/{escola}/painel/agendamento-massa` → wizard 4 etapas (Server page + Client component `AgendamentoMassa.tsx`).
