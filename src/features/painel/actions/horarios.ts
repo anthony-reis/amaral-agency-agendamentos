@@ -22,7 +22,7 @@ export async function criarHorario(
   instrutor: string | null,
   autoescola_id: string
 ): Promise<ActionResult<HorarioDisponivel>> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('operacao')
   if (!guard.ok) return { success: false, error: guard.error }
 
   if (!horario.trim()) return { success: false, error: 'Horário é obrigatório.' }
@@ -70,7 +70,7 @@ export async function toggleHorario(
   ativo: boolean,
   autoescola_id: string
 ): Promise<ActionResult> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('operacao')
   if (!guard.ok) return { success: false, error: guard.error }
 
   const supabase = createServiceClient()
@@ -97,7 +97,7 @@ export async function excluirHorario(
   id: string,
   autoescola_id: string
 ): Promise<ActionResult> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('operacao')
   if (!guard.ok) return { success: false, error: guard.error }
 
   const supabase = createServiceClient()

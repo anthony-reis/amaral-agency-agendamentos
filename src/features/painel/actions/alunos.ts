@@ -43,7 +43,7 @@ export async function criarAluno(
   input: NovoAlunoInput,
   venda?: VendaNoCadastroInput
 ): Promise<ActionResult<AlunoComCreditos>> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('cadastros')
   if (!guard.ok) return { success: false, error: guard.error }
 
   const supabase = createServiceClient()
@@ -190,7 +190,7 @@ export async function editarAluno(
   input: Partial<{ name: string; phone: string; email: string }>,
   autoescola_id: string
 ): Promise<ActionResult<void>> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('cadastros')
   if (!guard.ok) return { success: false, error: guard.error }
 
   const supabase = createServiceClient()
@@ -247,7 +247,7 @@ export async function excluirAluno(
   id: string,
   autoescola_id: string
 ): Promise<ActionResult<void>> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('cadastros')
   if (!guard.ok) return { success: false, error: guard.error }
 
   const supabase = createServiceClient()
@@ -293,7 +293,7 @@ export async function ajustarCredito(
   delta: 1 | -1,
   autoescola_id: string
 ): Promise<ActionResult<AlunoCreditos>> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('cadastros')
   if (!guard.ok) return { success: false, error: guard.error }
 
   const supabase = createServiceClient()
@@ -354,7 +354,7 @@ export async function venderCreditosAluno(
   valor_centavos: number,
   payment_method: string
 ): Promise<ActionResult<AlunoComCreditos>> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('vendas')
   if (!guard.ok) return { success: false, error: guard.error }
 
   const bloqueio = await bloqueioFeature(autoescola_id, 'vendas')

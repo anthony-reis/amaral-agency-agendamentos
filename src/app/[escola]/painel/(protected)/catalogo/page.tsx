@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation'
 import { Package } from 'lucide-react'
 import { getPainelSession } from '@/features/painel/actions/authPainel'
+import { permite } from '@/lib/permissoes'
+import { exigirArea, roleParaArea } from '@/lib/permissoes.server'
 import { exigirFeature } from '@/lib/features.server'
 import { listarProdutos } from '@/features/painel/actions/catalogo'
 import { listarCategorias } from '@/features/admin/actions/categorias'
@@ -14,6 +16,8 @@ export default async function CatalogoPage({ params }: Props) {
   const { escola } = await params
   const session = await getPainelSession(escola)
   if (!session) redirect(`/${escola}/painel/login`)
+  const acesso = await exigirArea('vendas')
+  const podeEditar = permite(acesso.permissoes.vendas, 'editar')
   await exigirFeature(session.autoescola_id, 'vendas')
 
   const [produtos, categorias] = await Promise.all([
@@ -39,6 +43,7 @@ export default async function CatalogoPage({ params }: Props) {
         autoescola_id={session.autoescola_id}
         produtos={produtos}
         categorias={categorias.map((c) => ({ codigo: c.codigo, nome: c.nome }))}
+        podeEditar={podeEditar}
       />
     </div>
   )

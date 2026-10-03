@@ -35,6 +35,8 @@ interface Props {
   escola: string
   onClose: () => void
   onChanged: () => void
+  /** Perfil com "editar" na área (sem isso, a tela fica só leitura). */
+  podeEditar: boolean
 }
 
 const TIPO_LABEL: Record<SolicitacaoTipo, { label: string; icon: React.ReactNode }> = {
@@ -56,7 +58,7 @@ function fmtDataHora(iso: string) {
   return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
-export function SolicitacaoDrawer({ solicitacaoId, autoescolaId, escola, onClose, onChanged }: Props) {
+export function SolicitacaoDrawer({ solicitacaoId, autoescolaId, escola, onClose, onChanged, podeEditar }: Props) {
   const router = useRouter()
   const [detalhe, setDetalhe] = useState<SolicitacaoDetalhe | null>(null)
   const [loading, setLoading] = useState(true)
@@ -143,7 +145,7 @@ export function SolicitacaoDrawer({ solicitacaoId, autoescolaId, escola, onClose
     router.push(`/${escola}/painel/datas-exame?${params}`)
   }
 
-  const podeAgir = detalhe && ['pendente', 'em_analise'].includes(detalhe.status)
+  const podeAgir = podeEditar && detalhe && ['pendente', 'em_analise'].includes(detalhe.status)
   const whatsappHref = detalhe?.student_phone
     ? `https://wa.me/55${detalhe.student_phone.replace(/\D/g, '')}`
     : null

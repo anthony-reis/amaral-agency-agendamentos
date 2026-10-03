@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getPainelSession } from '@/features/painel/actions/authPainel'
+import { exigirArea, roleParaArea } from '@/lib/permissoes.server'
 import { listarAgendamentos, getAgendamentosStats } from '@/features/painel/actions/agendamentos'
 import { listarInstrutores } from '@/features/painel/actions/instrutores'
 import { HistoricoList } from '@/features/painel/components/HistoricoList'
@@ -12,6 +13,7 @@ export default async function HistoricoPage({ params }: Props) {
   const { escola } = await params
   const session = await getPainelSession(escola)
   if (!session) redirect(`/${escola}/painel/login`)
+  await exigirArea('agendamentos')
 
   const autoescola_id = session.autoescola_id
   const today = new Date().toISOString().split('T')[0]

@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getPainelSession } from '@/features/painel/actions/authPainel'
+import { exigirArea, roleParaArea } from '@/lib/permissoes.server'
 import { listarLogs, getLogStats, listarUsuariosPainel } from '@/features/painel/actions/auditoria'
 import { AuditoriaList } from '@/features/painel/components/AuditoriaList'
 
@@ -11,6 +12,7 @@ export default async function AuditoriaPage({ params }: Props) {
   const { escola } = await params
   const session = await getPainelSession(escola)
   if (!session) redirect(`/${escola}/painel/login`)
+  await exigirArea('sistema')
 
   const autoescola_id = session.autoescola_id
   const today = new Date().toISOString().split('T')[0]

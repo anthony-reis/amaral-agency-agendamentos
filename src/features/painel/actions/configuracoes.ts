@@ -52,7 +52,7 @@ export async function salvarInstructorConfig(
   config: InstructorConfig,
   escola: string
 ): Promise<{ success: boolean; error?: string }> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('sistema')
   if (!guard.ok) return { success: false, error: guard.error }
 
   const supabase = createServiceClient()
@@ -74,7 +74,7 @@ export async function salvarReagendamentoMinHoras(
   horas: number,
   escola: string
 ): Promise<{ success: boolean; error?: string }> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('sistema')
   if (!guard.ok) return { success: false, error: guard.error }
 
   const supabase = createServiceClient()

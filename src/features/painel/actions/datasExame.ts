@@ -60,7 +60,7 @@ export async function criarDataExame(
   date: string,
   escola: string
 ): Promise<ActionResult<DataExame>> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('exames')
   if (!guard.ok) return { success: false, error: guard.error }
 
   const bloqueio = await bloqueioFeature(autoescola_id, 'exames')
@@ -95,7 +95,7 @@ export async function removerDataExame(
   autoescola_id: string,
   escola: string
 ): Promise<ActionResult> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('exames')
   if (!guard.ok) return { success: false, error: guard.error }
 
   const bloqueio = await bloqueioFeature(autoescola_id, 'exames')

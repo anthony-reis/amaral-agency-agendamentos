@@ -231,6 +231,15 @@ SUPABASE_SERVICE_ROLE_KEY=
 
 ## Histórico de Decisões e Implementações
 
+### Perfis e permissões do painel (roles)
+- Cookie `painel_session` agora é **assinado** (HMAC, `src/lib/painelSessionToken.ts`, Web Crypto — roda no middleware/Edge). Chave: `PAINEL_SESSION_SECRET` ou derivada da `SUPABASE_SERVICE_ROLE_KEY`. Nunca ler o cookie com `JSON.parse`: use `lerSessaoPainel()` / `getPainelSession()`.
+- Permissão por **área** (`dashboard, agendamentos, exames, cadastros, operacao, vendas, financeiro, solicitacoes, sistema`) × **nível** (`nenhum | ver | editar`) — `src/lib/permissoes.ts`.
+- Usuário tem vários perfis em `users_painel.perfis` (códigos dos perfis prontos — gestor, secretaria, vendas, financeiro, exames, visualizador — e/ou ids de `painel_perfis`, personalizados por autoescola). Acesso = soma dos perfis, limitado pelos módulos da escola. `role` virou legado (derivado dos perfis).
+- Servidor: `getAcessoPainel()` (lê perfis do banco a cada request — mudança no /admin vale na hora), `exigirArea(area)` nas páginas (404), `assertPodeEditar(area)` nas server actions, `roleParaArea(area)` para o prop legado `userRole` dos componentes.
+- **Toda tela nova do painel**: `exigirArea` na página, item no `AREA_POR_ROTA` do `PainelNav`, `assertPodeEditar(area)` em cada action que altera dados, e `podeEditar` na UI.
+- Dados de outra área (ex.: valores do Financeiro dentro de Fechamento/Instrutores) são removidos **no servidor** para quem não tem a área.
+- /admin: `/admin/clientes/[id]/perfis` (perfis prontos detalhados com "Indicado para" + CRUD de personalizados) e seleção múltipla de perfis em Usuários.
+
 ### Módulos por autoescola (feature flags)
 - Coluna `autoescolas.features` (jsonb, chave ausente = desligado). Toggles em `/admin/clientes/[id]/editar` → "Módulos" (`ModulosForm` + `salvarModulosAutoescola`).
 - Chaves e descrições em `src/lib/features.ts` (client-safe); leitura/gates em `src/lib/features.server.ts`: `getAutoescolaFeatures` (React cache), `exigirFeature` (páginas → 404), `bloqueioFeature` (server actions → erro).

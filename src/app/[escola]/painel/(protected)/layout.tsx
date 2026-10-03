@@ -3,6 +3,7 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { getPainelSession, logoutPainel } from '@/features/painel/actions/authPainel'
 import { PainelNav } from '@/features/painel/components/PainelNav'
 import { getAutoescolaFeatures } from '@/lib/features.server'
+import { getAcessoPainel } from '@/lib/permissoes.server'
 
 interface Props {
   children: React.ReactNode
@@ -24,6 +25,10 @@ export default async function PainelProtectedLayout({ children, params }: Props)
     .eq('slug', escola)
     .single()
 
+  // Usuário desativado no /admin (ou sessão inválida) perde o acesso na hora
+  const acesso = await getAcessoPainel()
+  if (!acesso) redirect(`/${escola}/painel/login`)
+
   const features = await getAutoescolaFeatures(session.autoescola_id)
 
   async function handleLogout() {
@@ -39,9 +44,10 @@ export default async function PainelProtectedLayout({ children, params }: Props)
         escolaNome={autoescola?.nome ?? escola}
         logoUrl={autoescola?.logo_url ?? null}
         userName={session.full_name}
-        userRole={session.role}
+        userRole={acesso.perfisNomes.join(' · ') || session.role}
         autoescolaId={session.autoescola_id}
         features={features}
+        permissoes={acesso.permissoes}
         onLogout={handleLogout}
       />
       <main className="flex-1 min-w-0 overflow-y-auto">

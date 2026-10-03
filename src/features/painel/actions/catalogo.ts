@@ -8,7 +8,7 @@ import type { NovoProdutoInput, Produto } from '@/lib/loja-types'
 import { somaCreditos } from '@/lib/loja-types'
 
 export async function uploadImagemProduto(formData: FormData): Promise<ActionResult<string>> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('vendas')
   if (!guard.ok) return { success: false, error: guard.error }
 
   const file = formData.get('imagem') as File | null
@@ -76,7 +76,7 @@ export async function criarProduto(
   input: NovoProdutoInput,
   autoescola_id: string
 ): Promise<ActionResult<Produto>> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('vendas')
   if (!guard.ok) return { success: false, error: guard.error }
 
   const bloqueio = await bloqueioFeature(autoescola_id, 'vendas')
@@ -125,7 +125,7 @@ export async function editarProduto(
   input: NovoProdutoInput,
   autoescola_id: string
 ): Promise<ActionResult<Produto>> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('vendas')
   if (!guard.ok) return { success: false, error: guard.error }
 
   const bloqueio = await bloqueioFeature(autoescola_id, 'vendas')
@@ -176,7 +176,7 @@ export async function alternarAtivoProduto(
   ativo: boolean,
   autoescola_id: string
 ): Promise<ActionResult<void>> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('vendas')
   if (!guard.ok) return { success: false, error: guard.error }
 
   const bloqueio = await bloqueioFeature(autoescola_id, 'vendas')
@@ -206,7 +206,7 @@ export async function excluirProduto(
   id: string,
   autoescola_id: string
 ): Promise<ActionResult<{ desativado: boolean }>> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('vendas')
   if (!guard.ok) return { success: false, error: guard.error }
 
   const bloqueio = await bloqueioFeature(autoescola_id, 'vendas')

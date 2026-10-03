@@ -81,7 +81,7 @@ export async function criarAgendamentosMassa(data: {
   agendamentos: AgendamentoMassaItem[]
   bloquearProximas?: number
 }): Promise<{ success: boolean; created: number; error?: string }> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('agendamentos')
   if (!guard.ok) return { success: false, created: 0, error: guard.error }
 
   const supabase = createServiceClient()

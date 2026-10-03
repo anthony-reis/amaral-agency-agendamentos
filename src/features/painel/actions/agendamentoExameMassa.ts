@@ -85,7 +85,7 @@ interface ConfirmarInput {
 export async function confirmarAgendamentoExameMassa(
   data: ConfirmarInput
 ): Promise<ActionResult<{ criados: number }>> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('exames')
   if (!guard.ok) return { success: false, error: guard.error }
 
   const { autoescola_id, categoria_codigo, examDate, atribuicoes, mensagemAdmin, escola } = data
@@ -246,7 +246,7 @@ interface AgendarExameDiretoInput {
 export async function agendarExameDireto(
   input: AgendarExameDiretoInput
 ): Promise<ActionResult<{ agendamentoId: string }>> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('exames')
   if (!guard.ok) return { success: false, error: guard.error }
 
   const { autoescola_id, student_id, categoria_codigo, examDate, instructorName, timeSlot, escola } = input

@@ -1,7 +1,7 @@
 'use server'
 
 import { createServiceClient } from '@/lib/supabase/server'
-import { cookies } from 'next/headers'
+import { lerSessaoPainel } from './authPainel'
 
 type ValidateImportRequest = {
   escola: string;
@@ -10,11 +10,8 @@ type ValidateImportRequest = {
 }
 
 export async function validateImportData(data: ValidateImportRequest) {
-  const cookieStore = await cookies()
-  const raw = cookieStore.get('painel_session')?.value
-  if (!raw) throw new Error('Acesso negado')
-  const session = JSON.parse(raw)
-  if (session.autoescola_slug !== data.escola) throw new Error('Acesso negado')
+  const session = await lerSessaoPainel()
+  if (!session || session.autoescola_slug !== data.escola) throw new Error('Acesso negado')
 
   const supabase = createServiceClient()
 

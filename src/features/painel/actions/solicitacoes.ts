@@ -1,10 +1,10 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { cookies } from 'next/headers'
 import { createServiceClient } from '@/lib/supabase/server'
 import { urlsEvidencias } from '@/lib/evidenciasSolicitacao'
-import { getCurrentUsername, assertPodeEditar, getPainelAutoescolaId } from './authPainel'
+import { bloqueioArea } from '@/lib/permissoes.server'
+import { getCurrentUsername, getCurrentUserId, assertPodeEditar, getPainelAutoescolaId } from './authPainel'
 import { contarAulasConcluidasPorCategoria } from './exameElegibilidade'
 import type {
   ActionResult,
@@ -99,17 +99,6 @@ export async function contarNaoVisualizadas(
   }
 }
 
-async function getCurrentUserId(): Promise<string | null> {
-  const cookieStore = await cookies()
-  const raw = cookieStore.get('painel_session')?.value
-  if (!raw) return null
-  try {
-    const session = JSON.parse(raw) as { userId: string }
-    return session.userId ?? null
-  } catch {
-    return null
-  }
-}
 
 async function contarAulasConcluidas(autoescola_id: string, document_id: string): Promise<number> {
   const supabase = createServiceClient()
@@ -191,6 +180,9 @@ export async function getSolicitacao(
 }
 
 export async function marcarComoVisualizada(id: string, autoescola_id: string): Promise<void> {
+  if (await bloqueioArea('solicitacoes', 'ver')) return
+  if ((await getPainelAutoescolaId()) !== autoescola_id) return
+
   const supabase = createServiceClient()
 
   const { data: atual } = await supabase
@@ -223,7 +215,7 @@ export async function iniciarAnalise(
   autoescola_id: string,
   escola: string
 ): Promise<ActionResult> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('solicitacoes')
   if (!guard.ok) return { success: false, error: guard.error }
 
   const supabase = createServiceClient()
@@ -273,7 +265,7 @@ export async function agendarSolicitacao(
   mensagemAdmin: string | null,
   escola: string
 ): Promise<ActionResult> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('solicitacoes')
   if (!guard.ok) return { success: false, error: guard.error }
 
   if (!dadosAtendimento.data || !dadosAtendimento.horario) {
@@ -341,7 +333,7 @@ export async function recusarSolicitacao(
   mensagemAdmin: string | null,
   escola: string
 ): Promise<ActionResult> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('solicitacoes')
   if (!guard.ok) return { success: false, error: guard.error }
 
   if (!motivoRecusa.trim()) {

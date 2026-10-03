@@ -14,6 +14,8 @@ interface Props {
   solicitacoesIniciais: SolicitacaoComAluno[]
   /** "historico": só solicitações finalizadas, com exportação CSV. */
   modo?: 'caixa' | 'historico'
+  /** Perfil com "editar" na área (sem isso, a tela fica só leitura). */
+  podeEditar: boolean
 }
 
 const STATUS_OPCOES: { value: SolicitacaoStatus | 'TODOS'; label: string }[] = [
@@ -50,7 +52,7 @@ function fmtData(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-export function SolicitacoesList({ escola, autoescolaId, solicitacoesIniciais, modo = 'caixa' }: Props) {
+export function SolicitacoesList({ escola, autoescolaId, solicitacoesIniciais, modo = 'caixa', podeEditar }: Props) {
   const historico = modo === 'historico'
   const statusOpcoes = historico
     ? STATUS_OPCOES.filter((o) => o.value === 'TODOS' || STATUS_FINALIZADOS.includes(o.value as SolicitacaoStatus))
@@ -335,6 +337,7 @@ export function SolicitacoesList({ escola, autoescolaId, solicitacoesIniciais, m
             escola={escola}
             onClose={() => setDrawerId(null)}
             onChanged={onDrawerChanged}
+            podeEditar={podeEditar}
           />
         )}
       </AnimatePresence>

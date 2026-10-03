@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getPainelSession } from '@/features/painel/actions/authPainel'
+import { exigirArea, roleParaArea } from '@/lib/permissoes.server'
 import { listarBloqueios } from '@/features/painel/actions/bloqueios'
 import { listarInstrutores } from '@/features/painel/actions/instrutores'
 import { BloqueioForm } from '@/features/painel/components/BloqueioForm'
@@ -12,6 +13,7 @@ export default async function BloqueiosPage({ params }: Props) {
   const { escola } = await params
   const session = await getPainelSession(escola)
   if (!session) redirect(`/${escola}/painel/login`)
+  await exigirArea('operacao')
 
   const [bloqueios, instrutores] = await Promise.all([
     listarBloqueios(session.autoescola_id),
@@ -23,7 +25,7 @@ export default async function BloqueiosPage({ params }: Props) {
       bloqueios={bloqueios}
       instrutores={instrutores.map((i) => i.name)}
       autoescola_id={session.autoescola_id}
-      userRole={session.role}
+      userRole={await roleParaArea('operacao')}
     />
   )
 }

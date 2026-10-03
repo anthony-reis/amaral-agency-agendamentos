@@ -28,7 +28,7 @@ export async function listarInstrutores(autoescola_id: string): Promise<Instruto
 export async function criarInstrutor(
   input: NovoInstrutorInput
 ): Promise<ActionResult<Instrutor>> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('cadastros')
   if (!guard.ok) return { success: false, error: guard.error }
 
   const { name, category, autoescola_id } = input
@@ -70,7 +70,7 @@ export async function atualizarInstrutor(
   input: Partial<Pick<Instrutor, 'name' | 'category' | 'valor_hora_aula' | 'valor_banca'>>,
   autoescola_id: string
 ): Promise<ActionResult<Instrutor>> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('cadastros')
   if (!guard.ok) return { success: false, error: guard.error }
 
   const supabase = createServiceClient()
@@ -130,7 +130,7 @@ export async function excluirInstrutor(
   id: string,
   autoescola_id: string
 ): Promise<ActionResult> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('cadastros')
   if (!guard.ok) return { success: false, error: guard.error }
 
   const supabase = createServiceClient()
@@ -196,7 +196,7 @@ export async function alterarSenhaInstrutor(
   novaSenha: string,
   autoescola_id: string
 ): Promise<ActionResult> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('cadastros')
   if (!guard.ok) return { success: false, error: guard.error }
 
   if (!novaSenha.trim()) return { success: false, error: 'Senha não pode ser vazia.' }

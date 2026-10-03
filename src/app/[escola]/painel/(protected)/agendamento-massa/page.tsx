@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getPainelSession } from '@/features/painel/actions/authPainel'
+import { exigirArea, roleParaArea } from '@/lib/permissoes.server'
 import { listarAlunos } from '@/features/painel/actions/alunos'
 import { listarInstrutores } from '@/features/painel/actions/instrutores'
 import { getAutoescolaFeatures } from '@/lib/features.server'
@@ -13,6 +14,7 @@ export default async function AgendamentoMassaPage({ params }: Props) {
   const { escola } = await params
   const session = await getPainelSession(escola)
   if (!session) redirect(`/${escola}/painel/login`)
+  await exigirArea('agendamentos')
 
   const [alunos, instrutores, features] = await Promise.all([
     listarAlunos(session.autoescola_id),
@@ -25,7 +27,7 @@ export default async function AgendamentoMassaPage({ params }: Props) {
       alunos={alunos}
       instrutores={instrutores}
       autoescola_id={session.autoescola_id}
-      userRole={session.role}
+      userRole={await roleParaArea('agendamentos')}
       reservaPosPacoteAtivo={features.reserva_pos_pacote}
     />
   )

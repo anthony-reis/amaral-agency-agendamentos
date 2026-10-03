@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Plus, Building2, CheckCircle2, Clock, XCircle, Users, Pencil, Tag, CreditCard } from 'lucide-react'
+import { Plus, Building2, CheckCircle2, Clock, XCircle, Users, Pencil, Tag, CreditCard, ShieldCheck } from 'lucide-react'
 import type { Autoescola } from '../types'
 
 const statusConfig = {
@@ -146,6 +146,13 @@ export function ClientesList({ clientes }: Props) {
                         >
                           <Users className="w-3.5 h-3.5" />
                           Usuários
+                        </Link>
+                        <Link
+                          href={`/admin/clientes/${c.id}/perfis`}
+                          className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-brand-teal transition-colors"
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                          Perfis
                         </Link>
                         <Link
                           href={`/admin/clientes/${c.id}/categorias`}

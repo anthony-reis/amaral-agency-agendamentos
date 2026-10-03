@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getPainelSession } from '@/features/painel/actions/authPainel'
+import { exigirArea, roleParaArea } from '@/lib/permissoes.server'
 import { detectarConflitos } from '@/features/painel/actions/conflitos'
 import { ConflitosPanel } from '@/features/painel/components/ConflitosPanel'
 
@@ -11,8 +12,9 @@ export default async function ConflitosPage({ params }: Props) {
   const { escola } = await params
   const session = await getPainelSession(escola)
   if (!session) redirect(`/${escola}/painel/login`)
+  await exigirArea('agendamentos')
 
   const conflitos = await detectarConflitos(session.autoescola_id)
 
-  return <ConflitosPanel conflitos={conflitos} autoescola_id={session.autoescola_id} userRole={session.role} />
+  return <ConflitosPanel conflitos={conflitos} autoescola_id={session.autoescola_id} userRole={await roleParaArea('agendamentos')} />
 }

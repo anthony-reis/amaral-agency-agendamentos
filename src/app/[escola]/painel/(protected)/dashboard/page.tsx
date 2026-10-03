@@ -1,4 +1,6 @@
 import { getPainelSession } from '@/features/painel/actions/authPainel'
+import { getAcessoPainel, rotaInicial, roleParaArea } from '@/lib/permissoes.server'
+import { permite } from '@/lib/permissoes'
 import { getAgendamentosStats, getDesempenhoInstrutores, getKmStats } from '@/features/painel/actions/agendamentos'
 import { listarInstrutores } from '@/features/painel/actions/instrutores'
 import { getInstructorConfig } from '@/features/painel/actions/configuracoes'
@@ -23,6 +25,13 @@ export default async function DashboardPage({ params }: Props) {
   const { escola } = await params
   const session = await getPainelSession(escola)
   if (!session) redirect(`/${escola}/painel/login`)
+  const acesso = await getAcessoPainel()
+  if (!acesso) redirect(`/${escola}/painel/login`)
+  if (!permite(acesso.permissoes.dashboard, 'ver')) {
+    const rota = rotaInicial(acesso.permissoes)
+    // Usuário sem nenhuma área liberada: volta ao login
+    redirect(rota ? `/${escola}/painel/${rota}` : `/${escola}/painel/login`)
+  }
 
   const { dateStart, dateEnd } = getDefaultDates()
   const autoescola_id = session.autoescola_id
@@ -46,7 +55,7 @@ export default async function DashboardPage({ params }: Props) {
       autoescola_id={autoescola_id}
       kmStats={kmStats}
       registrarKm={config.registrar_km}
-      userRole={session.role}
+      userRole={await roleParaArea('dashboard')}
     />
   )
 }

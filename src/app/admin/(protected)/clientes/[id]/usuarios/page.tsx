@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { createServiceClient } from '@/lib/supabase/server'
 import { listarPainelUsers } from '@/features/admin/actions/painelUsers'
 import { PainelUsersList } from '@/features/admin/components/PainelUsersList'
+import { carregarPerfisAdmin } from '@/features/admin/perfisOpcoes'
 
 interface Props {
   params: Promise<{ id: string }>
@@ -21,7 +22,7 @@ export default async function UsuariosPainelPage({ params }: Props) {
 
   if (!autoescola) notFound()
 
-  const users = await listarPainelUsers(id)
+  const [users, perfis] = await Promise.all([listarPainelUsers(id), carregarPerfisAdmin(id)])
 
   return (
     <div className="space-y-6">
@@ -52,6 +53,8 @@ export default async function UsuariosPainelPage({ params }: Props) {
           users={users}
           autoescola_id={id}
           autoescola_slug={autoescola.slug}
+          perfisOpcoes={perfis.opcoes}
+          areasDesligadas={perfis.areasDesligadas}
         />
       </div>
     </div>

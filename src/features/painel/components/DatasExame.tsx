@@ -18,6 +18,8 @@ interface Props {
   datasIniciais: DataExame[]
   initialCategoriaCodigo?: string
   initialData?: string
+  /** Perfil com "editar" na área (sem isso, a tela fica só leitura). */
+  podeEditar: boolean
 }
 
 const MESES = [
@@ -30,7 +32,7 @@ function todayStr() {
   return new Date().toISOString().split('T')[0]
 }
 
-export function DatasExame({ autoescola_id, escola, categorias, datasIniciais, initialCategoriaCodigo, initialData }: Props) {
+export function DatasExame({ autoescola_id, escola, categorias, datasIniciais, initialCategoriaCodigo, initialData, podeEditar }: Props) {
   const now = new Date()
   const [categoriaCodigo, setCategoriaCodigo] = useState(
     initialCategoriaCodigo ?? categorias[0]?.codigo ?? ''
@@ -208,7 +210,7 @@ export function DatasExame({ autoescola_id, escola, categorias, datasIniciais, i
                 <Users className="w-4 h-4 text-[--p-text-3]" />
                 {pendentesCount === null ? 'Carregando...' : `${pendentesCount} solicitação(ões) pendente(s) para ${categoriaAtual?.nome}`}
               </div>
-              <div className="flex gap-2">
+              {podeEditar && <div className="flex gap-2">
                 <button
                   onClick={() => setMutiraoAberto(true)}
                   className="flex-1 py-2.5 rounded-xl bg-[--p-accent] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
@@ -223,9 +225,9 @@ export function DatasExame({ autoescola_id, escola, categorias, datasIniciais, i
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
-              </div>
+              </div>}
             </>
-          ) : (
+          ) : podeEditar ? (
             <button
               onClick={handleConfigurar}
               disabled={isPending}
@@ -233,6 +235,8 @@ export function DatasExame({ autoescola_id, escola, categorias, datasIniciais, i
             >
               <Plus className="w-4 h-4" /> Configurar como data de exame ({categoriaAtual?.nome})
             </button>
+          ) : (
+            <p className="text-sm text-[--p-text-3]">Dia sem data de exame configurada.</p>
           )}
         </div>
       )}

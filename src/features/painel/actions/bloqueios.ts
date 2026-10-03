@@ -35,7 +35,7 @@ export async function listarBloqueios(autoescola_id: string): Promise<BloqueioTi
 export async function criarBloqueio(
   input: NovoBloqueioInput
 ): Promise<ActionResult<BloqueioTimeSlot[]>> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('operacao')
   if (!guard.ok) return { success: false, error: guard.error }
 
   const supabase = createServiceClient()
@@ -115,7 +115,7 @@ export async function criarBloqueio(
 export async function criarBloqueioSemanais(
   input: NovoBloqueioSemanalInput
 ): Promise<ActionResult<{ total: number; registros: BloqueioTimeSlot[] }>> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('operacao')
   if (!guard.ok) return { success: false, error: guard.error }
 
   const supabase = createServiceClient()
@@ -171,7 +171,7 @@ export async function editarBloqueio(
   },
   autoescola_id: string
 ): Promise<ActionResult> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('operacao')
   if (!guard.ok) return { success: false, error: guard.error }
 
   const supabase = createServiceClient()
@@ -198,7 +198,7 @@ export async function excluirBloqueio(
   id: string,
   autoescola_id: string
 ): Promise<ActionResult> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('operacao')
   if (!guard.ok) return { success: false, error: guard.error }
 
   const supabase = createServiceClient()

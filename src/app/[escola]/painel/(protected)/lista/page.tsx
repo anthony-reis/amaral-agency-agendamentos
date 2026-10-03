@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getPainelSession } from '@/features/painel/actions/authPainel'
+import { exigirArea, roleParaArea } from '@/lib/permissoes.server'
 import { ListaAgendamentosView } from '@/features/painel/components/ListaAgendamentosView'
 import { listarAgendamentos } from '@/features/painel/actions/agendamentos'
 
@@ -13,6 +14,7 @@ export default async function ListaAgendamentosPage({ params, searchParams }: Pr
   const { escola } = await params
   const session = await getPainelSession(escola)
   if (!session) redirect(`/${escola}/painel/login`)
+  await exigirArea('agendamentos')
 
   const resolvedParams = await searchParams
   
@@ -59,7 +61,7 @@ export default async function ListaAgendamentosPage({ params, searchParams }: Pr
         autoescola_id={session.autoescola_id}
         escolaSlug={escola}
         instrutores={instructorNames}
-        userRole={session.role}
+        userRole={await roleParaArea('agendamentos')}
       />
     </div>
   )

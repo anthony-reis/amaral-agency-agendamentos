@@ -1,5 +1,6 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { lerSessaoPainelToken } from '@/lib/painelSessionToken'
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -15,12 +16,9 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL(`/${slug}/painel/login`, request.url))
     }
 
-    try {
-      const session = JSON.parse(sessionCookie)
-      if (session.autoescola_slug !== slug) {
-        return NextResponse.redirect(new URL(`/${slug}/painel/login`, request.url))
-      }
-    } catch {
+    // Cookie assinado: sessão adulterada ou no formato antigo (JSON puro) volta pro login
+    const session = await lerSessaoPainelToken<{ autoescola_slug?: string }>(sessionCookie)
+    if (!session || session.autoescola_slug !== slug) {
       return NextResponse.redirect(new URL(`/${slug}/painel/login`, request.url))
     }
 

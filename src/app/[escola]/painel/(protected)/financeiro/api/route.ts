@@ -1,26 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
+import { getAcessoPainel } from '@/lib/permissoes.server'
+import { permite } from '@/lib/permissoes'
 import { getFinanceiroMensal } from '@/features/painel/actions/financeiro'
 import { autoescolaTemFeature } from '@/lib/features.server'
-import type { PainelSession } from '@/features/painel/types'
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ escola: string }> }
 ) {
   const { escola } = await params
-  const cookieStore = await cookies()
-  const raw = cookieStore.get('painel_session')?.value
-  if (!raw) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
-
-  let session: PainelSession
-  try {
-    session = JSON.parse(raw)
-  } catch {
-    return NextResponse.json({ error: 'Sessão inválida' }, { status: 401 })
-  }
-
-  if (session.autoescola_slug !== escola) {
+  // Sessão assinada + permissões do usuário (lidas do banco)
+  const acesso = await getAcessoPainel()
+  if (!acesso) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+  const session = acesso.session
+  if (session.autoescola_slug !== escola || !permite(acesso.permissoes.financeiro, 'ver')) {
     return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
   }
 

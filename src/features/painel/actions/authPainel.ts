@@ -3,7 +3,11 @@
 import { cookies } from 'next/headers'
 import { createServiceClient } from '@/lib/supabase/server'
 import { autoescolaAcessivel } from '@/lib/autoescolaAcesso'
-import { isVisualizador, type PainelSession, type PainelUser, type ActionResult } from '../types'
+import { assinarSessaoPainel } from '@/lib/painelSessionToken'
+import { lerSessaoPainelCookie } from '@/lib/sessaoPainel.server'
+import { bloqueioArea } from '@/lib/permissoes.server'
+import type { Area } from '@/lib/permissoes'
+import type { PainelSession, PainelUser, ActionResult } from '../types'
 
 const COOKIE_NAME = 'painel_session'
 const COOKIE_MAX_AGE = 60 * 60 * 8 // 8 hours
@@ -66,7 +70,7 @@ export async function loginPainel(
   }
 
   const cookieStore = await cookies()
-  cookieStore.set(COOKIE_NAME, JSON.stringify(session), {
+  cookieStore.set(COOKIE_NAME, await assinarSessaoPainel(session), {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
@@ -91,77 +95,47 @@ export async function logoutPainel(slug: string): Promise<void> {
 }
 
 export async function getPainelSession(slug: string): Promise<PainelSession | null> {
-  const cookieStore = await cookies()
-  const raw = cookieStore.get(COOKIE_NAME)?.value
-  if (!raw) return null
+  const session = await lerSessaoPainel()
+  // Validate slug matches session
+  if (!session || session.autoescola_slug !== slug) return null
+  return session
+}
 
-  try {
-    const session = JSON.parse(raw) as PainelSession
-    // Validate slug matches session
-    if (session.autoescola_slug !== slug) return null
-    return session
-  } catch {
-    return null
-  }
+/** Sessão do cookie assinado (null se ausente, inválida ou adulterada). */
+export async function lerSessaoPainel(): Promise<PainelSession | null> {
+  return lerSessaoPainelCookie()
 }
 
 export async function getPainelRole(): Promise<string | null> {
-  const cookieStore = await cookies()
-  const raw = cookieStore.get(COOKIE_NAME)?.value
-  if (!raw) return null
-
-  try {
-    const session = JSON.parse(raw) as PainelSession
-    return session.role ?? null
-  } catch {
-    return null
-  }
+  const session = await lerSessaoPainel()
+  if (!session) return null
+  return session.role ?? null
 }
 
-export async function assertPodeEditar(): Promise<{ ok: true } | { ok: false; error: string }> {
-  const role = await getPainelRole()
-  if (isVisualizador(role)) {
-    return { ok: false, error: 'Ação não permitida para o perfil Visualizador.' }
-  }
-  return { ok: true }
+/**
+ * Guarda das server actions que alteram dados: exige nível "editar" na área,
+ * conforme os perfis do usuário (lidos do banco) e os módulos da autoescola.
+ */
+export async function assertPodeEditar(area: Area): Promise<{ ok: true } | { ok: false; error: string }> {
+  const bloqueio = await bloqueioArea(area, 'editar')
+  return bloqueio ? { ok: false, error: bloqueio } : { ok: true }
 }
 
 export async function getCurrentUsername(): Promise<string> {
-  const cookieStore = await cookies()
-  const raw = cookieStore.get(COOKIE_NAME)?.value
-  if (!raw) return 'sistema'
-
-  try {
-    const session = JSON.parse(raw) as PainelSession
-    return session.username || 'sistema'
-  } catch {
-    return 'sistema'
-  }
+  const session = await lerSessaoPainel()
+  if (!session) return 'sistema'
+  return session.username || 'sistema'
 }
 
 export async function getCurrentUserId(): Promise<string | null> {
-  const cookieStore = await cookies()
-  const raw = cookieStore.get(COOKIE_NAME)?.value
-  if (!raw) return null
-
-  try {
-    const session = JSON.parse(raw) as PainelSession
-    return session.userId || null
-  } catch {
-    return null
-  }
+  const session = await lerSessaoPainel()
+  if (!session) return null
+  return session.userId || null
 }
 
 /** autoescola_id da sessão do painel (para conferir actions chamadas pelo cliente). */
 export async function getPainelAutoescolaId(): Promise<string | null> {
-  const cookieStore = await cookies()
-  const raw = cookieStore.get(COOKIE_NAME)?.value
-  if (!raw) return null
-
-  try {
-    const session = JSON.parse(raw) as PainelSession
-    return session.autoescola_id || null
-  } catch {
-    return null
-  }
+  const session = await lerSessaoPainel()
+  if (!session) return null
+  return session.autoescola_id || null
 }

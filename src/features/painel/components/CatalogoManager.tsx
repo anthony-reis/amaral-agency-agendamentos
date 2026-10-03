@@ -24,6 +24,8 @@ interface Props {
   autoescola_id: string
   produtos: Produto[]
   categorias: CategoriaTenant[]
+  /** Perfil com "editar" na área (sem isso, a tela fica só leitura). */
+  podeEditar: boolean
 }
 
 const TIPO_LABEL: Record<ProdutoTipo, string> = {
@@ -53,7 +55,7 @@ function precoParaCentavos(preco: string): number {
   return Math.round(parseFloat(normalizado || '0') * 100)
 }
 
-export function CatalogoManager({ autoescola_id, produtos: initial, categorias }: Props) {
+export function CatalogoManager({ autoescola_id, produtos: initial, categorias, podeEditar }: Props) {
   const [produtos, setProdutos] = useState<Produto[]>(initial)
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState('')
@@ -269,13 +271,13 @@ export function CatalogoManager({ autoescola_id, produtos: initial, categorias }
             <Eye className="w-4 h-4" />
             Visualizar loja
           </button>
-          <button
+          {podeEditar && <button
             onClick={abrirNovo}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[--p-accent] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
           >
             <Plus className="w-4 h-4" />
             Novo produto
-          </button>
+          </button>}
         </div>
       </div>
 
@@ -319,6 +321,7 @@ export function CatalogoManager({ autoescola_id, produtos: initial, categorias }
 
               <div className="flex items-center justify-between mt-3">
                 <p className="text-lg font-bold text-[--p-text-1]">{formatarPrecoCentavos(p.preco_centavos)}</p>
+                {podeEditar ? (
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => handleToggleAtivo(p)}
@@ -345,6 +348,13 @@ export function CatalogoManager({ autoescola_id, produtos: initial, categorias }
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
+                ) : (
+                  <span className={`text-[11px] font-semibold px-2.5 py-1.5 rounded-lg border ${
+                    p.ativo ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-[--p-bg-input] text-[--p-text-3] border-[--p-border]'
+                  }`}>
+                    {p.ativo ? 'Ativo' : 'Inativo'}
+                  </span>
+                )}
               </div>
             </div>
           ))}

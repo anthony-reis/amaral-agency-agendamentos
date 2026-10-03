@@ -314,7 +314,7 @@ export async function atualizarStatusAgendamento(
   id: string,
   status: 'scheduled' | 'confirmed' | 'completed' | 'absent' | 'cancelled'
 ): Promise<{ error: string | null }> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('agendamentos')
   if (!guard.ok) return { error: guard.error }
 
   const supabase = createServiceClient()
@@ -386,7 +386,7 @@ export async function atualizarTipoAgendamento(
   tipo: 'aula' | 'banca',
   autoescola_id: string
 ): Promise<{ error: string | null }> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('exames')
   if (!guard.ok) return { error: guard.error }
 
   const bloqueio = await bloqueioFeature(autoescola_id, 'exames')
@@ -445,7 +445,7 @@ export async function agendarAulaCalendario(data: {
   student_document: string
   tipo?: 'aula' | 'banca'
 }): Promise<{ error: string | null }> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('agendamentos')
   if (!guard.ok) return { error: guard.error }
 
   const supabase = createServiceClient()

@@ -172,7 +172,7 @@ export async function resolverConflito(
   agendamentoId: string,
   autoescola_id: string
 ): Promise<void> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('agendamentos')
   if (!guard.ok) throw new Error(guard.error)
 
   const supabase = createServiceClient()

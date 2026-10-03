@@ -40,7 +40,7 @@ export async function listarVendas(
 }
 
 export async function reembolsarPedido(autoescola_id: string, pedido_id: string): Promise<ActionResult<null>> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('vendas')
   if (!guard.ok) return { success: false, error: guard.error }
 
   const bloqueio = await bloqueioFeature(autoescola_id, 'vendas')

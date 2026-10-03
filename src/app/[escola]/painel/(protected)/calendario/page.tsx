@@ -1,5 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getPainelSession } from '@/features/painel/actions/authPainel'
+import { exigirArea, roleParaArea } from '@/lib/permissoes.server'
+import { permite } from '@/lib/permissoes'
 import { getCalendarioData } from '@/features/painel/actions/calendario'
 import { getAutoescolaFeatures } from '@/lib/features.server'
 import { Calendario } from '@/features/painel/components/Calendario'
@@ -12,6 +14,7 @@ export default async function CalendarioPage({ params }: Props) {
   const { escola } = await params
   const session = await getPainelSession(escola)
   if (!session) redirect(`/${escola}/painel/login`)
+  const acesso = await exigirArea('agendamentos')
 
   const now = new Date()
   const year = now.getFullYear()
@@ -28,8 +31,8 @@ export default async function CalendarioPage({ params }: Props) {
       initialData={dias}
       initialYear={year}
       initialMonth={month}
-      userRole={session.role}
-      examesAtivo={features.exames}
+      userRole={await roleParaArea('agendamentos')}
+      examesAtivo={permite(acesso.permissoes.exames, 'editar')}
     />
   )
 }

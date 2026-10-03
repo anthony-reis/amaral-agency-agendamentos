@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getPainelSession } from '@/features/painel/actions/authPainel'
+import { exigirArea, roleParaArea } from '@/lib/permissoes.server'
 import { exigirFeature } from '@/lib/features.server'
 import { listarResultadosExame } from '@/features/painel/actions/resultadosExame'
 import { listarCategoriasParaAutoescola } from '@/features/painel/actions/datasExame'
@@ -13,6 +14,7 @@ export default async function ResultadosExamePage({ params }: Props) {
   const { escola } = await params
   const session = await getPainelSession(escola)
   if (!session) redirect(`/${escola}/painel/login`)
+  await exigirArea('exames')
   await exigirFeature(session.autoescola_id, 'exames')
 
   const [resultados, categorias] = await Promise.all([

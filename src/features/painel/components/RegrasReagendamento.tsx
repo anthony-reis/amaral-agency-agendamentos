@@ -8,9 +8,11 @@ interface Props {
   autoescola_id: string
   escola: string
   initialReagendamentoMinHoras: number
+  /** Perfil com "editar" na área (sem isso, a tela fica só leitura). */
+  podeEditar: boolean
 }
 
-export function RegrasReagendamento({ autoescola_id, escola, initialReagendamentoMinHoras }: Props) {
+export function RegrasReagendamento({ autoescola_id, escola, initialReagendamentoMinHoras, podeEditar }: Props) {
   const [horas, setHoras] = useState(initialReagendamentoMinHoras)
   const [isPending, startTransition] = useTransition()
   const [saved, setSaved] = useState(false)
@@ -68,7 +70,7 @@ export function RegrasReagendamento({ autoescola_id, escola, initialReagendament
                   setSaved(false)
                   setHoras(Number(e.target.value))
                 }}
-                disabled={isPending}
+                disabled={isPending || !podeEditar}
                 className="w-24 px-3 py-2 rounded-xl bg-[--p-bg-input] border border-[--p-border] text-[--p-text-1] text-center text-lg font-bold focus:outline-none focus:ring-2 focus:ring-[--p-accent]/30 focus:border-[--p-accent] disabled:opacity-50 transition"
               />
               <span className="text-sm text-[--p-text-2] font-medium">
@@ -84,7 +86,7 @@ export function RegrasReagendamento({ autoescola_id, escola, initialReagendament
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
+      {podeEditar && <div className="flex items-center gap-3">
         <button
           onClick={handleSave}
           disabled={isPending}
@@ -99,7 +101,7 @@ export function RegrasReagendamento({ autoescola_id, escola, initialReagendament
           </span>
         )}
         {error && <span className="text-sm text-red-400">{error}</span>}
-      </div>
+      </div>}
     </div>
   )
 }

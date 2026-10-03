@@ -42,6 +42,7 @@ import {
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { contarNaoVisualizadas } from "@/features/painel/actions/solicitacoes";
 import type { FeatureKey } from "@/lib/features";
+import { permite, type Area, type Permissoes } from "@/lib/permissoes";
 
 const MODAL_SEEN_KEY = "amaralpro-solicitacoes-modal-seen";
 const POLL_INTERVAL_MS = 30_000;
@@ -52,6 +53,38 @@ interface NavItem {
   icon: React.ElementType;
   /** Módulo exigido para exibir o item (ausente = sempre visível). */
   feature?: FeatureKey;
+}
+
+/** Área de permissão de cada tela (segmento da rota após /painel/). */
+const AREA_POR_ROTA: Record<string, Area> = {
+  dashboard: "dashboard",
+  calendario: "agendamentos",
+  "agendamento-massa": "agendamentos",
+  lista: "agendamentos",
+  historico: "agendamentos",
+  conflitos: "agendamentos",
+  "datas-exame": "exames",
+  "resultados-exame": "exames",
+  instrutores: "cadastros",
+  alunos: "cadastros",
+  horarios: "operacao",
+  bloqueios: "operacao",
+  fechamento: "operacao",
+  importacao: "operacao",
+  catalogo: "vendas",
+  vendas: "vendas",
+  financeiro: "financeiro",
+  solicitacoes: "solicitacoes",
+  "historico-solicitacoes": "solicitacoes",
+  comunicados: "sistema",
+  auditoria: "sistema",
+  "regras-reagendamento": "sistema",
+  configuracoes: "sistema",
+};
+
+function podeVerRota(href: string, permissoes: Permissoes): boolean {
+  const area = AREA_POR_ROTA[href.split("/painel/")[1] ?? ""];
+  return !area || permite(permissoes[area], "ver");
 }
 
 interface NavGroup {
@@ -73,7 +106,8 @@ function buildDashboardItem(escola: string): NavItem {
 
 function buildNavGroups(
   escola: string,
-  features: Record<FeatureKey, boolean>
+  features: Record<FeatureKey, boolean>,
+  permissoes: Permissoes
 ): NavGroup[] {
   const base = `/${escola}/painel`;
   const groups: NavGroup[] = [
@@ -188,7 +222,9 @@ function buildNavGroups(
   return groups
     .map((group) => ({
       ...group,
-      items: group.items.filter((item) => !item.feature || features[item.feature]),
+      items: group.items.filter(
+        (item) => (!item.feature || features[item.feature]) && podeVerRota(item.href, permissoes)
+      ),
     }))
     .filter((group) => group.items.length > 0);
 }
@@ -201,6 +237,7 @@ interface Props {
   userRole: string;
   autoescolaId: string;
   features: Record<FeatureKey, boolean>;
+  permissoes: Permissoes;
   onLogout: () => Promise<void>;
 }
 
@@ -212,14 +249,16 @@ export function PainelNav({
   userRole,
   autoescolaId,
   features,
+  permissoes,
   onLogout,
 }: Props) {
-  const solicitacoesAtivo = features.solicitacoes;
+  const solicitacoesAtivo = features.solicitacoes && permite(permissoes.solicitacoes, "ver");
+  const mostrarDashboard = permite(permissoes.dashboard, "ver");
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const dashboardItem = buildDashboardItem(escola);
-  const navGroups = buildNavGroups(escola, features);
+  const navGroups = buildNavGroups(escola, features, permissoes);
   const solicitacoesHref = `/${escola}/painel/solicitacoes`;
 
   // ─── Solicitações: badge + modal de alta prioridade ────────────────────────
@@ -385,8 +424,8 @@ export function PainelNav({
 
       {/* Nav items */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {/* Dashboard (solto, fora dos grupos) */}
-        {(() => {
+        {/* Dashboard (solto, fora dos grupos) — só para quem tem acesso */}
+        {mostrarDashboard && (() => {
           const Icon = dashboardItem.icon;
           const active =
             pathname === dashboardItem.href ||

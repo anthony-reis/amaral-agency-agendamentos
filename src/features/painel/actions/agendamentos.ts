@@ -369,7 +369,7 @@ export async function corrigirKmAgendamento(
   km_inicial: number | null,
   km_final: number | null
 ): Promise<ActionResult> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('agendamentos')
   if (!guard.ok) return { success: false, error: guard.error }
 
   const supabase = createServiceClient()
@@ -424,7 +424,7 @@ export async function cancelarAgendamentoComOpcoes(
     reason?: string
   }
 ): Promise<ActionResult> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('agendamentos')
   if (!guard.ok) return { success: false, error: guard.error }
 
   const supabase = createServiceClient()
@@ -535,7 +535,7 @@ export async function atualizarStatusAgendamentosEmMassa(
   status: AgendamentoStatus,
   autoescola_id: string
 ): Promise<ActionResult> {
-  const guard = await assertPodeEditar()
+  const guard = await assertPodeEditar('agendamentos')
   if (!guard.ok) return { success: false, error: guard.error }
 
   if (!ids.length) return { success: true, data: undefined }

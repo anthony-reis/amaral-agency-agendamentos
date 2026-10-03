@@ -17,6 +17,8 @@ interface Props {
   escola: string
   /** Módulo "vendas": adicionar crédito vira venda + venda no cadastro. */
   vendasAtivo?: boolean
+  /** Perfil pode vender (editar Vendas). Com o módulo ligado, "+" é venda. */
+  podeVender?: boolean
   /** Módulo "exames": botão de agendar exame. */
   examesAtivo?: boolean
 }
@@ -53,6 +55,7 @@ export function AlunosList({
   produtos = [],
   escola,
   vendasAtivo = false,
+  podeVender = false,
   examesAtivo = false,
 }: Props) {
   const canEdit = canEditPainel(userRole)
@@ -410,7 +413,7 @@ export function AlunosList({
                             {val}
                             {pendente > 0 && <span className="text-emerald-500">+{pendente}</span>}
                           </span>
-                          {canEdit && (
+                          {canEdit && (!vendasAtivo || podeVender) && (
                             <button
                               onClick={() => handleMais(a.id, c)}
                               disabled={isPending || !a.creditos}
