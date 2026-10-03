@@ -17,6 +17,19 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Reserva o espaço da barra de rolagem: modais que travam o scroll do body
+   não fazem o conteúdo "pular" para o lado. */
+html {
+  scrollbar-gutter: stable;
+}
+
+/* Overlays e modais (fixed inset-0) costumam ficar dentro de containers
+   space-y-*, que aplicam margin-top aos filhos — isso deslocava o fundo
+   escuro 20px para baixo e deixava uma faixa clara piscando no topo. */
+.fixed.inset-0 {
+  margin: 0 !important;
+}
+
 /* ── Painel semantic variables ──────────────────────────────── */
 :root {
   --p-bg-base:    #f8fafc;
