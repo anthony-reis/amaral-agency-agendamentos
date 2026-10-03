@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import { createServiceClient } from '@/lib/supabase/server'
+import { autoescolaAcessivel } from '@/lib/autoescolaAcesso'
 import { listarInstrutoresParaLogin } from '@/features/instrutor/actions/authInstrutor'
 import { InstructorLoginForm } from '@/features/instrutor/components/InstructorLoginForm'
 
@@ -17,7 +18,7 @@ export default async function InstructorLoginPage({ params }: Props) {
     .eq('slug', escola)
     .single()
 
-  if (!autoescola || (autoescola.status !== 'active' && !autoescola.is_teste)) notFound()
+  if (!autoescolaAcessivel(autoescola)) notFound()
 
   const instructors = await listarInstrutoresParaLogin(autoescola.id)
 

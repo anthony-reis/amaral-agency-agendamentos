@@ -2,6 +2,7 @@
 
 import { cookies } from 'next/headers'
 import { createServiceClient } from '@/lib/supabase/server'
+import { autoescolaAcessivel } from '@/lib/autoescolaAcesso'
 import type { InstructorSession, ActionResult } from '@/features/painel/types'
 
 const COOKIE_NAME = 'instrutor_session'
@@ -32,7 +33,7 @@ export async function loginInstrutor(
     .eq('slug', autoescola_slug)
     .single()
 
-  if (!autoescola || (autoescola.status !== 'active' && !autoescola.is_teste)) {
+  if (!autoescolaAcessivel(autoescola)) {
     return { success: false, error: 'Autoescola não encontrada.' }
   }
 

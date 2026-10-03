@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import { createServiceClient } from '@/lib/supabase/server'
+import { autoescolaAcessivel } from '@/lib/autoescolaAcesso'
 import { listarUsuariosPainel } from '@/features/painel/actions/authPainel'
 import { PainelLoginForm } from '@/features/painel/components/PainelLoginForm'
 
@@ -17,7 +18,7 @@ export default async function PainelLoginPage({ params }: Props) {
     .eq('slug', escola)
     .single()
 
-  if (!autoescola || (autoescola.status !== 'active' && !autoescola.is_teste)) notFound()
+  if (!autoescolaAcessivel(autoescola)) notFound()
 
   const users = await listarUsuariosPainel(autoescola.id)
 

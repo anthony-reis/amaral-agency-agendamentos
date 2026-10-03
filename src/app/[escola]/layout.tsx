@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import { createServiceClient } from '@/lib/supabase/server'
+import { autoescolaAcessivel } from '@/lib/autoescolaAcesso'
 
 interface Props {
   children: React.ReactNode
@@ -16,7 +17,7 @@ export default async function EscolaLayout({ children, params }: Props) {
     .eq('slug', escola)
     .maybeSingle()
 
-  if (!autoescola || (autoescola.status !== 'active' && !autoescola.is_teste)) notFound()
+  if (!autoescolaAcessivel(autoescola)) notFound()
 
   return <>{children}</>
 }

@@ -32,6 +32,7 @@ export default async function EntrarPage({ searchParams }: Props) {
       .from('autoescolas')
       .select('id, nome, slug, logo_url, status')
       .eq('is_teste', true)
+      .neq('status', 'suspended')
       .order('nome')
     escolas = [...escolas, ...(teste ?? [])]
   }
