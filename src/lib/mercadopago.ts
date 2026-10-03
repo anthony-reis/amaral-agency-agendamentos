@@ -40,8 +40,8 @@ export async function criarPreference(
   input: MPPreferenceInput,
   accessToken: string
 ): Promise<MPPreference> {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL
-  if (!appUrl) throw new Error('NEXT_PUBLIC_APP_URL não configurada.')
+  const appUrl = process.env.APP_URL
+  if (!appUrl) throw new Error('APP_URL não configurada.')
 
   const retornoUrl = `${appUrl}/${input.escolaSlug}/aluno/loja/retorno?pedido=${input.pedidoId}`
 

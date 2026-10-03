@@ -95,7 +95,7 @@ https://<deploy-homolog>/api/webhooks/mercadopago?autoescola_id=521bac76-1e6e-4f
 
 ⚠️ **Duas abas de configuração:** o painel de Webhooks do MP costuma separar **"Modo produção"** de **"Modo teste"**, cada uma com sua própria URL e possivelmente **secret diferente**. Como as compras com usuário de teste disparam pela config de **Modo teste**, configure a URL completa (acima) **nessa aba específica** também — não só na de produção — e use o secret que ela gerar (pode divergir do secret de produção; atualize no `/admin` se for diferente).
 
-Configure evento **Pagamentos**, copie o secret gerado, e cole no `/admin` da Homolog. A env `NEXT_PUBLIC_APP_URL` do deploy deve ser a URL do próprio deploy.
+Configure evento **Pagamentos**, copie o secret gerado, e cole no `/admin` da Homolog. A env `APP_URL` do deploy deve ser a URL do próprio deploy.
 
 **Como confirmar que está correto** antes de testar uma compra: no botão "Testar" do painel MP, a resposta esperada é **200 OK** (mesmo com um `data.id` fictício — nossa rota responde 200 mesmo para pagamento não encontrado). Se vier 401, é mismatch de secret; se vier 404/405, é URL incompleta ou apontando para o deploy errado.
 

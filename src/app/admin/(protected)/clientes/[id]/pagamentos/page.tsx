@@ -22,7 +22,7 @@ export default async function PagamentosPage({ params }: Props) {
   if (!autoescola) notFound()
 
   const credenciais = await obterCredenciaisMP(id)
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://SEU-DOMINIO'
+  const appUrl = process.env.APP_URL ?? 'https://SEU-DOMINIO'
   const webhookUrl = `${appUrl}/api/webhooks/mercadopago?autoescola_id=${id}`
 
   return (
