@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { cookies } from 'next/headers'
 import { createServiceClient } from '@/lib/supabase/server'
 import { bloqueioFeature } from '@/lib/features.server'
-import { enviarEvidencias, removerEvidencias } from '@/lib/evidenciasSolicitacao'
+import { enviarEvidencias, lerImagemDeArquivo, removerEvidencias } from '@/lib/evidenciasSolicitacao'
 import { listarDatasExame } from '@/features/painel/actions/datasExame'
 import { contarAulasConcluidasPorCategoria, listarCategoriasElegiveisExame as listarCategoriasElegiveisExameCompartilhado } from '@/features/painel/actions/exameElegibilidade'
 import { AULAS_MINIMAS_PARA_EXAME } from '@/lib/examConstants'
@@ -55,10 +55,27 @@ export async function listarMinhasSolicitacoes(
   return data ?? []
 }
 
-export async function criarSolicitacao(
-  input: NovaSolicitacaoInput,
-  escola: string
-): Promise<ActionResult<Solicitacao>> {
+/**
+ * Recebe FormData (campos de NovaSolicitacaoInput + escola + "foto" como
+ * arquivo + "assinatura" como data URL) — mesmo formato do finalizar-aula.
+ */
+export async function criarSolicitacao(formData: FormData): Promise<ActionResult<Solicitacao>> {
+  const campo = (k: string) => {
+    const v = formData.get(k)
+    return typeof v === 'string' && v !== '' ? v : null
+  }
+  const escola = campo('escola') ?? ''
+  const tipoRaw = campo('tipo')
+  if (tipoRaw !== 'exame' && tipoRaw !== 'legislacao') return { success: false, error: 'Tipo de solicitação inválido.' }
+  const input: NovaSolicitacaoInput = {
+    autoescola_id: campo('autoescola_id') ?? '',
+    student_id: campo('student_id') ?? '',
+    student_name: campo('student_name') ?? '',
+    tipo: tipoRaw,
+    categoria: campo('categoria'),
+    data_preferida: campo('data_preferida'),
+    observacao_aluno: campo('observacao_aluno'),
+  }
   const { autoescola_id, student_id, student_name, tipo, categoria, data_preferida, observacao_aluno } = input
 
   const bloqueio = await bloqueioFeature(autoescola_id, 'solicitacoes')
@@ -101,8 +118,8 @@ export async function criarSolicitacao(
     supabase,
     autoescola_id,
     student_id,
-    input.foto_data_url,
-    input.assinatura_data_url
+    await lerImagemDeArquivo(formData.get('foto')),
+    campo('assinatura')
   )
   if (!evidencias.ok) return { success: false, error: evidencias.error }
 

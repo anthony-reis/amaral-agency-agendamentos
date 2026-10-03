@@ -23,11 +23,11 @@ html {
   scrollbar-gutter: stable;
 }
 
-/* Overlays e modais (fixed inset-0) costumam ficar dentro de containers
-   space-y-*, que aplicam margin-top aos filhos — isso deslocava o fundo
-   escuro 20px para baixo e deixava uma faixa clara piscando no topo. */
-.fixed.inset-0 {
-  margin: 0 !important;
+/* Overlays, modais e drawers (position: fixed) costumam ficar dentro de
+   containers space-y-*, que aplicam margin-top aos filhos — isso deslocava o
+   fundo escuro/drawer 20px para baixo e deixava uma faixa clara no topo. */
+[class*="space-y-"] > .fixed {
+  margin-top: 0 !important;
 }
 
 /* ── Painel semantic variables ──────────────────────────────── */

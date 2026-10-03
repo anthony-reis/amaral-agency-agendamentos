@@ -342,9 +342,6 @@ export type NovaSolicitacaoInput = {
   categoria?: string | null
   data_preferida?: string | null
   observacao_aluno?: string | null
-  /** data:image/jpeg;base64,... — selfie (comprimida no navegador) e assinatura */
-  foto_data_url: string
-  assinatura_data_url: string
 }
 
 /** Status de solicitações já encerradas (Histórico de Solicitações). */

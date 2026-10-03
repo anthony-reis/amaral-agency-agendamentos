@@ -114,8 +114,11 @@ export function SolicitacoesAluno({
   const [datasDisponiveis, setDatasDisponiveis] = useState<{ date: string }[] | null>(null)
   const [dataSelecionada, setDataSelecionada] = useState('')
 
-  // Evidências obrigatórias: selfie + assinatura do aluno
-  const [fotoDataUrl, setFotoDataUrl] = useState<string | null>(null)
+  // Evidências obrigatórias: selfie + assinatura do aluno. Mesmo cuidado de
+  // memória do finalizar-aula: foto como File + object URL (revogado), nunca base64.
+  const [fotoFile, setFotoFile] = useState<File | null>(null)
+  const [fotoPreview, setFotoPreview] = useState<string | null>(null)
+  const fotoPreviewRef = useRef<string | null>(null)
   const [processandoFoto, setProcessandoFoto] = useState(false)
   const [assinaturaDataUrl, setAssinaturaDataUrl] = useState<string | null>(null)
   const [assinando, setAssinando] = useState(false)
@@ -221,10 +224,22 @@ export function SolicitacoesAluno({
     setCategoriaSelecionada('')
     setDatasDisponiveis(null)
     setDataSelecionada('')
-    setFotoDataUrl(null)
+    removerFoto()
     setAssinaturaDataUrl(null)
     setAssinando(false)
   }
+
+  function removerFoto() {
+    if (fotoPreviewRef.current) URL.revokeObjectURL(fotoPreviewRef.current)
+    fotoPreviewRef.current = null
+    setFotoPreview(null)
+    setFotoFile(null)
+  }
+
+  // Libera o object URL se a tela for desmontada com foto selecionada
+  useEffect(() => () => {
+    if (fotoPreviewRef.current) URL.revokeObjectURL(fotoPreviewRef.current)
+  }, [])
 
   async function handleFoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -234,13 +249,11 @@ export function SolicitacoesAluno({
     setProcessandoFoto(true)
     try {
       const comprimida = await compressImage(file)
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve(reader.result as string)
-        reader.onerror = () => reject(reader.error)
-        reader.readAsDataURL(comprimida)
-      })
-      setFotoDataUrl(dataUrl)
+      removerFoto()
+      const url = URL.createObjectURL(comprimida)
+      fotoPreviewRef.current = url
+      setFotoPreview(url)
+      setFotoFile(comprimida)
     } catch {
       setError('Não foi possível processar a foto. Tente novamente.')
     } finally {
@@ -267,26 +280,26 @@ export function SolicitacoesAluno({
   }
 
   const exameValido = tipoEscolhido !== 'exame' || (!!categoriaSelecionada && !!dataSelecionada)
-  const podeEnviar = exameValido && !!fotoDataUrl && !!assinaturaDataUrl
+  const podeEnviar = exameValido && !!fotoFile && !!assinaturaDataUrl && !processandoFoto
 
   function confirmarSolicitacao() {
-    if (!tipoEscolhido || !podeEnviar || !fotoDataUrl || !assinaturaDataUrl) return
+    if (!tipoEscolhido || !podeEnviar || !fotoFile || !assinaturaDataUrl) return
     setError('')
+    const formData = new FormData()
+    formData.append('escola', escola)
+    formData.append('autoescola_id', autoescolaId)
+    formData.append('student_id', studentId)
+    formData.append('student_name', studentName)
+    formData.append('tipo', tipoEscolhido)
+    if (tipoEscolhido === 'exame') {
+      formData.append('categoria', categoriaSelecionada)
+      formData.append('data_preferida', dataSelecionada)
+    }
+    formData.append('observacao_aluno', observacao)
+    formData.append('foto', fotoFile)
+    formData.append('assinatura', assinaturaDataUrl)
     startTransition(async () => {
-      const result = await criarSolicitacao(
-        {
-          autoescola_id: autoescolaId,
-          student_id: studentId,
-          student_name: studentName,
-          tipo: tipoEscolhido,
-          categoria: tipoEscolhido === 'exame' ? categoriaSelecionada : undefined,
-          data_preferida: tipoEscolhido === 'exame' ? dataSelecionada : undefined,
-          observacao_aluno: observacao,
-          foto_data_url: fotoDataUrl,
-          assinatura_data_url: assinaturaDataUrl,
-        },
-        escola
-      )
+      const result = await criarSolicitacao(formData)
       if (!result.success) {
         setError(result.error)
         return
@@ -592,13 +605,13 @@ export function SolicitacoesAluno({
                 <div className="grid grid-cols-2 gap-2 mb-3">
                   <div>
                     <p className="text-xs text-[--p-text-3] mb-1">Sua foto *</p>
-                    {fotoDataUrl ? (
+                    {fotoPreview ? (
                       <div className="relative">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={fotoDataUrl} alt="Sua foto" className="w-full h-24 object-cover rounded-xl border border-[--p-border]" />
+                        <img src={fotoPreview} alt="Sua foto" className="w-full h-24 object-cover rounded-xl border border-[--p-border]" />
                         <button
                           type="button"
-                          onClick={() => setFotoDataUrl(null)}
+                          onClick={removerFoto}
                           disabled={isPending}
                           className="absolute top-1 right-1 p-1 rounded-lg bg-black/60 text-white"
                           aria-label="Remover foto"

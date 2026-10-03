@@ -9,6 +9,16 @@ export const BUCKET_EVIDENCIAS_SOLICITACAO = 'solicitacoes-evidencias'
 const MAX_BYTES = 5 * 1024 * 1024
 const URL_ASSINADA_SEGUNDOS = 60 * 60
 
+const MIMES = ['image/jpeg', 'image/png']
+
+/** Foto enviada como arquivo (FormData) — mesmo padrão do finalizar-aula, que no
+ *  Android funciona melhor que base64. Valida tipo e tamanho. */
+export async function lerImagemDeArquivo(file: FormDataEntryValue | null) {
+  if (!(file instanceof File) || file.size === 0 || file.size > MAX_BYTES || !MIMES.includes(file.type)) return null
+  const buffer = Buffer.from(await file.arrayBuffer())
+  return { buffer, mime: file.type, ext: file.type === 'image/png' ? 'png' : 'jpg' }
+}
+
 /** Converte data:image/(jpeg|png);base64 em buffer, validando tipo e tamanho. */
 export function decodificarImagem(dataUrl: string | null | undefined) {
   const m = dataUrl?.match(/^data:(image\/(?:jpeg|png));base64,([A-Za-z0-9+/=]+)$/)
@@ -26,10 +36,9 @@ export async function enviarEvidencias(
   supabase: Supabase,
   autoescola_id: string,
   student_id: string,
-  fotoDataUrl: string,
-  assinaturaDataUrl: string
+  foto: { buffer: Buffer; mime: string; ext: string } | null,
+  assinaturaDataUrl: string | null
 ): Promise<{ ok: true; foto_path: string; assinatura_path: string } | { ok: false; error: string }> {
-  const foto = decodificarImagem(fotoDataUrl)
   if (!foto) return { ok: false, error: 'Tire uma foto sua (selfie) para enviar a solicitação.' }
   const assinatura = decodificarImagem(assinaturaDataUrl)
   if (!assinatura) return { ok: false, error: 'Assine para enviar a solicitação.' }
