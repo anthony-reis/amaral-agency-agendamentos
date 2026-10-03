@@ -17,6 +17,8 @@ import {
   Send,
   Clock,
   ArrowRight,
+  Camera,
+  PenLine,
 } from 'lucide-react'
 import {
   getSolicitacao,
@@ -219,6 +221,46 @@ export function SolicitacaoDrawer({ solicitacaoId, autoescolaId, escola, onClose
               <div className="text-sm text-[--p-text-2]">
                 <span className="text-[--p-text-3]">Observação do aluno: </span>
                 {detalhe.observacao_aluno}
+              </div>
+            )}
+
+            {/* Evidências do aluno (selfie + assinatura ao solicitar) */}
+            {(detalhe.fotoUrl || detalhe.assinaturaUrl) && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="flex items-center gap-1.5 text-xs text-[--p-text-3] mb-1">
+                    <Camera className="w-3.5 h-3.5" /> Foto do aluno
+                  </p>
+                  {detalhe.fotoUrl ? (
+                    <a href={detalhe.fotoUrl} target="_blank" rel="noopener noreferrer">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={detalhe.fotoUrl}
+                        alt="Foto do aluno"
+                        className="w-full h-32 object-cover rounded-xl border border-[--p-border] hover:opacity-90 transition-opacity"
+                      />
+                    </a>
+                  ) : (
+                    <div className="flex items-center justify-center h-32 rounded-xl border border-dashed border-[--p-border] text-[--p-text-3] text-xs">
+                      Sem foto
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <p className="flex items-center gap-1.5 text-xs text-[--p-text-3] mb-1">
+                    <PenLine className="w-3.5 h-3.5" /> Assinatura
+                  </p>
+                  {detalhe.assinaturaUrl ? (
+                    <div className="h-32 rounded-xl border border-[--p-border] bg-white p-2">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={detalhe.assinaturaUrl} alt="Assinatura do aluno" className="w-full h-full object-contain" />
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center h-32 rounded-xl border border-dashed border-[--p-border] text-[--p-text-3] text-xs">
+                      Sem assinatura
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 

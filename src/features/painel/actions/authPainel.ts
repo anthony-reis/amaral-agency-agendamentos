@@ -151,3 +151,17 @@ export async function getCurrentUserId(): Promise<string | null> {
     return null
   }
 }
+
+/** autoescola_id da sessão do painel (para conferir actions chamadas pelo cliente). */
+export async function getPainelAutoescolaId(): Promise<string | null> {
+  const cookieStore = await cookies()
+  const raw = cookieStore.get(COOKIE_NAME)?.value
+  if (!raw) return null
+
+  try {
+    const session = JSON.parse(raw) as PainelSession
+    return session.autoescola_id || null
+  } catch {
+    return null
+  }
+}

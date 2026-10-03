@@ -297,6 +297,9 @@ export interface Solicitacao {
   updated_at: string
   data_preferida: string | null
   agendamento_id: string | null
+  /** Caminhos no bucket privado solicitacoes-evidencias (selfie + assinatura do aluno). */
+  foto_path: string | null
+  assinatura_path: string | null
 }
 
 export interface SolicitacaoComAluno extends Solicitacao {
@@ -326,6 +329,9 @@ export interface SolicitacaoDetalhe extends SolicitacaoComAluno {
   aulasConcluidasCategoria: number | null
   situacaoCreditos: SituacaoCreditos
   totalCreditos: number | null
+  /** URLs assinadas (temporárias) das evidências; null se não houver. */
+  fotoUrl: string | null
+  assinaturaUrl: string | null
 }
 
 export type NovaSolicitacaoInput = {
@@ -336,11 +342,19 @@ export type NovaSolicitacaoInput = {
   categoria?: string | null
   data_preferida?: string | null
   observacao_aluno?: string | null
+  /** data:image/jpeg;base64,... — selfie (comprimida no navegador) e assinatura */
+  foto_data_url: string
+  assinatura_data_url: string
 }
+
+/** Status de solicitações já encerradas (Histórico de Solicitações). */
+export const STATUS_FINALIZADOS: SolicitacaoStatus[] = ['agendado', 'recusado', 'cancelado']
 
 export interface SolicitacoesFiltro {
   tipo?: SolicitacaoTipo | 'TODOS'
   status?: SolicitacaoStatus | 'TODOS'
+  /** Restringe a um conjunto de status (ex.: histórico = só finalizadas). */
+  statusIn?: SolicitacaoStatus[]
   dateStart?: string
   dateEnd?: string
   aluno?: string

@@ -1,8 +1,10 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { cookies } from 'next/headers'
 import { createServiceClient } from '@/lib/supabase/server'
 import { bloqueioFeature } from '@/lib/features.server'
+import { enviarEvidencias, removerEvidencias } from '@/lib/evidenciasSolicitacao'
 import { listarDatasExame } from '@/features/painel/actions/datasExame'
 import { contarAulasConcluidasPorCategoria, listarCategoriasElegiveisExame as listarCategoriasElegiveisExameCompartilhado } from '@/features/painel/actions/exameElegibilidade'
 import { AULAS_MINIMAS_PARA_EXAME } from '@/lib/examConstants'
@@ -62,6 +64,12 @@ export async function criarSolicitacao(
   const bloqueio = await bloqueioFeature(autoescola_id, 'solicitacoes')
   if (bloqueio) return { success: false, error: bloqueio }
 
+  // O aluno só cria solicitação em nome próprio (student_id da sessão).
+  const cookieStore = await cookies()
+  if (cookieStore.get('student_id')?.value !== student_id) {
+    return { success: false, error: 'Sessão expirada. Identifique-se novamente.' }
+  }
+
   const supabase = createServiceClient()
 
   if (tipo === 'exame') {
@@ -88,6 +96,16 @@ export async function criarSolicitacao(
     }
   }
 
+  // Selfie + assinatura do aluno (obrigatórias) — sobem antes do insert.
+  const evidencias = await enviarEvidencias(
+    supabase,
+    autoescola_id,
+    student_id,
+    input.foto_data_url,
+    input.assinatura_data_url
+  )
+  if (!evidencias.ok) return { success: false, error: evidencias.error }
+
   const { data, error } = await supabase
     .from('solicitacoes')
     .insert({
@@ -97,11 +115,14 @@ export async function criarSolicitacao(
       categoria: categoria ?? null,
       data_preferida: data_preferida ?? null,
       observacao_aluno: observacao_aluno?.trim() || null,
+      foto_path: evidencias.foto_path,
+      assinatura_path: evidencias.assinatura_path,
     })
     .select()
     .single()
 
   if (error) {
+    await removerEvidencias(supabase, [evidencias.foto_path, evidencias.assinatura_path])
     // uq_solicitacoes_ativa_por_tipo_categoria — já existe uma solicitação ativa desse tipo/categoria
     if (error.code === '23505') {
       const msg = tipo === 'exame'

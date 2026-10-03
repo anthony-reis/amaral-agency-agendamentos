@@ -122,7 +122,13 @@ function buildNavGroups(
           href: `${base}/lista`,
           icon: ClipboardList,
         },
-        { label: "Histórico", href: `${base}/historico`, icon: History },
+        { label: "Hist. de Atividades", href: `${base}/historico`, icon: History },
+        {
+          label: "Hist. de Solicitações",
+          href: `${base}/historico-solicitacoes`,
+          icon: History,
+          feature: "solicitacoes",
+        },
         {
           label: "Conflitos",
           href: `${base}/conflitos`,

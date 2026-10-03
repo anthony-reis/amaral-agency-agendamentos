@@ -3,15 +3,17 @@
 import { useEffect, useState, useTransition } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { AnimatePresence } from 'framer-motion'
-import { ClipboardList, Search, MessageCircle, FileCheck, BookOpenCheck } from 'lucide-react'
+import { ClipboardList, History, Search, MessageCircle, FileCheck, BookOpenCheck, Download, Camera } from 'lucide-react'
 import { listarSolicitacoes } from '@/features/painel/actions/solicitacoes'
 import { SolicitacaoDrawer } from './SolicitacaoDrawer'
-import type { SolicitacaoComAluno, SolicitacaoStatus, SolicitacaoTipo, SolicitacoesFiltro } from '../types'
+import { STATUS_FINALIZADOS, type SolicitacaoComAluno, type SolicitacaoStatus, type SolicitacaoTipo, type SolicitacoesFiltro } from '../types'
 
 interface Props {
   escola: string
   autoescolaId: string
   solicitacoesIniciais: SolicitacaoComAluno[]
+  /** "historico": só solicitações finalizadas, com exportação CSV. */
+  modo?: 'caixa' | 'historico'
 }
 
 const STATUS_OPCOES: { value: SolicitacaoStatus | 'TODOS'; label: string }[] = [
@@ -48,7 +50,11 @@ function fmtData(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-export function SolicitacoesList({ escola, autoescolaId, solicitacoesIniciais }: Props) {
+export function SolicitacoesList({ escola, autoescolaId, solicitacoesIniciais, modo = 'caixa' }: Props) {
+  const historico = modo === 'historico'
+  const statusOpcoes = historico
+    ? STATUS_OPCOES.filter((o) => o.value === 'TODOS' || STATUS_FINALIZADOS.includes(o.value as SolicitacaoStatus))
+    : STATUS_OPCOES
   const searchParams = useSearchParams()
   const [itens, setItens] = useState<SolicitacaoComAluno[]>(solicitacoesIniciais)
   const [isPending, startTransition] = useTransition()
@@ -57,8 +63,32 @@ export function SolicitacoesList({ escola, autoescolaId, solicitacoesIniciais }:
   const [filtros, setFiltros] = useState<SolicitacoesFiltro>({
     tipo: 'TODOS',
     status: 'TODOS',
-    naoVisualizadas: searchParams.get('filtro') === 'novas',
+    statusIn: historico ? STATUS_FINALIZADOS : undefined,
+    naoVisualizadas: !historico && searchParams.get('filtro') === 'novas',
   })
+
+  function exportarCSV() {
+    const header = ['Aluno', 'Documento', 'Tipo', 'Categoria', 'Data preferida', 'Status', 'Criada em', 'Atualizada em', 'Foto/assinatura']
+    const linhas = itens.map((s) => [
+      s.student_name,
+      s.student_document,
+      TIPO_LABEL[s.tipo],
+      s.categoria ?? '',
+      s.data_preferida ? s.data_preferida.split('-').reverse().join('/') : '',
+      STATUS_LABEL[s.status],
+      new Date(s.created_at).toLocaleString('pt-BR'),
+      new Date(s.updated_at).toLocaleString('pt-BR'),
+      s.foto_path && s.assinatura_path ? 'Sim' : 'Não',
+    ])
+    const esc = (v: string) => `"${v.replace(/"/g, '""')}"`
+    const csv = [header, ...linhas].map((l) => l.map(esc).join(',')).join('\n')
+    const url = URL.createObjectURL(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `historico-solicitacoes-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   function aplicarFiltro(parcial: Partial<SolicitacoesFiltro>) {
     const novo = { ...filtros, ...parcial }
@@ -71,7 +101,7 @@ export function SolicitacoesList({ escola, autoescolaId, solicitacoesIniciais }:
 
   // Se chegou via "Ver solicitações agora" do modal, já aplica o filtro na primeira carga.
   useEffect(() => {
-    if (searchParams.get('filtro') === 'novas') {
+    if (!historico && searchParams.get('filtro') === 'novas') {
       startTransition(async () => {
         const dados = await listarSolicitacoes(autoescolaId, { ...filtros, naoVisualizadas: true })
         setItens(dados)
@@ -93,11 +123,22 @@ export function SolicitacoesList({ escola, autoescolaId, solicitacoesIniciais }:
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
-        <ClipboardList className="w-5 h-5 text-[#0ea5e9]" />
-        <div>
-          <h1 className="text-xl font-bold text-[--p-text-1]">Solicitações</h1>
-          <p className="text-sm text-[--p-text-3]">{itens.length} solicitação{itens.length !== 1 ? 'ões' : ''}</p>
+        {historico ? <History className="w-5 h-5 text-[#0ea5e9]" /> : <ClipboardList className="w-5 h-5 text-[#0ea5e9]" />}
+        <div className="flex-1">
+          <h1 className="text-xl font-bold text-[--p-text-1]">{historico ? 'Histórico de Solicitações' : 'Solicitações'}</h1>
+          <p className="text-sm text-[--p-text-3]">
+            {itens.length} solicitação{itens.length !== 1 ? 'ões' : ''}
+            {historico && ' finalizada' + (itens.length !== 1 ? 's' : '') + ' (agendadas, recusadas e canceladas)'}
+          </p>
         </div>
+        {historico && itens.length > 0 && (
+          <button
+            onClick={exportarCSV}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-[--p-border] text-sm text-[--p-text-2] hover:text-[--p-text-1] hover:bg-[--p-hover] transition-colors"
+          >
+            <Download className="w-4 h-4" /> Exportar CSV
+          </button>
+        )}
       </div>
 
       {/* Filtros */}
@@ -121,7 +162,7 @@ export function SolicitacoesList({ escola, autoescolaId, solicitacoesIniciais }:
             onChange={(e) => aplicarFiltro({ status: e.target.value as SolicitacaoStatus | 'TODOS' })}
             className="px-3 py-2 rounded-xl bg-[--p-bg-input] border border-[--p-border] text-sm text-[--p-text-1]"
           >
-            {STATUS_OPCOES.map((o) => (
+            {statusOpcoes.map((o) => (
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
@@ -157,15 +198,17 @@ export function SolicitacoesList({ escola, autoescolaId, solicitacoesIniciais }:
             />
           </div>
         </div>
-        <label className="flex items-center gap-2 text-sm text-[--p-text-2] pb-2">
-          <input
-            type="checkbox"
-            checked={!!filtros.naoVisualizadas}
-            onChange={(e) => aplicarFiltro({ naoVisualizadas: e.target.checked })}
-            className="rounded"
-          />
-          Só não visualizadas
-        </label>
+        {!historico && (
+          <label className="flex items-center gap-2 text-sm text-[--p-text-2] pb-2">
+            <input
+              type="checkbox"
+              checked={!!filtros.naoVisualizadas}
+              onChange={(e) => aplicarFiltro({ naoVisualizadas: e.target.checked })}
+              className="rounded"
+            />
+            Só não visualizadas
+          </label>
+        )}
         {isPending && <span className="text-xs text-[--p-text-3] animate-pulse pb-2">Atualizando...</span>}
       </div>
 
@@ -202,6 +245,11 @@ export function SolicitacoesList({ escola, autoescolaId, solicitacoesIniciais }:
                           <span className="w-2 h-2 rounded-full bg-[#0ea5e9] shrink-0" title="Nova / não visualizada" />
                         )}
                         <span className="font-medium text-[--p-text-1]">{s.student_name}</span>
+                        {s.foto_path && s.assinatura_path && (
+                          <span title="Com foto e assinatura do aluno" className="text-[--p-text-3]">
+                            <Camera className="w-3.5 h-3.5" />
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-[--p-text-2]">

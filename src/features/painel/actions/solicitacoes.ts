@@ -3,7 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import { cookies } from 'next/headers'
 import { createServiceClient } from '@/lib/supabase/server'
-import { getCurrentUsername, assertPodeEditar } from './authPainel'
+import { urlsEvidencias } from '@/lib/evidenciasSolicitacao'
+import { getCurrentUsername, assertPodeEditar, getPainelAutoescolaId } from './authPainel'
 import { contarAulasConcluidasPorCategoria } from './exameElegibilidade'
 import type {
   ActionResult,
@@ -50,6 +51,7 @@ export async function listarSolicitacoes(
 
   if (filtros.tipo && filtros.tipo !== 'TODOS') query = query.eq('tipo', filtros.tipo)
   if (filtros.status && filtros.status !== 'TODOS') query = query.eq('status', filtros.status)
+  if (filtros.statusIn?.length) query = query.in('status', filtros.statusIn)
   if (filtros.dateStart) query = query.gte('created_at', filtros.dateStart)
   if (filtros.dateEnd) query = query.lte('created_at', `${filtros.dateEnd}T23:59:59`)
   if (filtros.naoVisualizadas) query = query.is('visualizado_em', null)
@@ -138,6 +140,9 @@ export async function getSolicitacao(
   id: string,
   autoescola_id: string
 ): Promise<SolicitacaoDetalhe | null> {
+  // Devolve selfie/assinatura do aluno — só para o painel da própria autoescola.
+  if ((await getPainelAutoescolaId()) !== autoescola_id) return null
+
   const supabase = createServiceClient()
 
   const { data: row } = await supabase
@@ -161,12 +166,13 @@ export async function getSolicitacao(
     .eq('solicitacao_id', id)
     .order('created_at', { ascending: true })
 
-  const [aulasConcluidas, credito, aulasConcluidasCategoria] = await Promise.all([
+  const [aulasConcluidas, credito, aulasConcluidasCategoria, evidencias] = await Promise.all([
     contarAulasConcluidas(autoescola_id, student?.document_id ?? ''),
     getSituacaoCreditos(row.student_id),
     row.tipo === 'exame' && row.categoria
       ? contarAulasConcluidasPorCategoria(autoescola_id, student?.document_id ?? '', row.categoria)
       : Promise.resolve(null),
+    urlsEvidencias(supabase, row.foto_path ?? null, row.assinatura_path ?? null),
   ])
 
   return {
@@ -179,6 +185,8 @@ export async function getSolicitacao(
     aulasConcluidasCategoria,
     situacaoCreditos: credito.situacao,
     totalCreditos: credito.total,
+    fotoUrl: evidencias.fotoUrl,
+    assinaturaUrl: evidencias.assinaturaUrl,
   }
 }
 
