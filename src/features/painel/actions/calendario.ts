@@ -4,6 +4,8 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { getCurrentUsername, assertPodeEditar } from './authPainel'
 import { bloqueioFeature, autoescolaTemFeature } from '@/lib/features.server'
+import { buscarExamesBancaAgendados } from '@/lib/exameBanca'
+import type { ExameBancaAgendado } from '@/lib/exameBancaTypes'
 
 export interface DiaCalendario {
   date: string          // 'YYYY-MM-DD'
@@ -30,6 +32,8 @@ export interface SlotDia {
     tipo: 'aula' | 'banca'
     instructorCategory: string | null
     notes: string | null
+    /** Próximo exame de banca do aluno (módulo "exames"); null se não houver. */
+    exame_banca: ExameBancaAgendado | null
   } | null
 }
 
@@ -239,6 +243,12 @@ export async function getSlotsDoDia(
     }
   }
 
+  // 4b. Exame de banca agendado (a partir deste dia) — sinaliza/protege as aulas
+  const examesBanca =
+    documents.length > 0 && (await autoescolaTemFeature(autoescola_id, 'exames'))
+      ? await buscarExamesBancaAgendados(supabase, autoescola_id, documents, date)
+      : new Map<string, ExameBancaAgendado>()
+
   type AgsRow = NonNullable<typeof agsRaw>[number]
   const agBySlot = new Map<string, AgsRow>()
   for (const ag of agsRaw ?? []) {
@@ -294,6 +304,7 @@ export async function getSlotsDoDia(
         tipo: (ag.tipo as 'aula' | 'banca') ?? 'aula',
         instructorCategory: trueCat,
         notes: ag.notes,
+        exame_banca: ag.tipo === 'banca' ? null : examesBanca.get(docKey) ?? null,
       },
     }
   })

@@ -10,6 +10,7 @@ import { ConfirmarAcaoModal } from './ConfirmarAcaoModal'
 import { FinalizarAulaModal } from './FinalizarAulaModal'
 import { IniciarAulaModal } from './IniciarAulaModal'
 import { ModalCancelamentoAula } from '@/features/shared/components/ModalCancelamentoAula'
+import { ExameBancaBadge } from '@/features/shared/components/ExameBancaBadge'
 
 interface Props {
   aula: AulaInstrutor
@@ -86,8 +87,9 @@ export function InstructorAulaCard({ aula, instructorName, onUpdate, instructorC
               <User className="w-4 h-4 text-purple-400" />
             </div>
             <div className="min-w-0">
-              <p className="font-bold text-[--p-text-1] text-sm truncate uppercase">
-                {aula.student_name}
+              <p className="font-bold text-[--p-text-1] text-sm uppercase flex items-center gap-1.5 min-w-0">
+                <span className="truncate">{aula.student_name}</span>
+                {aula.exame_banca && <ExameBancaBadge exame={aula.exame_banca} />}
               </p>
               <div className="flex items-center gap-2 flex-wrap mt-0.5">
                 <span className="inline-flex items-center gap-1 text-xs text-[--p-text-3]">
@@ -332,6 +334,7 @@ export function InstructorAulaCard({ aula, instructorName, onUpdate, instructorC
           date: aula.date,
           timeSlot: aula.time_slot
         }}
+        exameBanca={aula.exame_banca}
       />
 
       {/* Modal: Finalizar com foto + assinatura */}

@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { AlertTriangle, X, Trash2, ShieldAlert } from 'lucide-react'
+import { AlertTriangle, X, Trash2, ShieldAlert, FileCheck } from 'lucide-react'
+import { formatarExameBanca, type ExameBancaAgendado } from '@/lib/exameBancaTypes'
 
 interface Props {
   open: boolean
@@ -14,14 +15,19 @@ interface Props {
     date: string
     timeSlot: string
   }
+  /** Aluno com exame de banca agendado: exige "Estou ciente" antes de desmarcar. */
+  exameBanca?: ExameBancaAgendado | null
 }
 
-export function ModalCancelamentoAula({ open, onClose, onConfirm, isPending, aulaInfo }: Props) {
+export function ModalCancelamentoAula({ open, onClose, onConfirm, isPending, aulaInfo, exameBanca }: Props) {
   const [step, setStep] = useState<1 | 2>(1)
   const [blockSlot, setBlockSlot] = useState(false)
   const [reason, setReason] = useState('')
+  const [ciente, setCiente] = useState(false)
+  const bloqueadoPorExame = !!exameBanca && !ciente
 
   const handleNext = (block: boolean) => {
+    if (bloqueadoPorExame) return
     if (block) {
       setBlockSlot(true)
       setStep(2)
@@ -31,7 +37,7 @@ export function ModalCancelamentoAula({ open, onClose, onConfirm, isPending, aul
   }
 
   const handleFinalConfirm = () => {
-    if (!reason.trim()) return
+    if (!reason.trim() || bloqueadoPorExame) return
     onConfirm({ blockSlot: true, reason })
   }
 
@@ -39,6 +45,7 @@ export function ModalCancelamentoAula({ open, onClose, onConfirm, isPending, aul
     setStep(1)
     setBlockSlot(false)
     setReason('')
+    setCiente(false)
   }
 
   return (
@@ -98,12 +105,33 @@ export function ModalCancelamentoAula({ open, onClose, onConfirm, isPending, aul
                 </p>
               </div>
 
+              {exameBanca && (
+                <div className="mb-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 space-y-2">
+                  <p className="flex items-start gap-2 text-sm font-semibold text-amber-600 dark:text-amber-400">
+                    <FileCheck className="w-4 h-4 mt-0.5 shrink-0" />
+                    Este aluno tem exame de banca em {formatarExameBanca(exameBanca)}.
+                  </p>
+                  <p className="text-xs text-[--p-text-2]">
+                    Desmarcar aulas antes do exame pode prejudicar a preparação dele.
+                  </p>
+                  <label className="flex items-center gap-2 text-xs font-medium text-[--p-text-1] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={ciente}
+                      onChange={(e) => setCiente(e.target.checked)}
+                      className="rounded"
+                    />
+                    Estou ciente e quero desmarcar mesmo assim
+                  </label>
+                </div>
+              )}
+
               {step === 1 ? (
                 <div className="grid grid-cols-1 gap-3">
                   <button
                     onClick={() => handleNext(false)}
-                    disabled={isPending}
-                    className="group flex items-center gap-4 p-4 rounded-xl border border-[--p-border] hover:border-[#0ea5e9]/40 hover:bg-[#0ea5e9]/5 transition-all text-left"
+                    disabled={isPending || bloqueadoPorExame}
+                    className="group flex items-center gap-4 p-4 rounded-xl border border-[--p-border] disabled:opacity-40 disabled:pointer-events-none hover:border-[#0ea5e9]/40 hover:bg-[#0ea5e9]/5 transition-all text-left"
                   >
                     <div className="w-10 h-10 rounded-lg bg-[--p-bg-input] group-hover:bg-[#0ea5e9]/10 flex items-center justify-center shrink-0 transition-colors">
                       <Trash2 className="w-5 h-5 text-[--p-text-3] group-hover:text-[#0ea5e9]" />
@@ -116,8 +144,8 @@ export function ModalCancelamentoAula({ open, onClose, onConfirm, isPending, aul
 
                   <button
                     onClick={() => handleNext(true)}
-                    disabled={isPending}
-                    className="group flex items-center gap-4 p-4 rounded-xl border border-[--p-border] hover:border-red-500/40 hover:bg-red-500/5 transition-all text-left"
+                    disabled={isPending || bloqueadoPorExame}
+                    className="group flex items-center gap-4 p-4 rounded-xl border border-[--p-border] disabled:opacity-40 disabled:pointer-events-none hover:border-red-500/40 hover:bg-red-500/5 transition-all text-left"
                   >
                     <div className="w-10 h-10 rounded-lg bg-[--p-bg-input] group-hover:bg-red-500/10 flex items-center justify-center shrink-0 transition-colors">
                       <ShieldAlert className="w-5 h-5 text-[--p-text-3] group-hover:text-red-400" />
@@ -151,7 +179,7 @@ export function ModalCancelamentoAula({ open, onClose, onConfirm, isPending, aul
                     </button>
                     <button
                       onClick={handleFinalConfirm}
-                      disabled={isPending || !reason.trim()}
+                      disabled={isPending || !reason.trim() || bloqueadoPorExame}
                       className="flex-[2] py-3 text-sm font-bold rounded-xl bg-red-500 text-white hover:bg-red-400 disabled:opacity-50 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-red-500/20"
                     >
                       {isPending ? (

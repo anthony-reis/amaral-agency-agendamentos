@@ -4,6 +4,9 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import type { ActionResult } from '@/features/painel/types'
 import { cancelarAgendamentoComOpcoes } from '@/features/painel/actions/agendamentos'
+import { autoescolaTemFeature } from '@/lib/features.server'
+import { buscarExamesBancaAgendados } from '@/lib/exameBanca'
+import type { ExameBancaAgendado } from '@/lib/exameBancaTypes'
 
 export interface AulaInstrutor {
   id: string
@@ -26,6 +29,8 @@ export interface AulaInstrutor {
   km_inicial: number | null
   km_final: number | null
   km_rodado: number | null
+  /** Próximo exame de banca do aluno (módulo "exames"); null se não houver. */
+  exame_banca: ExameBancaAgendado | null
 }
 
 export interface DiaSemana {
@@ -127,6 +132,11 @@ export async function getMinhasAulasHoje(
     (students ?? []).map((s) => [s.document_id, { id: s.id, phone: s.phone ?? null }])
   )
 
+  const examesBanca =
+    documentos.length > 0 && (await autoescolaTemFeature(autoescola_id, 'exames'))
+      ? await buscarExamesBancaAgendados(supabase, autoescola_id, documentos, targetDate)
+      : new Map<string, ExameBancaAgendado>()
+
   return agendamentos.map((a) => {
     const doc = a.cpf_cnh ?? a.student_document
     const student = doc ? studentDocMap.get(doc) : undefined
@@ -142,6 +152,7 @@ export async function getMinhasAulasHoje(
       km_inicial: a.km_inicial ?? null,
       km_final: a.km_final ?? null,
       km_rodado: a.km_rodado ?? null,
+      exame_banca: a.tipo === 'banca' || !doc ? null : examesBanca.get(doc) ?? null,
     }
   })
 }

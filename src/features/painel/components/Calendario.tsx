@@ -19,6 +19,8 @@ import {
 import { cancelarAgendamentoComOpcoes } from '../actions/agendamentos'
 import { ModalCancelamentoAula } from '@/features/shared/components/ModalCancelamentoAula'
 import { canEditPainel } from '../types'
+import { ExameBancaBadge } from '@/features/shared/components/ExameBancaBadge'
+import type { ExameBancaAgendado } from '@/lib/exameBancaTypes'
 
 const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -166,6 +168,7 @@ function AgendarForm({
         tipo,
         instructorCategory,
         notes: null,
+        exame_banca: null,
       },
     })
   }
@@ -383,7 +386,10 @@ function SlotRow({
 
       {/* Aluno */}
       <td className="px-4 py-3 align-middle">
-        <p className="text-sm font-medium text-[--p-text-1]">{ag.student_name}</p>
+        <p className="text-sm font-medium text-[--p-text-1] flex items-center gap-1.5">
+          {ag.student_name}
+          {ag.exame_banca && <ExameBancaBadge exame={ag.exame_banca} />}
+        </p>
         {ag.cpf_cnh && <p className="text-xs text-[--p-text-3] mt-0.5">{ag.cpf_cnh}</p>}
       </td>
 
@@ -501,7 +507,8 @@ function DayPanel({
     id: string
     studentName: string
     timeSlot: string
-  }>({ open: false, id: '', studentName: '', timeSlot: '' })
+    exameBanca: ExameBancaAgendado | null
+  }>({ open: false, id: '', studentName: '', timeSlot: '', exameBanca: null })
 
   useEffect(() => {
     setInstrutores(null)
@@ -541,7 +548,8 @@ function DayPanel({
         open: true,
         id,
         studentName: slot.agendamento.student_name,
-        timeSlot: slot.horario
+        timeSlot: slot.horario,
+        exameBanca: slot.agendamento.exame_banca,
       })
       return
     }
@@ -706,6 +714,7 @@ function DayPanel({
           date: date,
           timeSlot: modalCancel.timeSlot
         }}
+        exameBanca={modalCancel.exameBanca}
       />
     </div>
   )
