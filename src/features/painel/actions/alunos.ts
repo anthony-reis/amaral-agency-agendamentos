@@ -99,6 +99,10 @@ export async function criarAluno(
 
   if (error || !aluno) {
     if (error?.code === '23505') {
+      // students_email_unique é global (todas as autoescolas); document_id é por autoescola.
+      if (error.message.includes('students_email_unique')) {
+        return { success: false, error: 'Este e-mail já está em uso por outro aluno.' }
+      }
       return { success: false, error: 'Já existe um aluno com este CPF/CNH.' }
     }
     return { success: false, error: error?.message ?? 'Erro ao criar aluno.' }
