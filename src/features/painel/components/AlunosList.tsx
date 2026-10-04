@@ -2,8 +2,8 @@
 
 import { useState, useTransition } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { GraduationCap, Plus, Search, Download, Pencil, Trash2, X, Minus, ArrowUp, ArrowDown, ArrowUpDown, FileCheck, Check } from 'lucide-react'
-import { criarAluno, editarAluno, excluirAluno, ajustarCredito, contarAulasAgendadas } from '../actions/alunos'
+import { GraduationCap, Plus, Search, Download, Pencil, Trash2, X, Minus, ArrowUp, ArrowDown, ArrowUpDown, FileCheck, Check, KeyRound } from 'lucide-react'
+import { criarAluno, editarAluno, excluirAluno, ajustarCredito, contarAulasAgendadas, resetarSenhaAluno } from '../actions/alunos'
 import { canEditPainel, type AlunoComCreditos } from '../types'
 import { formatarPrecoCentavos, type Produto } from '@/lib/loja-types'
 import { AgendarExameModal } from './AgendarExameModal'
@@ -21,6 +21,8 @@ interface Props {
   podeVender?: boolean
   /** Módulo "exames": botão de agendar exame. */
   examesAtivo?: boolean
+  /** Módulo "login_senha_aluno": resetar a senha do aluno no Editar. */
+  loginSenhaAtivo?: boolean
 }
 
 const PAYMENT_METHODS = [
@@ -57,6 +59,7 @@ export function AlunosList({
   vendasAtivo = false,
   podeVender = false,
   examesAtivo = false,
+  loginSenhaAtivo = false,
 }: Props) {
   const canEdit = canEditPainel(userRole)
   const [alunos, setAlunos] = useState<AlunoComCreditos[]>(initial)
@@ -82,6 +85,8 @@ export function AlunosList({
   const [examModalAluno, setExamModalAluno] = useState<AlunoComCreditos | null>(null)
   const [pendingAdd, setPendingAdd] = useState<Record<string, Partial<Record<Cat, number>>>>({})
   const [vendaModalAluno, setVendaModalAluno] = useState<AlunoComCreditos | null>(null)
+  const [confirmarResetSenha, setConfirmarResetSenha] = useState(false)
+  const [resetSenhaOk, setResetSenhaOk] = useState(false)
 
   function handleSort(col: SortCol) {
     if (sortCol === col) {
@@ -128,7 +133,23 @@ export function AlunosList({
   function openEditar(a: AlunoComCreditos) {
     setFormData({ name: a.name, document_id: a.document_id, phone: a.phone ?? '', email: a.email ?? '' })
     setFormError('')
+    setConfirmarResetSenha(false)
+    setResetSenhaOk(false)
     setModalEditar(a)
+  }
+
+  function handleResetarSenha() {
+    if (!modalEditar) return
+    const id = modalEditar.id
+    setFormError('')
+    startTransition(async () => {
+      const result = await resetarSenhaAluno(id, autoescola_id)
+      setConfirmarResetSenha(false)
+      if (!result.success) { setFormError(result.error); return }
+      setResetSenhaOk(true)
+      setAlunos((prev) => prev.map((a) => (a.id === id ? { ...a, tem_senha: false } : a)))
+      setModalEditar((m) => (m ? { ...m, tem_senha: false } : m))
+    })
   }
 
   function handleCriar(e: React.FormEvent) {
@@ -583,6 +604,41 @@ export function AlunosList({
                     </div>
                   )}
                 </div>
+
+                {modalEditar && loginSenhaAtivo && (
+                  <div className="pt-3 border-t border-[--p-border] space-y-2">
+                    <div className="flex items-center gap-2">
+                      <KeyRound className="w-3.5 h-3.5 text-[--p-text-3]" />
+                      <span className="text-xs font-medium text-[--p-text-2]">Senha do app do aluno</span>
+                    </div>
+                    {resetSenhaOk ? (
+                      <p className="text-xs text-emerald-500">
+                        Senha resetada. No próximo acesso, o aluno informa o CPF e cria uma nova senha.
+                      </p>
+                    ) : !modalEditar.tem_senha ? (
+                      <p className="text-xs text-[--p-text-3]">
+                        O aluno ainda não criou senha — ele cria no próximo acesso, após o CPF.
+                      </p>
+                    ) : confirmarResetSenha ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs text-[--p-text-2]">Apagar a senha atual do aluno?</span>
+                        <button type="button" onClick={handleResetarSenha} disabled={isPending} className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50">
+                          {isPending ? 'Resetando…' : 'Sim, resetar'}
+                        </button>
+                        <button type="button" onClick={() => setConfirmarResetSenha(false)} className="px-3 py-1.5 text-xs text-[--p-text-2] hover:text-[--p-text-1]">
+                          Cancelar
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-xs text-[--p-text-3]">Esqueceu a senha? Resete e ele cria uma nova no próximo acesso.</p>
+                        <button type="button" onClick={() => setConfirmarResetSenha(true)} className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-amber-500/40 text-amber-500 hover:bg-amber-500/10">
+                          Resetar senha
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {formError && <p className="text-sm text-red-400">{formError}</p>}
 

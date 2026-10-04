@@ -1,36 +1,9 @@
 'use server'
 
-import { cookies } from 'next/headers'
 import { createServiceClient } from '@/lib/supabase/server'
-import { signStudentId } from '@/lib/studentSession'
 import { autoescolaTemFeature } from '@/lib/features.server'
+import { criarSessaoAluno } from '../lib/sessaoAluno'
 import type { Student, StudentCredits } from '../types'
-
-const COOKIE_MAX_AGE = 60 * 60 * 4 // 4 horas
-
-async function criarSessaoAluno(student: { id: string; name: string; document_id: string }) {
-  const cookieStore = await cookies()
-  const isProd = process.env.NODE_ENV === 'production'
-  cookieStore.set('student_id', student.id, {
-    httpOnly: true, secure: isProd, sameSite: 'lax', maxAge: COOKIE_MAX_AGE, path: '/',
-  })
-  cookieStore.set('student_name', student.name, {
-    httpOnly: false, secure: isProd, sameSite: 'lax', maxAge: COOKIE_MAX_AGE, path: '/',
-  })
-  cookieStore.set('student_document', student.document_id, {
-    httpOnly: false, secure: isProd, sameSite: 'lax', maxAge: COOKIE_MAX_AGE, path: '/',
-  })
-  // student_sig só é exigido nas rotas de pagamento (loja). Sem a env
-  // STUDENT_SESSION_SECRET o login continua funcionando; só a loja fica
-  // indisponível.
-  try {
-    cookieStore.set('student_sig', signStudentId(student.id), {
-      httpOnly: true, secure: isProd, sameSite: 'lax', maxAge: COOKIE_MAX_AGE, path: '/',
-    })
-  } catch (err) {
-    console.error('[autenticarAluno] student_sig não gerado:', err)
-  }
-}
 
 export interface VerificarCpfResult {
   success: true

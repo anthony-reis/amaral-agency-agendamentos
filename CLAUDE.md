@@ -247,6 +247,13 @@ SUPABASE_SERVICE_ROLE_KEY=
 - **Toda funcionalidade nova que não deve chegar a todas as escolas de uma vez deve entrar atrás de um módulo**: item no `FEATURES`, gate na página, na UI (prop) e na server action.
 - `lojaHabilitada` exige módulo `vendas` + credencial MP ativa. Webhook MP não é gateado (pagamento já feito sempre credita).
 
+### Recuperação de senha do aluno (módulo `login_senha_aluno`)
+- "Esqueci minha senha" na etapa de senha (`/[escola]/aluno`): código de 6 dígitos por e-mail (15 min, 5 tentativas, 1 envio/min, 5/hora). Actions em `identificacao/actions/recuperarSenha.ts`; hashes em `student_password_resets` (RLS ligado, sem policies).
+- E-mail via Resend (`src/lib/email.server.ts`), envs `RESEND_API_KEY` + `EMAIL_FROM`. Sem elas, o aluno é orientado a pedir reset na autoescola.
+- Sem e-mail: painel → Alunos → Editar → "Resetar senha" (`resetarSenhaAluno`, apaga a senha; aluno cria outra no próximo acesso).
+- `criarSessaoAluno` fica em `identificacao/lib/sessaoAluno.ts` (server-only) — nunca exportar de arquivo `'use server'`.
+- `listarAlunos` não devolve mais `password` ao cliente, só `tem_senha`.
+
 ### Agendamento em Massa no Painel (Atual)
 - **Novo item de nav** "Agend. em Massa" com ícone `CalendarPlus` adicionado ao `PainelNav.tsx` entre Alunos e Horários.
 - **Rota** `/{escola}/painel/agendamento-massa` → wizard 4 etapas (Server page + Client component `AgendamentoMassa.tsx`).

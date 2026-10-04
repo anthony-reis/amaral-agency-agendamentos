@@ -197,6 +197,8 @@ export interface AlunoCreditos {
 
 export interface AlunoComCreditos extends Aluno {
   creditos: AlunoCreditos | null
+  /** Aluno já criou senha (módulo login_senha_aluno). A senha em si nunca vem. */
+  tem_senha?: boolean
 }
 
 export type NovoAlunoInput = {

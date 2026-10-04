@@ -35,6 +35,7 @@ export default async function AlunosPage({ params }: Props) {
       vendasAtivo={features.vendas}
       podeVender={podeVender}
       examesAtivo={permite(acesso.permissoes.exames, 'editar')}
+      loginSenhaAtivo={features.login_senha_aluno}
     />
   )
 }

@@ -33,8 +33,10 @@ export async function listarAlunos(
   const { data, error } = await query
   if (error) throw new Error(error.message)
 
-  return (data ?? []).map((row) => ({
+  // A senha do aluno nunca vai para o navegador — só se ele já tem uma.
+  return (data ?? []).map(({ password, ...row }) => ({
     ...row,
+    tem_senha: Boolean(password),
     creditos: Array.isArray(row.creditos) ? row.creditos[0] ?? null : row.creditos ?? null,
   })) as AlunoComCreditos[]
 }
@@ -211,6 +213,46 @@ export async function editarAluno(
     username: userAct,
     action_type: 'aluno',
     description: `Aluno editado (ID: ${id})`,
+    autoescola_id,
+  })
+
+  return { success: true, data: undefined }
+}
+
+/**
+ * Apaga a senha do aluno (módulo login_senha_aluno): no próximo acesso ele
+ * cria uma nova após o CPF. Caminho para quem esqueceu e não tem e-mail.
+ */
+export async function resetarSenhaAluno(
+  id: string,
+  autoescola_id: string
+): Promise<ActionResult<void>> {
+  const guard = await assertPodeEditar('cadastros')
+  if (!guard.ok) return { success: false, error: guard.error }
+
+  const supabase = createServiceClient()
+  const { data: aluno, error } = await supabase
+    .from('students')
+    .update({ password: null })
+    .eq('id', id)
+    .eq('autoescola_id', autoescola_id)
+    .select('name, document_id')
+    .single()
+
+  if (error || !aluno) return { success: false, error: 'Erro ao resetar a senha.' }
+
+  // Códigos de recuperação pendentes deixam de valer.
+  await supabase
+    .from('student_password_resets')
+    .update({ used_at: new Date().toISOString() })
+    .eq('student_id', id)
+    .is('used_at', null)
+
+  const userAct = await getCurrentUsername()
+  await supabase.from('activity_logs_painel').insert({
+    username: userAct,
+    action_type: 'aluno',
+    description: `Senha do aluno resetada: ${aluno.name} (Doc: ${aluno.document_id})`,
     autoescola_id,
   })
 

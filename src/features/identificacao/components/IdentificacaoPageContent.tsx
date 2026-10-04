@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   CreditCard, KeyRound, Info, AlertCircle, Loader2, CheckCircle2,
-  ArrowRight, ShieldCheck, Zap, ChevronLeft,
+  ArrowRight, ShieldCheck, Zap, ChevronLeft, Mail,
 } from 'lucide-react'
 import { verificarCpf, confirmarSenha } from '../actions/autenticarAluno'
+import { solicitarRecuperacaoSenha, redefinirSenhaComCodigo } from '../actions/recuperarSenha'
 import { PlanosPreview } from './PlanosPreview'
 import { AlunoDashboard } from '@/features/aluno/components/AlunoDashboard'
 import type { Student, StudentCredits } from '../types'
@@ -27,7 +28,7 @@ interface Props {
   dashboardAtivo: boolean
 }
 
-type Step = 'cpf' | 'senha' | 'ok'
+type Step = 'cpf' | 'senha' | 'recuperar' | 'ok'
 
 function Stepper({ step, exigeSenha }: { step: Step; exigeSenha: boolean }) {
   const items: { key: Step; label: string; icon: typeof CreditCard }[] = [
@@ -36,7 +37,8 @@ function Stepper({ step, exigeSenha }: { step: Step; exigeSenha: boolean }) {
     { key: 'ok', label: 'Pronto', icon: CheckCircle2 },
   ]
   const order = items.map((i) => i.key)
-  const currentIdx = order.indexOf(step)
+  // "recuperar" é uma variação da etapa de senha.
+  const currentIdx = order.indexOf(step === 'recuperar' ? 'senha' : step)
 
   return (
     <div className="flex items-center gap-2 w-full max-w-[280px] mx-auto">
@@ -138,6 +140,13 @@ export function IdentificacaoPageContent({
   const [senhaError, setSenhaError] = useState<string | null>(null)
   const [senhaPending, setSenhaPending] = useState(false)
 
+  const [recPending, setRecPending] = useState(false)
+  const [emailMascarado, setEmailMascarado] = useState('')
+  const [codigo, setCodigo] = useState('')
+  const [novaSenha, setNovaSenha] = useState('')
+  const [recError, setRecError] = useState<string | null>(null)
+  const [recInfo, setRecInfo] = useState<string | null>(null)
+
   const nomeExibicao = student?.name ?? initialStudent?.name ?? ''
   const documentId = student?.document_id ?? initialStudent?.document_id ?? ''
 
@@ -200,6 +209,48 @@ export function IdentificacaoPageContent({
     setStep('cpf')
     setSenha('')
     setSenhaError(null)
+  }
+
+  async function pedirCodigo() {
+    if (!student || recPending) return
+    setRecPending(true)
+    setSenhaError(null)
+    setRecError(null)
+    setRecInfo(null)
+    const result = await solicitarRecuperacaoSenha(student.id, autoescolaId)
+    setRecPending(false)
+
+    if (!result.success) {
+      if (step === 'recuperar') setRecError(result.error)
+      else setSenhaError(result.error)
+      return
+    }
+    setEmailMascarado(result.emailMascarado)
+    if (step === 'recuperar') setRecInfo('Enviamos um novo código.')
+    setStep('recuperar')
+  }
+
+  async function handleRedefinirSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!student || recPending || codigo.length !== 6 || novaSenha.trim().length < 4) return
+    setRecPending(true)
+    setRecError(null)
+    setRecInfo(null)
+    const result = await redefinirSenhaComCodigo(student.id, autoescolaId, codigo, novaSenha)
+    setRecPending(false)
+    if (!result.success) {
+      setRecError(result.error)
+      return
+    }
+    concluirLogin()
+  }
+
+  function voltarParaSenha() {
+    setStep('senha')
+    setCodigo('')
+    setNovaSenha('')
+    setRecError(null)
+    setRecInfo(null)
   }
 
   const identificado = step === 'ok'
@@ -357,6 +408,17 @@ export function IdentificacaoPageContent({
                       <>Entrar <ArrowRight className="w-4 h-4" /></>
                     )}
                   </motion.button>
+                  {!precisaCriarSenha && (
+                    <button
+                      type="button"
+                      onClick={pedirCodigo}
+                      disabled={recPending}
+                      className="w-full flex items-center justify-center gap-1.5 text-xs font-medium text-[--p-accent] hover:opacity-80 transition-opacity disabled:opacity-50"
+                    >
+                      {recPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Mail className="w-3 h-3" />}
+                      Esqueci minha senha
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={voltarParaCpf}
@@ -379,6 +441,105 @@ export function IdentificacaoPageContent({
                   >
                     <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" strokeWidth={2} />
                     <p className="text-sm text-red-400">{senhaError}</p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.form>
+          )}
+
+          {step === 'recuperar' && (
+            <motion.form
+              key="recuperar"
+              onSubmit={handleRedefinirSubmit}
+              initial={{ opacity: 0, x: 12 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -12 }}
+              transition={{ duration: 0.18 }}
+              className="space-y-3"
+              noValidate
+            >
+              <div className="bg-[--p-bg-card] rounded-2xl border border-[--p-border] overflow-hidden">
+                <div className="p-5 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-[--p-text-3] shrink-0" strokeWidth={1.5} />
+                    <span className="text-sm font-semibold text-[--p-text-2] tracking-wide">Redefinir senha</span>
+                  </div>
+                  <p className="text-xs text-[--p-text-3] -mt-2">
+                    Enviamos um código de 6 dígitos para <span className="font-semibold text-[--p-text-2]">{emailMascarado}</span>.
+                    Confira também a caixa de spam.
+                  </p>
+                  <input
+                    id="codigo"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    autoFocus
+                    placeholder="Código de 6 dígitos"
+                    value={codigo}
+                    onChange={(e) => { setCodigo(e.target.value.replace(/\D/g, '').slice(0, 6)); if (recError) setRecError(null) }}
+                    disabled={recPending}
+                    className={`${inputCls} tracking-[0.3em] text-center font-semibold`}
+                  />
+                  <input
+                    id="nova-senha"
+                    type="password"
+                    autoComplete="new-password"
+                    placeholder="Nova senha (mín. 4 caracteres)"
+                    value={novaSenha}
+                    onChange={(e) => { setNovaSenha(e.target.value); if (recError) setRecError(null) }}
+                    disabled={recPending}
+                    className={inputCls}
+                  />
+                  <motion.button
+                    type="submit"
+                    disabled={codigo.length !== 6 || novaSenha.trim().length < 4 || recPending}
+                    whileHover={{ scale: 1.015 }}
+                    whileTap={{ scale: 0.985 }}
+                    transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                    className="w-full py-2.5 px-4 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 mt-1 bg-[--p-accent] text-white hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {recPending ? (
+                      <><Loader2 className="w-4 h-4 animate-spin" /> Salvando...</>
+                    ) : (
+                      <>Salvar nova senha e entrar <ArrowRight className="w-4 h-4" /></>
+                    )}
+                  </motion.button>
+                  <div className="flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={voltarParaSenha}
+                      className="flex items-center gap-1 text-xs text-[--p-text-3] hover:text-[--p-text-1] transition-colors"
+                    >
+                      <ChevronLeft className="w-3 h-3" /> Voltar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={pedirCodigo}
+                      disabled={recPending}
+                      className="text-xs font-medium text-[--p-accent] hover:opacity-80 transition-opacity disabled:opacity-50"
+                    >
+                      Reenviar código
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <AnimatePresence mode="wait">
+                {(recError || recInfo) && (
+                  <motion.div
+                    key={recError ?? recInfo}
+                    className={`flex items-start gap-2.5 px-4 py-3 rounded-xl border ${
+                      recError ? 'bg-red-500/10 border-red-500/20' : 'bg-[--p-accent]/5 border-[--p-accent]/20'
+                    }`}
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    {recError
+                      ? <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" strokeWidth={2} />
+                      : <CheckCircle2 className="w-4 h-4 text-[--p-accent] mt-0.5 shrink-0" strokeWidth={2} />}
+                    <p className={`text-sm ${recError ? 'text-red-400' : 'text-[--p-text-2]'}`}>{recError ?? recInfo}</p>
                   </motion.div>
                 )}
               </AnimatePresence>
