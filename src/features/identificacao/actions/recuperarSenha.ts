@@ -119,6 +119,65 @@ export async function solicitarRecuperacaoSenha(
 
 export type RedefinirSenhaResponse = { success: true } | { success: false; error: string }
 
+/**
+ * "Esqueci minha senha" atual: o aluno confirma o CPF/CNH cadastrado e define
+ * uma nova senha. Decisão de produto provisória — o fluxo por código de
+ * e-mail (solicitarRecuperacaoSenha / redefinirSenhaComCodigo) fica pronto
+ * para substituir este quando o Resend estiver configurado.
+ */
+export async function redefinirSenhaPorCpf(
+  studentId: string,
+  autoescola_id: string,
+  documento: string,
+  novaSenha: string
+): Promise<RedefinirSenhaResponse> {
+  if (!(await autoescolaTemFeature(autoescola_id, 'login_senha_aluno'))) {
+    return { success: false, error: 'Este recurso não está habilitado para esta autoescola.' }
+  }
+  const documentoLimpo = documento.replace(/\D/g, '')
+  const senhaLimpa = novaSenha.trim()
+  if (!documentoLimpo) return { success: false, error: 'Confirme seu CPF ou CNH.' }
+  if (senhaLimpa.length < 4) return { success: false, error: 'A senha deve ter pelo menos 4 caracteres.' }
+
+  const supabase = createServiceClient()
+  const { data: atual } = await supabase
+    .from('students')
+    .select('document_id')
+    .eq('id', studentId)
+    .eq('autoescola_id', autoescola_id)
+    .maybeSingle()
+  if (!atual) return { success: false, error: 'Aluno não encontrado.' }
+  if (atual.document_id !== documentoLimpo) {
+    return { success: false, error: 'O CPF/CNH não confere com o cadastro.' }
+  }
+
+  const { data: student, error } = await supabase
+    .from('students')
+    .update({ password: senhaLimpa })
+    .eq('id', studentId)
+    .eq('autoescola_id', autoescola_id)
+    .select('id, name, document_id')
+    .single()
+  if (error || !student) return { success: false, error: 'Erro ao salvar a nova senha. Tente novamente.' }
+
+  await supabase
+    .from('student_password_resets')
+    .update({ used_at: new Date().toISOString() })
+    .eq('student_id', student.id)
+    .is('used_at', null)
+
+  // Fica na auditoria do painel para a autoescola rastrear trocas indevidas.
+  await supabase.from('activity_logs_painel').insert({
+    username: student.name,
+    action_type: 'aluno',
+    description: `Aluno redefiniu a senha pelo app ("Esqueci minha senha"): ${student.name} (Doc: ${student.document_id})`,
+    autoescola_id,
+  })
+
+  await criarSessaoAluno(student)
+  return { success: true }
+}
+
 /** Valida o código recebido por e-mail, grava a nova senha e já loga o aluno. */
 export async function redefinirSenhaComCodigo(
   studentId: string,

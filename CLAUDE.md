@@ -248,8 +248,8 @@ SUPABASE_SERVICE_ROLE_KEY=
 - `lojaHabilitada` exige módulo `vendas` + credencial MP ativa. Webhook MP não é gateado (pagamento já feito sempre credita).
 
 ### Recuperação de senha do aluno (módulo `login_senha_aluno`)
-- "Esqueci minha senha" na etapa de senha (`/[escola]/aluno`): código de 6 dígitos por e-mail (15 min, 5 tentativas, 1 envio/min, 5/hora). Actions em `identificacao/actions/recuperarSenha.ts`; hashes em `student_password_resets` (RLS ligado, sem policies).
-- E-mail via Resend (`src/lib/email.server.ts`), envs `RESEND_API_KEY` + `EMAIL_FROM`. Sem elas, o aluno é orientado a pedir reset na autoescola.
+- **Atual (provisório, decisão do produto):** "Esqueci minha senha" na etapa de senha (`/[escola]/aluno`) pede para **redigitar o CPF/CNH cadastrado** + nova senha (2x) e já loga — `redefinirSenhaPorCpf` em `identificacao/actions/recuperarSenha.ts`. Cada troca vai para `activity_logs_painel`.
+- **Pronto, não ligado na UI:** código de 6 dígitos por e-mail (`solicitarRecuperacaoSenha` / `redefinirSenhaComCodigo`; 15 min, 5 tentativas, 1 envio/min, 5/hora; hashes em `student_password_resets`, RLS ligado sem policies). E-mail via Resend (`src/lib/email.server.ts`), envs `RESEND_API_KEY` + `EMAIL_FROM`.
 - Sem e-mail: painel → Alunos → Editar → "Resetar senha" (`resetarSenhaAluno`, apaga a senha; aluno cria outra no próximo acesso).
 - `criarSessaoAluno` fica em `identificacao/lib/sessaoAluno.ts` (server-only) — nunca exportar de arquivo `'use server'`.
 - `listarAlunos` não devolve mais `password` ao cliente, só `tem_senha`.

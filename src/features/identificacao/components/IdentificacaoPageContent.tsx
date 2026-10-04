@@ -5,10 +5,10 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   CreditCard, KeyRound, Info, AlertCircle, Loader2, CheckCircle2,
-  ArrowRight, ShieldCheck, Zap, ChevronLeft, Mail,
+  ArrowRight, ShieldCheck, Zap, ChevronLeft, RotateCcw,
 } from 'lucide-react'
 import { verificarCpf, confirmarSenha } from '../actions/autenticarAluno'
-import { solicitarRecuperacaoSenha, redefinirSenhaComCodigo } from '../actions/recuperarSenha'
+import { redefinirSenhaPorCpf } from '../actions/recuperarSenha'
 import { PlanosPreview } from './PlanosPreview'
 import { AlunoDashboard } from '@/features/aluno/components/AlunoDashboard'
 import type { Student, StudentCredits } from '../types'
@@ -141,11 +141,10 @@ export function IdentificacaoPageContent({
   const [senhaPending, setSenhaPending] = useState(false)
 
   const [recPending, setRecPending] = useState(false)
-  const [emailMascarado, setEmailMascarado] = useState('')
-  const [codigo, setCodigo] = useState('')
+  const [docConfirmacao, setDocConfirmacao] = useState('')
   const [novaSenha, setNovaSenha] = useState('')
+  const [novaSenha2, setNovaSenha2] = useState('')
   const [recError, setRecError] = useState<string | null>(null)
-  const [recInfo, setRecInfo] = useState<string | null>(null)
 
   const nomeExibicao = student?.name ?? initialStudent?.name ?? ''
   const documentId = student?.document_id ?? initialStudent?.document_id ?? ''
@@ -211,32 +210,25 @@ export function IdentificacaoPageContent({
     setSenhaError(null)
   }
 
-  async function pedirCodigo() {
-    if (!student || recPending) return
-    setRecPending(true)
+  function abrirRecuperacao() {
     setSenhaError(null)
     setRecError(null)
-    setRecInfo(null)
-    const result = await solicitarRecuperacaoSenha(student.id, autoescolaId)
-    setRecPending(false)
-
-    if (!result.success) {
-      if (step === 'recuperar') setRecError(result.error)
-      else setSenhaError(result.error)
-      return
-    }
-    setEmailMascarado(result.emailMascarado)
-    if (step === 'recuperar') setRecInfo('Enviamos um novo código.')
+    setDocConfirmacao('')
+    setNovaSenha('')
+    setNovaSenha2('')
     setStep('recuperar')
   }
 
+  const senhasConferem = novaSenha.trim() === novaSenha2.trim()
+  const podeRedefinir =
+    docConfirmacao.length >= 11 && novaSenha.trim().length >= 4 && senhasConferem
+
   async function handleRedefinirSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!student || recPending || codigo.length !== 6 || novaSenha.trim().length < 4) return
+    if (!student || recPending || !podeRedefinir) return
     setRecPending(true)
     setRecError(null)
-    setRecInfo(null)
-    const result = await redefinirSenhaComCodigo(student.id, autoescolaId, codigo, novaSenha)
+    const result = await redefinirSenhaPorCpf(student.id, autoescolaId, docConfirmacao, novaSenha)
     setRecPending(false)
     if (!result.success) {
       setRecError(result.error)
@@ -247,11 +239,9 @@ export function IdentificacaoPageContent({
 
   function voltarParaSenha() {
     setStep('senha')
-    setCodigo('')
-    setNovaSenha('')
     setRecError(null)
-    setRecInfo(null)
   }
+
 
   const identificado = step === 'ok'
 
@@ -411,11 +401,10 @@ export function IdentificacaoPageContent({
                   {!precisaCriarSenha && (
                     <button
                       type="button"
-                      onClick={pedirCodigo}
-                      disabled={recPending}
-                      className="w-full flex items-center justify-center gap-1.5 text-xs font-medium text-[--p-accent] hover:opacity-80 transition-opacity disabled:opacity-50"
+                      onClick={abrirRecuperacao}
+                      className="w-full flex items-center justify-center gap-1.5 text-xs font-medium text-[--p-accent] hover:opacity-80 transition-opacity"
                     >
-                      {recPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Mail className="w-3 h-3" />}
+                      <RotateCcw className="w-3 h-3" />
                       Esqueci minha senha
                     </button>
                   )}
@@ -461,24 +450,23 @@ export function IdentificacaoPageContent({
               <div className="bg-[--p-bg-card] rounded-2xl border border-[--p-border] overflow-hidden">
                 <div className="p-5 space-y-4">
                   <div className="flex items-center gap-2">
-                    <Mail className="w-4 h-4 text-[--p-text-3] shrink-0" strokeWidth={1.5} />
+                    <RotateCcw className="w-4 h-4 text-[--p-text-3] shrink-0" strokeWidth={1.5} />
                     <span className="text-sm font-semibold text-[--p-text-2] tracking-wide">Redefinir senha</span>
                   </div>
                   <p className="text-xs text-[--p-text-3] -mt-2">
-                    Enviamos um código de 6 dígitos para <span className="font-semibold text-[--p-text-2]">{emailMascarado}</span>.
-                    Confira também a caixa de spam.
+                    Confirme seu CPF ou CNH cadastrado e escolha uma nova senha.
                   </p>
                   <input
-                    id="codigo"
+                    id="doc-confirmacao"
                     type="text"
                     inputMode="numeric"
-                    autoComplete="one-time-code"
+                    autoComplete="off"
                     autoFocus
-                    placeholder="Código de 6 dígitos"
-                    value={codigo}
-                    onChange={(e) => { setCodigo(e.target.value.replace(/\D/g, '').slice(0, 6)); if (recError) setRecError(null) }}
+                    placeholder="Confirme seu CPF ou CNH"
+                    value={docConfirmacao}
+                    onChange={(e) => { setDocConfirmacao(e.target.value.replace(/\D/g, '').slice(0, 18)); if (recError) setRecError(null) }}
                     disabled={recPending}
-                    className={`${inputCls} tracking-[0.3em] text-center font-semibold`}
+                    className={inputCls}
                   />
                   <input
                     id="nova-senha"
@@ -490,9 +478,22 @@ export function IdentificacaoPageContent({
                     disabled={recPending}
                     className={inputCls}
                   />
+                  <input
+                    id="nova-senha-2"
+                    type="password"
+                    autoComplete="new-password"
+                    placeholder="Repita a nova senha"
+                    value={novaSenha2}
+                    onChange={(e) => { setNovaSenha2(e.target.value); if (recError) setRecError(null) }}
+                    disabled={recPending}
+                    className={inputCls}
+                  />
+                  {novaSenha2.length > 0 && !senhasConferem && (
+                    <p className="text-xs text-red-400 -mt-2">As senhas não conferem.</p>
+                  )}
                   <motion.button
                     type="submit"
-                    disabled={codigo.length !== 6 || novaSenha.trim().length < 4 || recPending}
+                    disabled={!podeRedefinir || recPending}
                     whileHover={{ scale: 1.015 }}
                     whileTap={{ scale: 0.985 }}
                     transition={{ type: 'spring', stiffness: 400, damping: 20 }}
@@ -504,42 +505,28 @@ export function IdentificacaoPageContent({
                       <>Salvar nova senha e entrar <ArrowRight className="w-4 h-4" /></>
                     )}
                   </motion.button>
-                  <div className="flex items-center justify-between">
-                    <button
-                      type="button"
-                      onClick={voltarParaSenha}
-                      className="flex items-center gap-1 text-xs text-[--p-text-3] hover:text-[--p-text-1] transition-colors"
-                    >
-                      <ChevronLeft className="w-3 h-3" /> Voltar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={pedirCodigo}
-                      disabled={recPending}
-                      className="text-xs font-medium text-[--p-accent] hover:opacity-80 transition-opacity disabled:opacity-50"
-                    >
-                      Reenviar código
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={voltarParaSenha}
+                    className="w-full flex items-center justify-center gap-1 text-xs text-[--p-text-3] hover:text-[--p-text-1] transition-colors"
+                  >
+                    <ChevronLeft className="w-3 h-3" /> Lembrei a senha
+                  </button>
                 </div>
               </div>
 
               <AnimatePresence mode="wait">
-                {(recError || recInfo) && (
+                {recError && (
                   <motion.div
-                    key={recError ?? recInfo}
-                    className={`flex items-start gap-2.5 px-4 py-3 rounded-xl border ${
-                      recError ? 'bg-red-500/10 border-red-500/20' : 'bg-[--p-accent]/5 border-[--p-accent]/20'
-                    }`}
+                    key={recError}
+                    className="flex items-start gap-2.5 px-4 py-3 bg-red-500/10 border border-red-500/20 rounded-xl"
                     initial={{ opacity: 0, y: -8 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -8 }}
                     transition={{ duration: 0.2 }}
                   >
-                    {recError
-                      ? <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" strokeWidth={2} />
-                      : <CheckCircle2 className="w-4 h-4 text-[--p-accent] mt-0.5 shrink-0" strokeWidth={2} />}
-                    <p className={`text-sm ${recError ? 'text-red-400' : 'text-[--p-text-2]'}`}>{recError ?? recInfo}</p>
+                    <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" strokeWidth={2} />
+                    <p className="text-sm text-red-400">{recError}</p>
                   </motion.div>
                 )}
               </AnimatePresence>
