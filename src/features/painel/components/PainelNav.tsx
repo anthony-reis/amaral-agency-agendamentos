@@ -38,6 +38,7 @@ import {
   Receipt,
   Wallet,
   Award,
+  ScrollText,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { contarNaoVisualizadas } from "@/features/painel/actions/solicitacoes";
@@ -80,6 +81,7 @@ const AREA_POR_ROTA: Record<string, Area> = {
   auditoria: "sistema",
   "regras-reagendamento": "sistema",
   configuracoes: "sistema",
+  termos: "sistema",
 };
 
 function podeVerRota(href: string, permissoes: Permissoes): boolean {
@@ -209,6 +211,11 @@ function buildNavGroups(
           label: "Reagendamento",
           href: `${base}/regras-reagendamento`,
           icon: Hourglass,
+        },
+        {
+          label: "Termos e Privacidade",
+          href: `${base}/termos`,
+          icon: ScrollText,
         },
         {
           label: "Configurações",

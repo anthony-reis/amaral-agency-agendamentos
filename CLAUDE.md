@@ -247,6 +247,14 @@ SUPABASE_SERVICE_ROLE_KEY=
 - **Toda funcionalidade nova que não deve chegar a todas as escolas de uma vez deve entrar atrás de um módulo**: item no `FEATURES`, gate na página, na UI (prop) e na server action.
 - `lojaHabilitada` exige módulo `vendas` + credencial MP ativa. Webhook MP não é gateado (pagamento já feito sempre credita).
 
+### Termos de Uso e Política de Privacidade (aceite do aluno)
+- Painel → Sistema → **Termos e Privacidade** (`/[escola]/painel/termos`, área `sistema`): editor com pré-visualização, "Publicar versão N" e histórico de aceites (busca, paginação, CSV). Actions em `painel/actions/termos.ts` (autoescola vem da sessão, não do cliente).
+- Tabelas: `termos_versoes` (cada publicação é uma versão imutável; vigente = maior `versao`) e `termos_aceites` (aluno, versão, IP, user agent, data). RLS ligado sem policies.
+- Aluno: `TermosAceiteGate` é renderizado **pelo layout** `/[escola]/aluno` no lugar de qualquer página enquanto o aluno nunca aceitou (`getTermosPendentesAluno` em `src/lib/termos.server.ts`). **Só no primeiro acesso**: quem aceitou qualquer versão não vê de novo. Cada documento abre num leitor que só libera "Li até o fim" após rolar até o final; o servidor (`aluno/actions/termos.ts`) exige versão vigente + todos os documentos lidos.
+- Sem conteúdo publicado (ou publicado vazio) = sem aceite. Não é módulo/feature flag: a escola liga preenchendo.
+- Auditoria: `action_type: 'termos'` na publicação e em cada aceite (metadata com versão, IP, dispositivo).
+- Texto: formatação simples sem HTML (`#`, `##`, `-`, `1.`, `**negrito**`) — `parseTermos` em `src/lib/termos.ts`, render em `src/components/TermosDocumento.tsx`.
+
 ### Recuperação de senha do aluno (módulo `login_senha_aluno`)
 - **Atual (provisório, decisão do produto):** "Esqueci minha senha" na etapa de senha (`/[escola]/aluno`) pede para **redigitar o CPF/CNH cadastrado** + nova senha (2x) e já loga — `redefinirSenhaPorCpf` em `identificacao/actions/recuperarSenha.ts`. Cada troca vai para `activity_logs_painel`.
 - **Pronto, não ligado na UI:** código de 6 dígitos por e-mail (`solicitarRecuperacaoSenha` / `redefinirSenhaComCodigo`; 15 min, 5 tentativas, 1 envio/min, 5/hora; hashes em `student_password_resets`, RLS ligado sem policies). E-mail via Resend (`src/lib/email.server.ts`), envs `RESEND_API_KEY` + `EMAIL_FROM`.
