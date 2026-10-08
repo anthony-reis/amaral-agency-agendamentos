@@ -28,7 +28,7 @@ const config: Config = {
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
-        display: ['var(--font-display)', 'Inter', 'system-ui', 'sans-serif'],
+        display: ['var(--font-landing)', 'Inter', 'system-ui', 'sans-serif'],
       },
       backgroundImage: {
         'gradient-navy': 'linear-gradient(180deg, #0D1628 0%, #112036 40%, #1A3358 100%)',

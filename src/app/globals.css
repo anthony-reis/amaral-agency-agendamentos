@@ -59,3 +59,15 @@ html {
 @media (prefers-reduced-motion: reduce) {
   .animate-faixa, .animate-marquee { animation: none !important; }
 }
+
+/* Landing: faixa central das estradas em SVG andando. */
+@keyframes estrada-faixa { to { stroke-dashoffset: -76; } }
+.estrada-faixa { animation: estrada-faixa 1.4s linear infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .estrada-faixa { animation: none; }
+}
+@keyframes estrada-faixa-volta { to { stroke-dashoffset: 76; } }
+.estrada-faixa-volta { animation: estrada-faixa-volta 1.8s linear infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .estrada-faixa-volta { animation: none; }
+}

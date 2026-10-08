@@ -1,6 +1,7 @@
 import { MessageCircle } from 'lucide-react'
 import { WHATSAPP_URL } from '../constants'
 import { Revelar } from './Revelar'
+import { PlacaPare } from './Placas'
 
 export function FinalCtaSection() {
   return (
@@ -12,11 +13,13 @@ export function FinalCtaSection() {
       />
       <div aria-hidden className="absolute -top-32 left-1/2 -translate-x-1/2 w-[720px] h-[420px] rounded-full bg-brand-teal/15 blur-[120px]" />
       <Revelar className="relative max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-24 sm:py-28 text-center">
-        <h2 className="font-display text-4xl sm:text-6xl font-extrabold tracking-[-0.03em] text-white leading-[1.02]">
-          Na semana que vem, seus alunos já podem marcar aula sozinhos.
+        <PlacaPare tamanho={84} className="mx-auto mb-8 w-fit" />
+        <h2 className="font-display text-4xl sm:text-6xl font-extrabold tracking-[-0.035em] text-white leading-[1.04] [text-wrap:balance]">
+          Pare de marcar aula pelo WhatsApp.
         </h2>
         <p className="mt-6 text-lg text-white/65 leading-relaxed max-w-xl mx-auto">
-          Chame a gente no WhatsApp, conte como a sua autoescola funciona e veja o sistema rodando com a sua rotina.
+          Na semana que vem, seus alunos já podem marcar sozinhos. Chame a gente, conte como a sua autoescola funciona e
+          veja o sistema rodando com a sua rotina.
         </p>
         <a
           href={WHATSAPP_URL}

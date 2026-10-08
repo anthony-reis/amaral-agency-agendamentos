@@ -21,7 +21,7 @@ const PASSOS = [
 
 export function ImplantacaoSection() {
   return (
-    <section className="bg-white py-24 sm:py-28">
+    <section className="bg-white pt-20 pb-6 sm:pt-28 sm:pb-8">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <Revelar className="max-w-2xl">
           <h2 className="font-display text-4xl sm:text-5xl font-extrabold tracking-[-0.025em] text-slate-900 leading-[1.05]">

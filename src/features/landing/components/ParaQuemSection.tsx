@@ -4,7 +4,7 @@ import { Revelar } from './Revelar'
 
 export function ParaQuemSection() {
   return (
-    <section id="para-quem" className="bg-white py-24 sm:py-28 scroll-mt-16">
+    <section id="para-quem" className="bg-white py-20 sm:py-28 scroll-mt-16">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <Revelar className="max-w-2xl">
           <h2 className="font-display text-4xl sm:text-5xl font-extrabold tracking-[-0.025em] text-slate-900 leading-[1.05]">

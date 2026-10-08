@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import {
@@ -34,6 +34,84 @@ const STATUS_COR: Record<string, string> = {
   'Agendada': 'bg-faixa/15 text-faixa',
 }
 
+const CORES_MOTO = ['#F43F5E', '#14B8A6', '#FACC15', '#3B82F6', '#F97316', '#A855F7']
+
+/**
+ * Moto vista de cima andando pela pista reta do hero, com farol aceso.
+ * Anda por requestAnimationFrame (como os veículos das estradas), troca de
+ * cor a cada passagem e pausa quando a pista sai da tela.
+ */
+function MotoNaPista() {
+  const reduzir = useReducedMotion()
+  const ref = useRef<HTMLDivElement>(null)
+  const [volta, setVolta] = useState(0)
+  const cor = CORES_MOTO[volta % CORES_MOTO.length]
+
+  useEffect(() => {
+    const el = ref.current
+    const pista = el?.parentElement
+    if (!el || !pista) return
+    const LARGURA_MOTO = 84
+    const VELOCIDADE = 220 // px por segundo
+
+    if (reduzir) {
+      el.style.transform = `translateX(${pista.clientWidth * 0.4}px)`
+      return
+    }
+
+    let x = -LARGURA_MOTO
+    let anterior = 0
+    let raf = 0
+    let visivel = false
+
+    const quadro = (agora: number) => {
+      if (anterior) x += ((agora - anterior) / 1000) * VELOCIDADE
+      anterior = agora
+      if (x > pista.clientWidth) {
+        x = -LARGURA_MOTO
+        setVolta((v) => v + 1)
+      }
+      el.style.transform = `translateX(${x}px)`
+      if (visivel) raf = requestAnimationFrame(quadro)
+    }
+
+    const io = new IntersectionObserver(([e]) => {
+      visivel = e.isIntersecting
+      cancelAnimationFrame(raf)
+      anterior = 0
+      if (visivel) raf = requestAnimationFrame(quadro)
+    })
+    el.style.transform = `translateX(${x}px)`
+    io.observe(pista)
+    return () => {
+      io.disconnect()
+      cancelAnimationFrame(raf)
+    }
+  }, [reduzir])
+
+  return (
+    <div ref={ref} className="absolute left-0 top-[68%] will-change-transform">
+      <svg width="84" height="26" viewBox="0 0 84 26" className="-translate-y-1/2">
+        <defs>
+          <linearGradient id="farol-moto" x1="0" x2="1">
+            <stop offset="0" stopColor="#FEF9C3" stopOpacity=".85" />
+            <stop offset="1" stopColor="#FEF9C3" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <polygon points="40,11 84,5 84,21 40,15" fill="url(#farol-moto)" />
+        <rect x="2" y="10" width="10" height="6" rx="3" fill="#0B1220" />
+        <rect x="28" y="10" width="10" height="6" rx="3" fill="#0B1220" />
+        <rect x="8" y="9" width="24" height="8" rx="4" fill={cor} style={{ transition: 'fill .4s' }} />
+        <rect x="29" y="5" width="2.5" height="16" rx="1.2" fill="#CBD5E1" />
+        <circle cx="19" cy="13" r="5.5" fill="#0D1628" />
+        <circle cx="20" cy="13" r="3" fill={cor} opacity=".85" />
+        <circle cx="38.5" cy="13" r="2" fill="#FFFBEB" />
+        <rect x="1" y="11.5" width="2" height="3" rx="1" fill="#EF4444" />
+      </svg>
+    </div>
+  )
+}
+
 /** Painel com um "dia da autoescola" acontecendo: eventos entram e os números sobem. */
 function DiaAoVivo() {
   const reduzir = useReducedMotion()
@@ -45,8 +123,8 @@ function DiaAoVivo() {
     return () => clearInterval(id)
   }, [reduzir])
 
-  // Últimos 3 eventos, o mais novo em cima.
-  const visiveis = [0, 1, 2]
+  // Últimos 2 eventos, o mais novo em cima.
+  const visiveis = [0, 1]
     .map((k) => passo - k)
     .filter((i) => i >= 0)
     .map((i) => ({ chave: i, ...EVENTOS[i % EVENTOS.length] }))
@@ -108,7 +186,7 @@ function DiaAoVivo() {
       </div>
 
       {/* Notificações chegando */}
-      <div className="absolute -left-3 sm:-left-10 -bottom-10 w-[min(320px,88%)] space-y-2" aria-live="polite">
+      <div className="absolute left-3 sm:-left-10 -bottom-12 w-[min(320px,calc(100%-24px))] space-y-2" aria-live="polite">
         <AnimatePresence initial={false}>
           {visiveis.map((e, i) => {
             const Icone = ICONE[e.tipo]
@@ -117,7 +195,7 @@ function DiaAoVivo() {
                 key={e.chave}
                 layout
                 initial={{ opacity: 0, y: 24, scale: 0.96 }}
-                animate={{ opacity: i === 0 ? 1 : 0.9 - i * 0.25, y: 0, scale: 1 - i * 0.03 }}
+                animate={{ opacity: 1, y: 0, scale: 1 - i * 0.04 }}
                 exit={{ opacity: 0, scale: 0.94 }}
                 transition={{ type: 'spring', stiffness: 260, damping: 26 }}
                 className="flex items-start gap-3 rounded-2xl bg-white px-3.5 py-3 shadow-[0_18px_40px_-12px_rgba(13,22,40,0.45)] ring-1 ring-slate-900/5"
@@ -159,7 +237,7 @@ export function HeroSection() {
               initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-              className="font-display text-[2.6rem] leading-[1.02] sm:text-6xl lg:text-[4.1rem] font-extrabold text-white tracking-[-0.03em]"
+              className="font-display text-[2.5rem] leading-[1.04] sm:text-6xl lg:text-[3.9rem] font-extrabold text-white tracking-[-0.035em] [text-wrap:balance]"
             >
               A autoescola inteira num lugar só.
             </motion.h1>
@@ -232,7 +310,8 @@ export function HeroSection() {
       </div>
 
       {/* Faixa de pista */}
-      <div aria-hidden className="absolute inset-x-0 bottom-0 h-14 bg-asfalto-3/80 border-t border-white/5 flex items-center">
+      <div aria-hidden className="absolute inset-x-0 bottom-0 h-14 bg-asfalto-3/80 border-t border-white/5 flex items-center overflow-hidden">
+        <MotoNaPista />
         <div
           className="w-full h-[5px] motion-safe:animate-faixa"
           style={{

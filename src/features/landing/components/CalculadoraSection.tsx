@@ -15,9 +15,9 @@ function Controle({
   const pct = ((valor - min) / (max - min)) * 100
   return (
     <div>
-      <div className="flex items-baseline justify-between gap-4">
-        <label htmlFor={id} className="text-sm font-medium text-white/75">{rotulo}</label>
-        <span className="font-display text-2xl font-bold text-white tabular-nums">
+      <div className="flex items-end justify-between gap-4">
+        <label htmlFor={id} className="text-sm font-medium text-white/75 max-w-[60%]">{rotulo}</label>
+        <span className="font-display text-2xl font-bold text-white tabular-nums whitespace-nowrap">
           {valor} <span className="text-sm font-medium text-white/50">{sufixo}</span>
         </span>
       </div>
@@ -45,7 +45,7 @@ export function CalculadoraSection() {
   const dias = Math.round(horasMes / 8)
 
   return (
-    <section className="bg-asfalto py-24 sm:py-28 relative overflow-hidden">
+    <section className="bg-asfalto py-20 sm:py-28 relative overflow-hidden">
       <div aria-hidden className="absolute -bottom-40 -left-20 w-[520px] h-[520px] rounded-full bg-brand-teal/10 blur-[110px]" />
       <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 grid lg:grid-cols-2 gap-12 items-center">
         <Revelar>

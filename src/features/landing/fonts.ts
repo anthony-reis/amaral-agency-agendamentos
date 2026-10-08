@@ -1,9 +1,9 @@
-import { Bricolage_Grotesque } from 'next/font/google'
+import { Plus_Jakarta_Sans } from 'next/font/google'
 
-/** Fonte dos títulos da landing (exposta como --font-display). */
-export const fonteTitulos = Bricolage_Grotesque({
+/** Fonte da landing (títulos e texto), exposta como --font-landing. */
+export const fonteLanding = Plus_Jakarta_Sans({
   subsets: ['latin'],
-  weight: ['500', '600', '700', '800'],
-  variable: '--font-display',
+  weight: ['400', '500', '600', '700', '800'],
+  variable: '--font-landing',
   display: 'swap',
 })

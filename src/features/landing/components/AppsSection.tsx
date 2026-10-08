@@ -9,10 +9,11 @@ import { Revelar } from './Revelar'
 
 type Aba = 'painel' | 'aluno' | 'instrutor'
 
-const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard; titulo: string; texto: string; itens: string[] }[] = [
+const ABAS: { id: Aba; rotulo: string; curto: string; icone: typeof LayoutDashboard; titulo: string; texto: string; itens: string[] }[] = [
   {
     id: 'painel',
     rotulo: 'Painel da equipe',
+    curto: 'Equipe',
     icone: LayoutDashboard,
     titulo: 'Para quem toca a autoescola',
     texto: 'Recepção, vendas e financeiro trabalham no mesmo painel, cada um com o acesso que você liberar.',
@@ -26,6 +27,7 @@ const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard; titulo: st
   {
     id: 'aluno',
     rotulo: 'App do aluno',
+    curto: 'Aluno',
     icone: GraduationCap,
     titulo: 'Para o aluno resolver sozinho',
     texto: 'Ele entra com CPF e senha pelo link da sua autoescola, no navegador do celular.',
@@ -39,6 +41,7 @@ const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard; titulo: st
   {
     id: 'instrutor',
     rotulo: 'App do instrutor',
+    curto: 'Instrutor',
     icone: Car,
     titulo: 'Para o instrutor focar na aula',
     texto: 'A agenda do dia na mão, sem precisar ligar para a recepção.',
@@ -175,18 +178,19 @@ export function AppsSection() {
   const atual = ABAS.find((a) => a.id === aba)!
 
   return (
-    <section id="apps" className="bg-papel py-24 sm:py-28 scroll-mt-16 border-t border-slate-200/70">
+    <section id="apps" className="bg-papel pt-4 pb-20 sm:pt-6 sm:pb-28 scroll-mt-16">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <Revelar className="max-w-2xl">
           <h2 className="font-display text-4xl sm:text-5xl font-extrabold tracking-[-0.025em] text-slate-900 leading-[1.05]">
-            Três apps, uma autoescola.
+            3 apps, um sistema.
           </h2>
           <p className="mt-5 text-lg text-slate-600 leading-relaxed">
-            Equipe, aluno e instrutor veem a mesma agenda, cada um pela sua tela. Ninguém precisa instalar nada.
+            Painel da equipe, app do aluno e app do instrutor fazem parte do mesmo sistema e usam a mesma agenda. Você
+            contrata uma vez e tem tudo o que a autoescola precisa, sem instalar nada.
           </p>
         </Revelar>
 
-        <div role="tablist" aria-label="Apps do AmaralPro" className="mt-10 flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
+        <div role="tablist" aria-label="Apps do AmaralPro" className="mt-10 grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
           {ABAS.map((a) => {
             const Icone = a.icone
             const ativa = a.id === aba
@@ -196,12 +200,13 @@ export function AppsSection() {
                 role="tab"
                 aria-selected={ativa}
                 onClick={() => setAba(a.id)}
-                className={`shrink-0 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold ring-1 transition-colors ${
+                className={`inline-flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 py-2.5 rounded-xl text-[13px] sm:text-sm font-semibold ring-1 transition-colors ${
                   ativa ? 'bg-asfalto text-white ring-asfalto' : 'bg-white text-slate-600 ring-slate-200 hover:text-slate-900'
                 }`}
               >
                 <Icone className="w-4 h-4" />
-                {a.rotulo}
+                <span className="sm:hidden">{a.curto}</span>
+                <span className="hidden sm:inline">{a.rotulo}</span>
               </button>
             )
           })}

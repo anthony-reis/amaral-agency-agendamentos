@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Guia do aluno: como usar o app da autoescola</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  @page { size: A4; margin: 18mm 16mm 20mm; }
+  @page :first { margin: 0; }
+  :root {
+    --asfalto: #0D1628; --asfalto-2: #1B2B4A; --teal: #14B8A6; --teal-escuro: #0D9488;
+    --faixa: #FACC15; --papel: #F5F7FA; --tinta: #0F172A; --cinza: #475569; --linha: #E2E8F0;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { margin: 0; font-family: Inter, system-ui, sans-serif; color: var(--tinta); font-size: 10.5pt; line-height: 1.55; }
+  h1, h2, h3 { font-family: 'Bricolage Grotesque', Inter, sans-serif; letter-spacing: -0.02em; margin: 0; }
+
+  /* Capa */
+  .capa { height: 297mm; background: var(--asfalto); color: white; padding: 26mm 20mm 0; position: relative; overflow: hidden; page-break-after: always; }
+  .capa .marca { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 13pt; opacity: .8; }
+  .capa h1 { font-size: 44pt; line-height: 1.02; font-weight: 800; margin-top: 40mm; max-width: 150mm; }
+  .capa p.sub { font-size: 14pt; color: rgba(255,255,255,.72); max-width: 140mm; margin-top: 8mm; line-height: 1.45; }
+  .capa .campos { margin-top: 22mm; display: grid; gap: 6mm; max-width: 150mm; }
+  .capa .campo { border: 1.5px solid rgba(255,255,255,.18); border-radius: 4mm; padding: 4mm 5mm; }
+  .capa .campo span { display: block; font-size: 9pt; color: rgba(255,255,255,.55); }
+  .capa .campo div { height: 8mm; border-bottom: 1.5px dashed rgba(255,255,255,.35); }
+  .capa .pista { position: absolute; left: 0; right: 0; bottom: 0; height: 26mm; background: var(--asfalto-2); display: flex; align-items: center; }
+  .capa .pista i { display: block; width: 100%; height: 2.2mm; background-image: linear-gradient(90deg, var(--faixa) 0 14mm, transparent 14mm 24mm); background-size: 24mm 2.2mm; }
+
+  /* Sumário */
+  .sumario h2 { font-size: 22pt; margin-bottom: 6mm; }
+  .sumario ol { list-style: none; padding: 0; margin: 0; counter-reset: s; }
+  .sumario li { counter-increment: s; display: flex; align-items: baseline; gap: 4mm; padding: 2.6mm 0; border-bottom: 1px solid var(--linha); font-size: 11pt; }
+  .sumario li::before { content: counter(s); font-family: 'Bricolage Grotesque'; font-weight: 700; color: var(--teal-escuro); width: 7mm; }
+  .sumario li em { margin-left: auto; font-style: normal; font-size: 8.5pt; color: var(--cinza); }
+  .legenda { margin-top: 8mm; display: flex; gap: 3mm; align-items: center; font-size: 9pt; color: var(--cinza); }
+
+  /* Seções */
+  section.parte { margin-top: 13mm; }
+  .cabecalho, .intro, h3 { break-after: avoid; page-break-after: avoid; }
+  section.parte:first-of-type { page-break-before: always; margin-top: 0; }
+  section.faq { break-inside: auto; page-break-before: always; margin-top: 0; }
+  .cabecalho { display: flex; align-items: center; gap: 4mm; margin-bottom: 5mm; }
+  .num { width: 11mm; height: 11mm; border-radius: 3mm; background: var(--asfalto); color: white; display: flex; align-items: center; justify-content: center; font-family: 'Bricolage Grotesque'; font-weight: 700; font-size: 14pt; flex-shrink: 0; }
+  .cabecalho h2 { font-size: 20pt; line-height: 1.1; }
+  .intro { color: var(--cinza); font-size: 11pt; margin: 0 0 5mm; max-width: 160mm; }
+  .opcional { display: inline-block; font-size: 8pt; font-weight: 700; background: #FEF9C3; color: #854D0E; border-radius: 99px; padding: .6mm 2.6mm; vertical-align: middle; white-space: nowrap; }
+
+  ol.passos { list-style: none; margin: 0; padding: 0; counter-reset: p; }
+  ol.passos > li { counter-increment: p; position: relative; padding: 0 0 4.5mm 11mm; break-inside: avoid; }
+  ol.passos > li::before { content: counter(p); position: absolute; left: 0; top: .2mm; width: 7mm; height: 7mm; border-radius: 50%; background: #CCFBF1; color: var(--teal-escuro); font-weight: 700; font-size: 9pt; display: flex; align-items: center; justify-content: center; }
+  ol.passos > li:not(:last-child)::after { content: ''; position: absolute; left: 3.4mm; top: 8mm; bottom: 1mm; width: .5mm; background: #CCFBF1; }
+  ol.passos b { font-weight: 600; }
+  .botao { display: inline-block; font-weight: 600; font-size: 9.5pt; background: var(--asfalto); color: white; border-radius: 1.6mm; padding: .2mm 2.2mm; white-space: nowrap; }
+  .tela { display: inline-block; font-weight: 600; font-size: 9.5pt; border: 1px solid var(--linha); background: var(--papel); border-radius: 1.6mm; padding: .1mm 2mm; white-space: nowrap; }
+
+  .caixa { border-radius: 3.5mm; padding: 4mm 5mm; margin: 4mm 0; break-inside: avoid; font-size: 10pt; }
+  .caixa strong { display: block; font-size: 10pt; margin-bottom: 1mm; }
+  .caixa.dica { background: #F0FDFA; border: 1px solid #99F6E4; }
+  .caixa.atencao { background: #FFFBEB; border: 1px solid #FDE68A; }
+  .caixa ul { margin: 1mm 0 0; padding-left: 5mm; }
+
+  /* FAQ */
+  .faq h3 { font-size: 13pt; margin: 5mm 0 1.5mm; color: var(--teal-escuro); }
+  .faq dl { margin: 0; }
+  .faq dt { font-weight: 700; font-size: 10.5pt; margin-top: 2.6mm; break-after: avoid; }
+  .faq dd { margin: .6mm 0 0; color: #334155; break-inside: avoid; line-height: 1.45; }
+  .faq .bloco { break-inside: avoid; }
+
+  .final { margin-top: 6mm; background: var(--asfalto); color: white; border-radius: 4mm; padding: 6mm 7mm; break-inside: avoid; }
+  .final h3 { font-size: 14pt; margin: 0 0 2mm; color: white; }
+  .final p { margin: 0; color: rgba(255,255,255,.75); }
+</style>
+</head>
+<body>
+
+<!-- CAPA -->
+<div class="capa">
+  <div class="marca">AmaralPro</div>
+  <h1>Guia do aluno: como usar o app da autoescola</h1>
+  <p class="sub">Marque suas aulas, acompanhe seus créditos e resolva tudo pelo celular. Este guia mostra cada passo e responde as dúvidas mais comuns.</p>
+  <div class="campos">
+    <div class="campo"><span>Link da sua autoescola</span><div></div></div>
+    <div class="campo"><span>Contato da autoescola (WhatsApp ou telefone)</span><div></div></div>
+  </div>
+  <div class="pista"><i></i></div>
+</div>
+
+<!-- SUMÁRIO -->
+<div class="sumario">
+  <h2>O que tem neste guia</h2>
+  <ol>
+    <li>Como entrar no app</li>
+    <li>Senha de acesso <em>se a sua autoescola usar</em></li>
+    <li>Termos de uso no primeiro acesso <em>se a sua autoescola usar</em></li>
+    <li>Como agendar uma aula</li>
+    <li>Minhas aulas e como remarcar</li>
+    <li>Créditos de aula</li>
+    <li>Comprar pacotes na loja <em>se a sua autoescola usar</em></li>
+    <li>Pedir exame ou curso de legislação <em>se a sua autoescola usar</em></li>
+    <li>Comunicados e como sair</li>
+    <li>Perguntas frequentes</li>
+  </ol>
+  <p class="legenda"><span class="opcional">Se a sua autoescola usar</span> Algumas telas só aparecem quando a autoescola ativa a função. Se você não encontrar uma delas, é porque a sua autoescola não usa.</p>
+
+  <div class="caixa dica" style="margin-top:10mm">
+    <strong>Não precisa instalar nada</strong>
+    O app abre no navegador do celular (Chrome, Safari ou outro) e também no computador. Para achar mais rápido, salve o link nos favoritos ou use a opção "Adicionar à tela inicial" do navegador.
+  </div>
+</div>
+
+<!-- 1 -->
+<section class="parte">
+  <div class="cabecalho"><span class="num">1</span><h2>Como entrar no app</h2></div>
+  <p class="intro">Você entra com o seu CPF ou com o número da sua CNH. É o mesmo documento que está no seu cadastro da autoescola.</p>
+  <ol class="passos">
+    <li>Abra o <b>link da sua autoescola</b> (está na capa deste guia). Se você entrou pelo site do AmaralPro, toque em <span class="botao">Entrar</span>, depois em <b>Sou aluno</b> e escolha a sua autoescola na lista.</li>
+    <li>No campo <span class="tela">CPF ou CNH</span>, digite <b>só os números</b>, sem pontos nem traço.</li>
+    <li>Toque em <span class="botao">Continuar</span>. O app mostra os seus créditos de aula.</li>
+    <li>Se a sua autoescola usa senha, o app pede a senha agora (veja a parte 2). Se não usa, você já entra.</li>
+  </ol>
+  <div class="caixa atencao">
+    <strong>Apareceu "Aluno não encontrado"?</strong>
+    Confira se digitou o número certo, sem pontos. Se continuar, o seu cadastro ainda não foi feito ou está com outro documento. Fale com a autoescola.
+  </div>
+</section>
+
+<!-- 2 -->
+<section class="parte">
+  <div class="cabecalho"><span class="num">2</span><h2>Senha de acesso <span class="opcional">Se a sua autoescola usar</span></h2></div>
+  <p class="intro">A senha protege seus créditos e suas compras. Você mesmo cria a senha no primeiro acesso.</p>
+
+  <h3 style="font-size:12.5pt;margin:2mm 0 3mm">Primeiro acesso: criar a senha</h3>
+  <ol class="passos">
+    <li>Depois do CPF, a tela mostra <span class="tela">Crie sua senha</span>.</li>
+    <li>Digite uma senha com <b>pelo menos 4 caracteres</b>. Escolha algo fácil para você lembrar e difícil para os outros adivinharem.</li>
+    <li>Toque em <span class="botao">Criar senha e entrar</span>. Nas próximas vezes, você vai usar essa senha.</li>
+  </ol>
+
+  <h3 style="font-size:12.5pt;margin:5mm 0 3mm">Esqueci minha senha</h3>
+  <ol class="passos">
+    <li>Na tela da senha, toque em <b>Esqueci minha senha</b>.</li>
+    <li>Digite de novo o seu <b>CPF ou CNH cadastrado</b>, para confirmar que é você.</li>
+    <li>Digite a nova senha duas vezes, igual nos dois campos.</li>
+    <li>Toque em <span class="botao">Salvar nova senha e entrar</span>. Pronto, você já entra com a senha nova.</li>
+  </ol>
+  <div class="caixa dica">
+    <strong>Não conseguiu trocar?</strong>
+    A autoescola também pode apagar a sua senha pelo painel. Depois disso, no próximo acesso, você cria uma senha nova como no primeiro acesso.
+  </div>
+</section>
+
+<!-- 3 -->
+<section class="parte">
+  <div class="cabecalho"><span class="num">3</span><h2>Termos de uso no primeiro acesso <span class="opcional">Se a sua autoescola usar</span></h2></div>
+  <p class="intro">Algumas autoescolas pedem que você leia e aceite os Termos de Uso e a Política de Privacidade antes de usar o app. Isso acontece uma vez só.</p>
+  <ol class="passos">
+    <li>Na tela <span class="tela">Antes de começar</span>, toque em <b>Abrir e ler</b> no primeiro documento.</li>
+    <li>Leia rolando a tela até o final. A barra no topo mostra quanto falta.</li>
+    <li>No final, toque em <span class="botao">Li até o fim</span>. Se houver outro documento, ele abre em seguida. Faça o mesmo.</li>
+    <li>Com os documentos lidos, marque a caixa <b>Li e aceito</b>.</li>
+    <li>Toque em <span class="botao">Aceitar e continuar</span> para entrar no app.</li>
+  </ol>
+  <div class="caixa atencao">
+    <strong>O botão "Li até o fim" não aparece?</strong>
+    Ele só libera quando você chega ao final do texto. Role a tela até ver "Fim do documento".
+  </div>
+  <div class="caixa dica">
+    <strong>Não concorda?</strong>
+    Toque em "Não concordo, sair". Sem o aceite, o app não abre. Converse com a autoescola sobre as suas dúvidas.
+  </div>
+</section>
+
+<!-- 4 -->
+<section class="parte">
+  <div class="cabecalho"><span class="num">4</span><h2>Como agendar uma aula</h2></div>
+  <p class="intro">Você escolhe o dia, o tipo de aula, o instrutor e o horário. Só aparecem horários livres.</p>
+  <ol class="passos">
+    <li>No menu, toque em <span class="tela">Agendar Aula</span>.</li>
+    <li><b>Escolha a data.</b> Os dias aparecem por semana. Para ver outras semanas, toque em <b>Ver mais datas</b>.</li>
+    <li><b>Escolha a categoria</b>: Carro ou Moto. Só aparece a categoria em que você tem crédito.</li>
+    <li><b>Escolha o instrutor.</b> Aparecem os instrutores com horário livre nesse dia.</li>
+    <li><b>Escolha o horário.</b></li>
+    <li>Se for o seu primeiro agendamento e a autoescola não tiver o seu telefone, o app pede o seu número com DDD.</li>
+    <li>Confira o resumo (categoria, instrutor, data e horário) e toque em <span class="botao">Confirmar Agendamento</span>.</li>
+    <li>A tela mostra <span class="tela">Agendado!</span>. A aula já aparece em <b>Minhas Aulas</b>.</li>
+  </ol>
+  <div class="caixa atencao">
+    <strong>Regras do agendamento</strong>
+    <ul>
+      <li>Cada aula agendada usa <b>1 crédito</b> da categoria escolhida.</li>
+      <li>Você pode ter <b>1 aula por dia</b>.</li>
+      <li>Para marcar aula no mesmo dia, o horário precisa respeitar a antecedência mínima definida pela sua autoescola. Horários muito próximos não aparecem.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- 5 -->
+<section class="parte">
+  <div class="cabecalho"><span class="num">5</span><h2>Minhas aulas e como remarcar</h2></div>
+  <p class="intro">Em <span class="tela">Minhas Aulas</span> você vê as próximas aulas e as que já aconteceram, com data, horário e instrutor.</p>
+
+  <h3 style="font-size:12.5pt;margin:2mm 0 3mm">Remarcar uma aula</h3>
+  <ol class="passos">
+    <li>Em <b>Próximas Aulas</b>, encontre a aula e toque em <span class="botao">Reagendar Aula</span>.</li>
+    <li>Escolha a nova data, o instrutor e o horário, do mesmo jeito que no agendamento.</li>
+    <li>Toque em <span class="botao">Confirmar Reagendamento</span>. A aula nova substitui a antiga.</li>
+  </ol>
+  <div class="caixa dica">
+    <strong>Remarcar não gasta crédito a mais</strong>
+    O crédito que já estava reservado passa para a aula nova.
+  </div>
+  <div class="caixa atencao">
+    <strong>Apareceu "Prazo para reagendar encerrado"?</strong>
+    A remarcação só pode ser feita com algumas horas de antecedência, conforme a regra da sua autoescola. Passou do prazo, fale direto com a autoescola.
+  </div>
+  <div class="caixa atencao">
+    <strong>Quer desmarcar sem remarcar?</strong>
+    O app não tem botão de cancelar. Peça para a autoescola. Quando a autoescola ou o instrutor desmarca a aula, o crédito volta para você.
+  </div>
+</section>
+
+<!-- 6 -->
+<section class="parte">
+  <div class="cabecalho"><span class="num">6</span><h2>Créditos de aula</h2></div>
+  <p class="intro">Crédito é a quantidade de aulas que você ainda pode marcar. Cada categoria (Carro, Moto) tem o seu saldo.</p>
+  <ol class="passos">
+    <li>O saldo aparece logo depois que você entra e também em <b>Minhas Aulas</b>, em <span class="tela">Créditos disponíveis</span>.</li>
+    <li>Ao agendar, 1 crédito da categoria é usado. Ao remarcar, nada muda.</li>
+    <li>Quando a autoescola ou o instrutor desmarca uma aula sua, o crédito volta.</li>
+    <li>Se você faltar, a falta fica registrada e o crédito daquela aula não volta.</li>
+  </ol>
+  <div class="caixa dica">
+    <strong>Acabaram os créditos?</strong>
+    Compre um pacote na <b>Loja</b>, se a sua autoescola tiver, ou fale com a autoescola.
+  </div>
+</section>
+
+<!-- 7 -->
+<section class="parte">
+  <div class="cabecalho"><span class="num">7</span><h2>Comprar pacotes na loja <span class="opcional">Se a sua autoescola usar</span></h2></div>
+  <p class="intro">Pela Loja você compra aulas e pacotes direto pelo celular. O pagamento é feito pelo Mercado Pago.</p>
+  <ol class="passos">
+    <li>No menu, toque em <span class="tela">Loja</span>.</li>
+    <li>Escolha o pacote ou a aula avulsa.</li>
+    <li>Você vai para a tela de pagamento do Mercado Pago. Pague com <b>Pix, cartão ou boleto</b>.</li>
+    <li>Depois de pagar, o app volta para a autoescola. Com <span class="tela">Pagamento aprovado!</span>, os créditos entram na sua conta e você já pode agendar.</li>
+  </ol>
+  <div class="caixa atencao">
+    <strong>Quando os créditos entram</strong>
+    <ul>
+      <li>Pix e cartão: assim que o pagamento é aprovado, em geral na hora.</li>
+      <li>Boleto: só depois que o banco confirma o pagamento, o que pode levar alguns dias úteis.</li>
+    </ul>
+  </div>
+  <div class="caixa dica">
+    <strong>Acompanhe suas compras</strong>
+    Em <b>Minhas Compras</b> você vê cada pedido e a situação dele: aguardando pagamento, aprovado, não aprovado ou reembolsado.
+  </div>
+</section>
+
+<!-- 8 -->
+<section class="parte">
+  <div class="cabecalho"><span class="num">8</span><h2>Pedir exame ou curso de legislação <span class="opcional">Se a sua autoescola usar</span></h2></div>
+  <p class="intro">Em <span class="tela">Solicitações</span> você pede para a autoescola agendar o seu exame de habilitação ou o curso teórico de legislação.</p>
+  <ol class="passos">
+    <li>No menu, toque em <span class="tela">Solicitações</span>.</li>
+    <li>Em <b>O que você precisa?</b>, escolha <b>Agendamento de exame</b> ou <b>Curso de legislação</b>.</li>
+    <li>Para exame, escolha a categoria e a <b>data preferida</b> entre as datas que a autoescola liberou.</li>
+    <li>Se quiser, escreva uma observação para a autoescola.</li>
+    <li>Toque em <span class="botao">Tirar selfie</span> e tire uma foto do seu rosto.</li>
+    <li>Faça a sua assinatura com o dedo no espaço indicado. Se errar, toque em <b>Refazer assinatura</b>.</li>
+    <li>Toque em <span class="botao">Confirmar solicitação</span>. O pedido fica como <b>Aguardando análise</b>.</li>
+  </ol>
+  <div class="caixa dica">
+    <strong>Resposta da autoescola</strong>
+    A resposta aparece na mesma tela. Se o pedido for recusado, o motivo aparece em "Motivo da recusa".
+  </div>
+  <div class="caixa atencao">
+    <strong>Um pedido de cada tipo por vez</strong>
+    Enquanto um pedido de exame (ou de legislação) estiver em andamento, não dá para abrir outro do mesmo tipo. Se precisar, cancele o pedido em andamento e faça um novo.
+  </div>
+</section>
+
+<!-- 9 -->
+<section class="parte">
+  <div class="cabecalho"><span class="num">9</span><h2>Comunicados e como sair</h2></div>
+  <h3 style="font-size:12.5pt;margin:2mm 0 3mm">Comunicados</h3>
+  <ol class="passos">
+    <li>Quando a autoescola manda um aviso, ele aparece na tela assim que você entra.</li>
+    <li>Leia e toque em <span class="botao">Entendido</span>. Se houver mais de um, o próximo aparece em seguida.</li>
+    <li>Para ler de novo, abra <span class="tela">Comunicados</span> no menu.</li>
+  </ol>
+  <h3 style="font-size:12.5pt;margin:5mm 0 3mm">Sair do app</h3>
+  <ol class="passos">
+    <li>No menu, toque em <span class="botao">Sair</span>.</li>
+    <li>Faça isso sempre que usar um celular ou computador que não é seu.</li>
+  </ol>
+  <div class="caixa dica">
+    <strong>O app pediu o CPF de novo?</strong>
+    Por segurança, o acesso dura cerca de 4 horas. Depois disso, é só entrar de novo com o CPF (e a senha, se a sua autoescola usar).
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="parte faq">
+  <div class="cabecalho"><span class="num">?</span><h2>Perguntas frequentes</h2></div>
+
+  <h3>Acesso</h3>
+  <dl>
+    <div class="bloco"><dt>Preciso baixar algum aplicativo?</dt>
+    <dd>Não. O app abre no navegador do celular ou do computador, pelo link da sua autoescola.</dd></div>
+    <div class="bloco"><dt>Digitei meu CPF e apareceu "Aluno não encontrado". O que faço?</dt>
+    <dd>Confira se digitou só os números, sem pontos e sem traço. Se o erro continuar, fale com a autoescola para conferir o seu cadastro.</dd></div>
+    <div class="bloco"><dt>Esqueci minha senha.</dt>
+    <dd>Na tela da senha, toque em "Esqueci minha senha", confirme o seu CPF ou CNH e crie uma senha nova (parte 2 deste guia).</dd></div>
+    <div class="bloco"><dt>Por que o app pediu o CPF de novo?</dt>
+    <dd>O acesso dura cerca de 4 horas. Depois disso, entre de novo normalmente.</dd></div>
+    <div class="bloco"><dt>Posso usar no celular de outra pessoa?</dt>
+    <dd>Pode, mas toque em "Sair" no final para ninguém mexer na sua conta.</dd></div>
+  </dl>
+
+  <h3>Agendamento</h3>
+  <dl>
+    <div class="bloco"><dt>Por que a categoria Carro (ou Moto) não aparece?</dt>
+    <dd>Você não tem crédito nessa categoria. Compre um pacote na Loja, se a sua autoescola tiver, ou fale com a autoescola.</dd></div>
+    <div class="bloco"><dt>Não aparece nenhum instrutor ou horário no dia que eu quero.</dt>
+    <dd>Os horários desse dia já foram ocupados ou a autoescola bloqueou o dia (feriado, por exemplo). Escolha outra data ou toque em "Ver mais datas".</dd></div>
+    <div class="bloco"><dt>Por que não aparecem os horários de hoje?</dt>
+    <dd>Para o mesmo dia, só aparecem horários que respeitam a antecedência mínima da sua autoescola.</dd></div>
+    <div class="bloco"><dt>Apareceu "Você já possui uma aula agendada neste dia".</dt>
+    <dd>Cada aluno pode ter 1 aula por dia. Escolha outra data.</dd></div>
+    <div class="bloco"><dt>Agendei e quero trocar o horário.</dt>
+    <dd>Em Minhas Aulas, toque em "Reagendar Aula" e escolha o novo dia e horário. Não gasta crédito a mais.</dd></div>
+    <div class="bloco"><dt>Apareceu "Prazo para reagendar encerrado".</dt>
+    <dd>A aula está muito perto de acontecer para ser remarcada pelo app. Fale com a autoescola.</dd></div>
+    <div class="bloco"><dt>Como cancelo uma aula?</dt>
+    <dd>O app não tem botão de cancelar. Peça para a autoescola. Quando ela desmarca, o crédito volta para você.</dd></div>
+    <div class="bloco"><dt>Faltei na aula. Perdi o crédito?</dt>
+    <dd>Sim. Na falta, o crédito daquela aula não volta. Se tiver um imprevisto, avise a autoescola o quanto antes.</dd></div>
+    <div class="bloco"><dt>Errei o meu telefone no agendamento.</dt>
+    <dd>Peça para a autoescola corrigir no seu cadastro.</dd></div>
+  </dl>
+
+  <h3>Créditos e pagamentos</h3>
+  <dl>
+    <div class="bloco"><dt>Onde vejo quantas aulas ainda tenho?</dt>
+    <dd>Logo depois de entrar no app e em Minhas Aulas, em "Créditos disponíveis".</dd></div>
+    <div class="bloco"><dt>Paguei e os créditos não apareceram.</dt>
+    <dd>No Pix e no cartão, os créditos entram assim que o pagamento é aprovado. No boleto, só depois que o banco confirma, o que pode levar alguns dias úteis. Veja a situação em Minhas Compras. Se estiver "Aprovado" e os créditos não apareceram, fale com a autoescola.</dd></div>
+    <div class="bloco"><dt>Meu pagamento não foi aprovado.</dt>
+    <dd>Nada foi cobrado por esse pedido. Tente de novo, de preferência com Pix ou outro cartão.</dd></div>
+    <div class="bloco"><dt>Comprei o pacote errado ou quero meu dinheiro de volta.</dt>
+    <dd>Fale com a autoescola. Só ela pode fazer o reembolso.</dd></div>
+  </dl>
+
+  <h3>Exames e solicitações</h3>
+  <dl>
+    <div class="bloco"><dt>Por que preciso tirar selfie e assinar?</dt>
+    <dd>Para a autoescola confirmar que foi você mesmo quem fez o pedido.</dd></div>
+    <div class="bloco"><dt>Não aparece nenhuma data de exame.</dt>
+    <dd>A autoescola ainda não liberou datas para a sua categoria. Fale com ela.</dd></div>
+    <div class="bloco"><dt>Apareceu "Você já tem uma solicitação desse tipo em andamento".</dt>
+    <dd>Espere a resposta do pedido atual ou cancele esse pedido e faça um novo.</dd></div>
+    <div class="bloco"><dt>A câmera não abre para a selfie.</dt>
+    <dd>Permita o acesso à câmera quando o navegador perguntar. Se você negou antes, libere a câmera nas configurações do navegador e tente de novo.</dd></div>
+  </dl>
+
+  <div class="final">
+    <h3>Ainda ficou com dúvida?</h3>
+    <p>Fale com a sua autoescola pelo contato que está na capa deste guia.</p>
+  </div>
+</section>
+
+</body>
+</html>

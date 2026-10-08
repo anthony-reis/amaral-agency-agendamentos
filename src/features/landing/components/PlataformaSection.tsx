@@ -38,7 +38,7 @@ const COR_BLOCO = {
 
 export function PlataformaSection() {
   return (
-    <section id="sistema" className="bg-papel py-24 sm:py-28 scroll-mt-16">
+    <section id="sistema" className="bg-papel pt-8 pb-20 sm:pt-10 sm:pb-24 scroll-mt-16">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <Revelar className="max-w-2xl">
           <h2 className="font-display text-4xl sm:text-5xl font-extrabold tracking-[-0.025em] text-slate-900 leading-[1.05]">

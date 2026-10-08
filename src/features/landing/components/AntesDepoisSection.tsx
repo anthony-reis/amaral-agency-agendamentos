@@ -10,7 +10,7 @@ export function AntesDepoisSection() {
   const [depois, setDepois] = useState(false)
 
   return (
-    <section className="bg-white py-24 sm:py-28">
+    <section className="bg-white pt-20 pb-6 sm:pt-28 sm:pb-8">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <Revelar className="text-center">
           <h2 className="font-display text-4xl sm:text-5xl font-extrabold tracking-[-0.025em] text-slate-900 leading-[1.05]">
