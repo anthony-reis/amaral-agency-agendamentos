@@ -239,6 +239,7 @@ SUPABASE_SERVICE_ROLE_KEY=
 - **Toda tela nova do painel**: `exigirArea` na página, item no `AREA_POR_ROTA` do `PainelNav`, `assertPodeEditar(area)` em cada action que altera dados, e `podeEditar` na UI.
 - Dados de outra área (ex.: valores do Financeiro dentro de Fechamento/Instrutores) são removidos **no servidor** para quem não tem a área.
 - /admin: `/admin/clientes/[id]/perfis` (perfis prontos detalhados com "Indicado para" + CRUD de personalizados) e seleção múltipla de perfis em Usuários.
+- **Reembolso é permissão individual**, fora de áreas/perfis: `users_painel.pode_reembolsar` (default false), marcada só no /admin → Clientes → Usuários. Reembolsar exige essa flag + ver Vendas (`bloqueioReembolso()` na action, `podeReembolsarVendas(acesso)` na UI). "Editar" em Vendas NÃO dá reembolso. Concessão/remoção e cada reembolso vão para a auditoria com `action_type: 'reembolso'` (quem fez: usuário do painel ou `AmaralPro (email)`).
 
 ### Módulos por autoescola (feature flags)
 - Coluna `autoescolas.features` (jsonb, chave ausente = desligado). Toggles em `/admin/clientes/[id]/editar` → "Módulos" (`ModulosForm` + `salvarModulosAutoescola`).

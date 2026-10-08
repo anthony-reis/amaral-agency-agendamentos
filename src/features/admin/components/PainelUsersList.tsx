@@ -3,11 +3,11 @@
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
-import { UserPlus, Trash2, Power, PowerOff, Pencil, X, ShieldCheck } from 'lucide-react'
+import { UserPlus, Trash2, Power, PowerOff, Pencil, X, ShieldCheck, Undo2, AlertTriangle } from 'lucide-react'
 import { togglePainelUser, excluirPainelUser, criarPainelUser, editarPainelUser } from '../actions/painelUsers'
 import type { PainelUserRow } from '../actions/painelUsers'
 import { PerfisSelector, type PerfilOpcao } from './PermissoesUi'
-import { perfisDoRoleLegado, type Area } from '@/lib/permissoes'
+import { combinarPermissoes, permite, perfisDoRoleLegado, type Area } from '@/lib/permissoes'
 
 interface Props {
   users: PainelUserRow[]
@@ -17,10 +17,59 @@ interface Props {
   areasDesligadas: Area[]
 }
 
-const emptyForm = { username: '', full_name: '', password: '', perfis: [] as string[] }
+const emptyForm = { username: '', full_name: '', password: '', perfis: [] as string[], pode_reembolsar: false }
 
 function perfisDoUsuario(user: PainelUserRow): string[] {
   return user.perfis?.length ? user.perfis : perfisDoRoleLegado(user.role)
+}
+
+/** Permissão individual de reembolso — separada dos perfis de propósito. */
+function PermissaoReembolso({
+  marcado, onChange, perfis, perfisOpcoes, vendasDesligado,
+}: {
+  marcado: boolean
+  onChange: (v: boolean) => void
+  perfis: string[]
+  perfisOpcoes: PerfilOpcao[]
+  vendasDesligado: boolean
+}) {
+  const veVendas = permite(
+    combinarPermissoes(perfisOpcoes.filter((o) => perfis.includes(o.id)).map((o) => o.permissoes)).vendas,
+    'ver'
+  )
+  return (
+    <label
+      className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
+        marcado
+          ? 'border-red-300 bg-red-50 dark:border-red-500/40 dark:bg-red-500/10'
+          : 'border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5'
+      }`}
+    >
+      <input
+        type="checkbox"
+        checked={marcado}
+        onChange={(e) => onChange(e.target.checked)}
+        className="mt-0.5 w-4 h-4 shrink-0 accent-red-600"
+      />
+      <span className="min-w-0 space-y-1">
+        <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-900 dark:text-white">
+          <Undo2 className="w-3.5 h-3.5 text-red-500" /> Pode reembolsar vendas
+        </span>
+        <span className="block text-xs text-slate-500 dark:text-slate-400">
+          Devolve o dinheiro ao aluno pelo Mercado Pago. Permissão individual: nenhum perfil dá esse acesso, só esta
+          opção. A concessão e cada reembolso ficam na auditoria da autoescola.
+        </span>
+        {marcado && (vendasDesligado || !veVendas) && (
+          <span className="flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
+            {vendasDesligado
+              ? 'O módulo Vendas está desligado nesta autoescola: o reembolso só funciona com ele ligado.'
+              : 'Os perfis marcados não dão acesso à tela de Vendas: o usuário não vai conseguir chegar ao botão de reembolso.'}
+          </span>
+        )}
+      </span>
+    </label>
+  )
 }
 
 export function PainelUsersList({ users: initial, autoescola_id, autoescola_slug, perfisOpcoes, areasDesligadas }: Props) {
@@ -65,7 +114,10 @@ export function PainelUsersList({ users: initial, autoescola_id, autoescola_slug
   }
 
   function openEdit(user: PainelUserRow) {
-    setEditForm({ username: user.username, full_name: user.full_name, password: '', perfis: perfisDoUsuario(user) })
+    setEditForm({
+      username: user.username, full_name: user.full_name, password: '', perfis: perfisDoUsuario(user),
+      pode_reembolsar: user.pode_reembolsar === true,
+    })
     setEditingUser(user)
     setError('')
   }
@@ -145,6 +197,15 @@ export function PainelUsersList({ users: initial, autoescola_id, autoescola_slug
                 areasDesligadas={areasDesligadas}
               />
             </div>
+            <div className="sm:col-span-3">
+              <PermissaoReembolso
+                marcado={form.pode_reembolsar}
+                onChange={(v) => setForm((p) => ({ ...p, pode_reembolsar: v }))}
+                perfis={form.perfis}
+                perfisOpcoes={perfisOpcoes}
+                vendasDesligado={areasDesligadas.includes('vendas')}
+              />
+            </div>
             {error && <p className="sm:col-span-3 text-sm text-red-600">{error}</p>}
             <div className="sm:col-span-3 flex gap-2 justify-end">
               <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">Cancelar</button>
@@ -174,6 +235,11 @@ export function PainelUsersList({ users: initial, autoescola_id, autoescola_slug
                     {nomePerfil(id)}
                   </span>
                 ))}
+                {user.pode_reembolsar && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-full bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300" title="Pode reembolsar vendas">
+                    <Undo2 className="w-3 h-3" /> Reembolso
+                  </span>
+                )}
               </div>
               <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
                 user.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
@@ -233,6 +299,13 @@ export function PainelUsersList({ users: initial, autoescola_id, autoescola_slug
                   />
                   <p className="text-[11px] text-slate-400 mt-2">A mudança vale na hora, sem o usuário precisar sair e entrar de novo.</p>
                 </div>
+                <PermissaoReembolso
+                  marcado={editForm.pode_reembolsar}
+                  onChange={(v) => setEditForm((p) => ({ ...p, pode_reembolsar: v }))}
+                  perfis={editForm.perfis}
+                  perfisOpcoes={perfisOpcoes}
+                  vendasDesligado={areasDesligadas.includes('vendas')}
+                />
                 {error && <p className="text-sm text-red-600">{error}</p>}
                 <div className="flex gap-2 justify-end">
                   <button type="button" onClick={() => setEditingUser(null)} className="px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">Cancelar</button>

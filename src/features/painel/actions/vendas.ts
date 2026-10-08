@@ -2,7 +2,8 @@
 
 import { bloqueioFeature } from '@/lib/features.server'
 import { createServiceClient } from '@/lib/supabase/server'
-import { assertPodeEditar } from './authPainel'
+import { bloqueioReembolso } from '@/lib/permissoes.server'
+import { getCurrentUserId, getCurrentUsername, getPainelAutoescolaId } from './authPainel'
 import { criarReembolso } from '@/lib/mercadopago'
 import type { PedidoLoja, PedidoLojaStatus } from '@/lib/loja-types'
 import type { ActionResult } from '@/features/admin/types'
@@ -39,9 +40,14 @@ export async function listarVendas(
   })) as PedidoComAluno[]
 }
 
+/**
+ * Reembolso no Mercado Pago. Permissão individual (users_painel.pode_reembolsar,
+ * concedida só no /admin) — ter "Editar" em Vendas não basta.
+ */
 export async function reembolsarPedido(autoescola_id: string, pedido_id: string): Promise<ActionResult<null>> {
-  const guard = await assertPodeEditar('vendas')
-  if (!guard.ok) return { success: false, error: guard.error }
+  const bloqueioPermissao = await bloqueioReembolso()
+  if (bloqueioPermissao) return { success: false, error: bloqueioPermissao }
+  if ((await getPainelAutoescolaId()) !== autoescola_id) return { success: false, error: 'Sessão inválida.' }
 
   const bloqueio = await bloqueioFeature(autoescola_id, 'vendas')
   if (bloqueio) return { success: false, error: bloqueio }
@@ -85,9 +91,16 @@ export async function reembolsarPedido(autoescola_id: string, pedido_id: string)
     .eq('id', pedido.id)
 
   await supabase.from('activity_logs_painel').insert({
-    username: 'painel',
-    action_type: 'venda',
-    description: `Reembolso solicitado manualmente pelo painel — pedido ${pedido.id.slice(0, 8)} (${pedido.produto_snapshot.nome}). Créditos NÃO foram removidos automaticamente — ajuste manualmente se necessário.`,
+    user_id: await getCurrentUserId(),
+    username: await getCurrentUsername(),
+    action_type: 'reembolso',
+    description: `Reembolso solicitado pelo painel — pedido ${pedido.id.slice(0, 8)} (${pedido.produto_snapshot.nome}), ${(pedido.valor_centavos / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}. Créditos NÃO foram removidos automaticamente — ajuste manualmente se necessário.`,
+    metadata: {
+      pedido_id: pedido.id,
+      mp_payment_id: pedido.mp_payment_id,
+      valor_centavos: pedido.valor_centavos,
+      student_id: pedido.student_id ?? null,
+    },
     autoescola_id,
   })
 

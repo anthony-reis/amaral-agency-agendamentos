@@ -26,6 +26,11 @@ export interface AcessoPainel {
   permissoes: Permissoes
   /** Nomes dos perfis do usuário (exibição). */
   perfisNomes: string[]
+  /**
+   * Permissão individual de reembolsar vendas (users_painel.pode_reembolsar),
+   * concedida só no /admin. Independe dos perfis.
+   */
+  podeReembolsar: boolean
 }
 
 /**
@@ -45,6 +50,15 @@ export const getAcessoPainel = cache(async (): Promise<AcessoPainel | null> => {
     .eq('autoescola_id', session.autoescola_id)
     .maybeSingle()
   if (!user || !user.is_active) return null
+
+  // Consulta à parte: se a migration da coluna ainda não rodou, só o
+  // reembolso fica bloqueado — o resto do painel continua funcionando.
+  const { data: reembolso } = await supabase
+    .from('users_painel')
+    .select('pode_reembolsar')
+    .eq('id', user.id)
+    .maybeSingle()
+  const podeReembolsar = reembolso?.pode_reembolsar === true
 
   const ids: string[] = user.perfis?.length ? user.perfis : perfisDoRoleLegado(user.role)
   const personalizadosIds = ids.filter((id) => !ehPerfilPadrao(id))
@@ -71,7 +85,7 @@ export const getAcessoPainel = cache(async (): Promise<AcessoPainel | null> => {
   }
 
   const features = await getAutoescolaFeatures(session.autoescola_id)
-  return { session, permissoes: aplicarModulos(combinarPermissoes(lista), features), perfisNomes }
+  return { session, permissoes: aplicarModulos(combinarPermissoes(lista), features), perfisNomes, podeReembolsar }
 })
 
 export async function nivelArea(area: Area): Promise<Nivel> {
@@ -93,6 +107,24 @@ export async function bloqueioArea(area: Area, nivel: 'ver' | 'editar' = 'editar
     return nivel === 'editar' ? 'Seu perfil não pode alterar esta área.' : 'Seu perfil não tem acesso a esta área.'
   }
   return null
+}
+
+/**
+ * Para a action de reembolso: exige ver Vendas (o módulo precisa estar
+ * ligado) E a permissão individual de reembolso. Mensagem de erro, ou null.
+ */
+export async function bloqueioReembolso(): Promise<string | null> {
+  const acesso = await getAcessoPainel()
+  if (!acesso) return 'Sessão expirada. Entre novamente.'
+  if (!permite(acesso.permissoes.vendas, 'ver') || !acesso.podeReembolsar) {
+    return 'Você não tem permissão para reembolsar vendas. Fale com a AmaralPro.'
+  }
+  return null
+}
+
+/** Pode reembolsar de fato (para mostrar o botão na UI). */
+export function podeReembolsarVendas(acesso: AcessoPainel): boolean {
+  return acesso.podeReembolsar && permite(acesso.permissoes.vendas, 'ver')
 }
 
 /**

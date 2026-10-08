@@ -9,8 +9,8 @@ import { formatarPrecoCentavos, type PedidoLojaStatus } from '@/lib/loja-types'
 interface Props {
   autoescola_id: string
   vendas: PedidoComAluno[]
-  /** Perfil com "editar" em Vendas (reembolsar). */
-  podeEditar: boolean
+  /** Permissão individual de reembolso (concedida no /admin, não vem do perfil). */
+  podeReembolsar: boolean
 }
 
 /** Prazo usual para o dinheiro voltar ao aluno, por forma de pagamento. */
@@ -64,7 +64,7 @@ function formatarData(iso: string) {
   })
 }
 
-export function VendasList({ autoescola_id, vendas: initial, podeEditar }: Props) {
+export function VendasList({ autoescola_id, vendas: initial, podeReembolsar }: Props) {
   const [vendas, setVendas] = useState<PedidoComAluno[]>(initial)
   const [filtro, setFiltro] = useState<PedidoLojaStatus | 'todos'>('todos')
   const [isPending, startTransition] = useTransition()
@@ -189,7 +189,7 @@ export function VendasList({ autoescola_id, vendas: initial, podeEditar }: Props
                     </td>
                     <td className="px-4 py-3 text-right">
                       {/* Reembolso só para vendas do Mercado Pago (venda manual não tem pagamento no MP) */}
-                      {podeEditar && v.status === 'aprovado' && v.origem !== 'manual' && (
+                      {podeReembolsar && v.status === 'aprovado' && v.origem !== 'manual' && (
                         <button
                           onClick={() => setModal({ etapa: 'confirmar', pedido: v })}
                           className="inline-flex items-center gap-1 text-xs font-semibold text-red-500 hover:text-red-600"

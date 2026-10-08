@@ -16,7 +16,7 @@ export const AREAS = {
   exames: { label: 'Exames', descricao: 'Datas de exame, agendar exame, tipo banca e Aprov./Reprov.', feature: 'exames' },
   cadastros: { label: 'Cadastros', descricao: 'Alunos e instrutores' },
   operacao: { label: 'Operação', descricao: 'Horários, bloqueios, fechamento e importação' },
-  vendas: { label: 'Vendas', descricao: 'Catálogo, vendas, reembolso e venda de créditos', feature: 'vendas' },
+  vendas: { label: 'Vendas', descricao: 'Catálogo, vendas e venda de créditos (reembolso é permissão individual, à parte)', feature: 'vendas' },
   financeiro: { label: 'Financeiro', descricao: 'Tela financeira e valores de hora/aula e banca', feature: 'financeiro' },
   solicitacoes: { label: 'Solicitações', descricao: 'Solicitações dos alunos e histórico de solicitações', feature: 'solicitacoes' },
   sistema: { label: 'Sistema', descricao: 'Comunicados, auditoria, reagendamento e configurações' },
@@ -73,7 +73,7 @@ export const PERFIS_PADRAO = {
   },
   vendas: {
     nome: 'Vendas',
-    descricao: 'Cuida do catálogo de planos, registra vendas e créditos dos alunos e faz reembolsos. Não vê o financeiro.',
+    descricao: 'Cuida do catálogo de planos e registra vendas e créditos dos alunos. Não vê o financeiro. Reembolso é liberado à parte, por usuário.',
     indicadoPara: 'Consultor(a) de vendas, atendente comercial e quem fecha matrículas.',
     permissoes: { dashboard: 'ver', vendas: 'editar', cadastros: 'editar' },
   },

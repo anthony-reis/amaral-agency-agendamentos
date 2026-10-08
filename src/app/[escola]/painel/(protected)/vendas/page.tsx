@@ -1,8 +1,7 @@
 import { redirect } from 'next/navigation'
 import { Receipt } from 'lucide-react'
 import { getPainelSession } from '@/features/painel/actions/authPainel'
-import { permite } from '@/lib/permissoes'
-import { exigirArea, roleParaArea } from '@/lib/permissoes.server'
+import { exigirArea, podeReembolsarVendas } from '@/lib/permissoes.server'
 import { exigirFeature } from '@/lib/features.server'
 import { listarVendas } from '@/features/painel/actions/vendas'
 import { VendasList } from '@/features/painel/components/VendasList'
@@ -16,7 +15,8 @@ export default async function VendasPage({ params }: Props) {
   const session = await getPainelSession(escola)
   if (!session) redirect(`/${escola}/painel/login`)
   const acesso = await exigirArea('vendas')
-  const podeEditar = permite(acesso.permissoes.vendas, 'editar')
+  // Reembolso é permissão individual (/admin), não vem de "Editar" em Vendas.
+  const podeReembolsar = podeReembolsarVendas(acesso)
   await exigirFeature(session.autoescola_id, 'vendas')
 
   const vendas = await listarVendas(session.autoescola_id)
@@ -33,8 +33,7 @@ export default async function VendasPage({ params }: Props) {
         </div>
       </div>
 
-      <VendasList autoescola_id={session.autoescola_id} vendas={vendas} podeEditar={podeEditar}
-      />
+      <VendasList autoescola_id={session.autoescola_id} vendas={vendas} podeReembolsar={podeReembolsar} />
     </div>
   )
 }
