@@ -1,232 +1,246 @@
-"use client";
+'use client'
 
-import { motion } from "framer-motion";
-import Link from "next/link";
-import { GraduationCap, Building2, MessageSquare, ArrowRight } from "lucide-react";
-import { WHATSAPP_URL } from "../constants";
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
+import {
+  CalendarCheck, QrCode, Gauge, Award, Layers, UserX, CheckCircle2, MessageCircle, ChevronRight,
+} from 'lucide-react'
+import { WHATSAPP_URL } from '../constants'
+import { EVENTOS, type TipoEvento } from '../data/landing'
+
+const ICONE: Record<TipoEvento, typeof CalendarCheck> = {
+  agenda: CalendarCheck, pix: QrCode, km: Gauge, exame: Award, credito: Layers, falta: UserX,
+}
+const COR: Record<TipoEvento, string> = {
+  agenda: 'bg-brand-teal/15 text-brand-teal-dark',
+  pix: 'bg-emerald-500/15 text-emerald-600',
+  km: 'bg-sky-500/15 text-sky-600',
+  exame: 'bg-amber-400/20 text-amber-600',
+  credito: 'bg-violet-500/15 text-violet-600',
+  falta: 'bg-rose-500/15 text-rose-600',
+}
+
+const AGENDA = [
+  { hora: '08:00', aluno: 'Ana Paula', instrutor: 'Marcos', cat: 'B', status: 'Concluída' },
+  { hora: '09:00', aluno: 'Rafael Lima', instrutor: 'Júlia', cat: 'A', status: 'Em aula' },
+  { hora: '10:30', aluno: 'Bianca Rocha', instrutor: 'Marcos', cat: 'B', status: 'Agendada' },
+  { hora: '14:00', aluno: 'Lucas Prado', instrutor: 'Carla', cat: 'B', status: 'Agendada' },
+]
+
+const STATUS_COR: Record<string, string> = {
+  'Concluída': 'bg-white/10 text-white/60',
+  'Em aula': 'bg-brand-teal/20 text-brand-teal-light',
+  'Agendada': 'bg-faixa/15 text-faixa',
+}
+
+/** Painel com um "dia da autoescola" acontecendo: eventos entram e os números sobem. */
+function DiaAoVivo() {
+  const reduzir = useReducedMotion()
+  const [passo, setPasso] = useState(0)
+
+  useEffect(() => {
+    if (reduzir) return
+    const id = setInterval(() => setPasso((p) => p + 1), 2600)
+    return () => clearInterval(id)
+  }, [reduzir])
+
+  // Últimos 3 eventos, o mais novo em cima.
+  const visiveis = [0, 1, 2]
+    .map((k) => passo - k)
+    .filter((i) => i >= 0)
+    .map((i) => ({ chave: i, ...EVENTOS[i % EVENTOS.length] }))
+
+  const contar = (tipo: TipoEvento) =>
+    Array.from({ length: passo + 1 }, (_, i) => EVENTOS[i % EVENTOS.length]).filter((e) => e.tipo === tipo).length
+
+  const numeros = [
+    { rotulo: 'Aulas hoje', valor: 13 + contar('agenda') },
+    { rotulo: 'Vendas no Pix', valor: 3 + contar('pix') },
+    { rotulo: 'Km rodados', valor: 212 + contar('km') * 18 },
+  ]
+
+  return (
+    <div className="relative">
+      <div className="relative rounded-[22px] bg-asfalto-2 ring-1 ring-white/10 shadow-[0_40px_80px_-20px_rgba(0,0,0,0.6)] overflow-hidden">
+        <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-white/5">
+          <div>
+            <p className="text-[13px] font-semibold text-white">Hoje na autoescola</p>
+            <p className="text-[11px] text-white/40">Painel da equipe</p>
+          </div>
+          <span className="flex items-center gap-1.5 text-[11px] font-medium text-brand-teal-light">
+            <span className="relative flex w-2 h-2">
+              <span className="absolute inline-flex w-full h-full rounded-full bg-brand-teal opacity-60 motion-safe:animate-ping" />
+              <span className="relative inline-flex w-2 h-2 rounded-full bg-brand-teal" />
+            </span>
+            ao vivo
+          </span>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2 p-4">
+          {numeros.map((n) => (
+            <div key={n.rotulo} className="rounded-xl bg-white/[0.04] ring-1 ring-white/5 px-3 py-2.5">
+              <motion.p
+                key={n.valor}
+                initial={reduzir ? false : { y: 6, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                className="font-display text-xl font-bold text-white tabular-nums"
+              >
+                {n.valor}
+              </motion.p>
+              <p className="text-[10px] text-white/45 mt-0.5">{n.rotulo}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="px-4 pb-4 space-y-1.5">
+          {AGENDA.map((a) => (
+            <div key={a.hora} className="flex items-center gap-3 rounded-xl bg-white/[0.03] px-3 py-2">
+              <span className="text-[11px] font-semibold text-white/50 tabular-nums w-9">{a.hora}</span>
+              <span className="flex-1 min-w-0">
+                <span className="block text-[12px] font-medium text-white truncate">{a.aluno}</span>
+                <span className="block text-[10px] text-white/40 truncate">Cat. {a.cat} com {a.instrutor}</span>
+              </span>
+              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${STATUS_COR[a.status]}`}>{a.status}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Notificações chegando */}
+      <div className="absolute -left-3 sm:-left-10 -bottom-10 w-[min(320px,88%)] space-y-2" aria-live="polite">
+        <AnimatePresence initial={false}>
+          {visiveis.map((e, i) => {
+            const Icone = ICONE[e.tipo]
+            return (
+              <motion.div
+                key={e.chave}
+                layout
+                initial={{ opacity: 0, y: 24, scale: 0.96 }}
+                animate={{ opacity: i === 0 ? 1 : 0.9 - i * 0.25, y: 0, scale: 1 - i * 0.03 }}
+                exit={{ opacity: 0, scale: 0.94 }}
+                transition={{ type: 'spring', stiffness: 260, damping: 26 }}
+                className="flex items-start gap-3 rounded-2xl bg-white px-3.5 py-3 shadow-[0_18px_40px_-12px_rgba(13,22,40,0.45)] ring-1 ring-slate-900/5"
+              >
+                <span className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${COR[e.tipo]}`}>
+                  <Icone className="w-4 h-4" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-[13px] font-semibold text-slate-900 leading-snug">{e.titulo}</span>
+                  <span className="block text-[11px] text-slate-500 leading-snug mt-0.5">{e.detalhe}</span>
+                </span>
+              </motion.div>
+            )
+          })}
+        </AnimatePresence>
+      </div>
+    </div>
+  )
+}
 
 export function HeroSection() {
   return (
-    <section className="relative min-h-screen bg-white overflow-hidden">
-      {/* Background decoration */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-bl from-slate-50 via-teal-50/30 to-transparent" />
-        <div className="absolute top-20 right-10 w-96 h-96 bg-brand-teal/5 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 left-0 w-72 h-72 bg-brand-teal/5 rounded-full blur-3xl" />
-      </div>
+    <section className="relative bg-asfalto overflow-hidden">
+      {/* Textura de asfalto: pontos bem sutis */}
+      <div
+        aria-hidden
+        className="absolute inset-0 opacity-[0.35]"
+        style={{
+          backgroundImage: 'radial-gradient(rgba(255,255,255,0.07) 1px, transparent 1px)',
+          backgroundSize: '22px 22px',
+        }}
+      />
+      <div aria-hidden className="absolute -top-40 right-[-10%] w-[640px] h-[640px] rounded-full bg-brand-teal/15 blur-[120px]" />
 
-      <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-16 lg:pt-36 lg:pb-24">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-          {/* Text side */}
-          <div className="space-y-8">
-            {/* Badge */}
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-            >
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-teal/10 text-brand-teal text-xs font-semibold rounded-full ring-1 ring-brand-teal/20">
-                <span className="w-1.5 h-1.5 rounded-full bg-brand-teal animate-pulse" />
-                Inovação para Autoescolas
-              </span>
-            </motion.div>
-
-            {/* Headline */}
+      <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 sm:pt-32 pb-28 lg:pb-32">
+        <div className="grid lg:grid-cols-[1.05fr_1fr] gap-14 lg:gap-12 items-center">
+          <div>
             <motion.h1
-              className="text-4xl sm:text-5xl lg:text-[3.25rem] font-bold text-slate-900 leading-[1.15] tracking-tight"
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.1 }}
+              transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+              className="font-display text-[2.6rem] leading-[1.02] sm:text-6xl lg:text-[4.1rem] font-extrabold text-white tracking-[-0.03em]"
             >
-              Leve sua autoescola para o <span className="text-brand-teal">Próximo Nível.</span>
+              A autoescola inteira num lugar só.
             </motion.h1>
 
-            {/* Subtitle */}
             <motion.p
-              className="text-lg text-slate-500 leading-relaxed max-w-lg"
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
+              transition={{ duration: 0.6, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+              className="mt-6 text-lg text-white/70 leading-relaxed max-w-[34rem]"
             >
-              A plataforma definitiva para automatizar agendamentos, eliminar erros manuais e oferecer uma experiência moderna aos seus alunos.
+              Agenda online, app do aluno e do instrutor, créditos, vendas com Pix, exames e financeiro no mesmo
+              sistema. Você para de correr atrás de planilha e de mensagem no WhatsApp e acompanha tudo pelo painel.
             </motion.p>
 
-            {/* CTAs */}
             <motion.div
-              className="flex flex-col sm:flex-row gap-3"
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.3 }}
+              transition={{ duration: 0.6, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+              className="mt-9 flex flex-col sm:flex-row gap-3"
             >
-              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                <Link
-                  href="/entrar?perfil=aluno"
-                  className="inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-brand-teal text-white font-semibold rounded-xl shadow-md hover:bg-brand-teal-dark transition-colors"
-                >
-                  <GraduationCap className="w-4 h-4" />
-                  Sou aluno
-                </Link>
-              </motion.div>
-              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                <Link
-                  href="/entrar?perfil=escola"
-                  className="inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-white text-slate-700 font-semibold rounded-xl border border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all"
-                >
-                  <Building2 className="w-4 h-4 text-brand-teal" />
-                  Sou autoescola
-                </Link>
-              </motion.div>
+              <a
+                href={WHATSAPP_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group inline-flex items-center justify-center gap-2.5 px-6 py-4 rounded-2xl bg-brand-teal text-asfalto font-bold text-base hover:bg-brand-teal-light transition-colors shadow-[0_12px_32px_-8px_rgba(20,184,166,0.6)]"
+              >
+                <MessageCircle className="w-5 h-5" />
+                Quero ver funcionando
+              </a>
+              <a
+                href="#planos"
+                className="inline-flex items-center justify-center gap-1.5 px-6 py-4 rounded-2xl text-white font-semibold ring-1 ring-white/20 hover:bg-white/5 transition-colors"
+              >
+                Ver planos e preços
+                <ChevronRight className="w-4 h-4" />
+              </a>
             </motion.div>
 
-            {/* Social proof */}
-            <motion.div
-              className="flex items-center gap-4 pt-2"
+            <motion.ul
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: 0.5 }}
+              transition={{ delay: 0.45 }}
+              className="mt-8 flex flex-wrap gap-x-6 gap-y-2.5 text-sm text-white/75"
             >
-              <div className="flex -space-x-2">
-                {["CM", "MS", "RL"].map((initials, i) => (
-                  <div
-                    key={initials}
-                    className={`w-8 h-8 rounded-full border-2 border-white flex items-center justify-center text-xs font-bold ${
-                      i === 0
-                        ? "bg-blue-200 text-blue-700"
-                        : i === 1
-                          ? "bg-emerald-200 text-emerald-700"
-                          : "bg-violet-200 text-violet-700"
-                    }`}
-                  >
-                    {initials}
-                  </div>
-                ))}
-              </div>
-              <p className="text-sm text-slate-500">
-                <span className="font-semibold text-slate-800">
-                  O sistema ideal
-                </span>{" "}
-                para autoescolas e instrutores
-              </p>
-            </motion.div>
+              {['Implantação em até 48h', 'Suporte pelo WhatsApp', 'Sem fidelidade'].map((t) => (
+                <li key={t} className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-brand-teal" />
+                  {t}
+                </li>
+              ))}
+            </motion.ul>
+
+            <p className="mt-10 text-sm text-white/45">
+              Já usa o AmaralPro? Entre como{' '}
+              <Link href="/entrar?perfil=aluno" className="text-white/80 underline underline-offset-4 hover:text-white">aluno</Link>{' '}
+              ou como{' '}
+              <Link href="/entrar?perfil=escola" className="text-white/80 underline underline-offset-4 hover:text-white">autoescola</Link>.
+            </p>
           </div>
 
-          {/* Visual side */}
           <motion.div
-            className="relative"
-            initial={{ opacity: 0, x: 30 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{
-              type: "spring",
-              stiffness: 140,
-              damping: 22,
-              delay: 0.2,
-            }}
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.25, ease: [0.22, 1, 0.36, 1] }}
+            className="relative lg:pl-6 pb-10"
           >
-            {/* Main card / UI preview */}
-            <div className="relative bg-[#0B1221] rounded-2xl shadow-2xl ring-1 ring-white/10 overflow-hidden">
-              {/* Fake browser bar */}
-              <div className="flex items-center gap-1.5 px-4 py-3 bg-[#151C2C] border-b border-white/5">
-                <div className="w-2.5 h-2.5 rounded-full bg-red-500/50" />
-                <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/50" />
-                <div className="w-2.5 h-2.5 rounded-full bg-green-500/50" />
-                <div className="flex-1 mx-4 h-5 bg-[#0B1221] rounded flex items-center px-2">
-                  <span className="text-[9px] text-slate-500 truncate">
-                    amaralpro.com.br/painel
-                  </span>
-                </div>
-              </div>
-
-              {/* Dashboard preview */}
-              <div className="p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="text-white text-[10px] font-bold tracking-wider uppercase opacity-50">
-                    Resumo do Dia
-                  </div>
-                  <div className="w-6 h-6 rounded-full bg-brand-teal/20 flex items-center justify-center">
-                    <div className="w-1.5 h-1.5 rounded-full bg-brand-teal animate-pulse" />
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-3 gap-2.5 mb-5">
-                  {[
-                    { label: "Aulas", value: "14" },
-                    { label: "Próxima", value: "09s" },
-                    { label: "Créditos", value: "240" },
-                  ].map((stat) => (
-                    <div
-                      key={stat.label}
-                      className="bg-white/5 border border-white/5 rounded-xl p-3"
-                    >
-                      <div className="text-sm font-bold text-white">
-                        {stat.value}
-                      </div>
-                      <div className="text-[9px] text-slate-400 mt-0.5">
-                        {stat.label}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="space-y-2">
-                  {[
-                    { time: "08:00", name: "Ana Paula", cat: "Cat. B", status: "Confirmado" },
-                    { time: "09:30", name: "Marcos Silva", cat: "Cat. A", status: "Em aula" },
-                  ].map((item, i) => (
-                    <div
-                      key={i}
-                      className="flex items-center justify-between bg-white/5 border border-white/5 rounded-xl px-4 py-2.5"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="text-[10px] font-mono text-brand-teal">{item.time}</div>
-                        <div className="text-[11px] font-medium text-slate-200">{item.name}</div>
-                      </div>
-                      <div className={`text-[9px] px-2 py-0.5 rounded-full font-bold ${
-                        item.status === "Em aula" ? "bg-brand-teal/20 text-brand-teal" : "bg-white/10 text-slate-400"
-                      }`}>
-                        {item.status}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Floating badge */}
-            <motion.div
-              className="absolute -bottom-4 -left-4 bg-white rounded-xl shadow-card-lg ring-1 ring-slate-100 px-4 py-3 flex items-center gap-3"
-              animate={{ y: [0, -6, 0] }}
-              transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-            >
-              <div className="w-8 h-8 rounded-full bg-brand-teal/10 flex items-center justify-center">
-                <span className="text-base">✅</span>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-slate-800">
-                  Aula confirmada!
-                </p>
-                <p className="text-[10px] text-slate-400">
-                  João Silva — 09:30h
-                </p>
-              </div>
-            </motion.div>
-
-            {/* Floating stat */}
-            <motion.div
-              className="absolute -top-4 -right-4 bg-brand-teal text-white rounded-xl shadow-card-lg px-4 py-3"
-              animate={{ y: [0, 6, 0] }}
-              transition={{
-                duration: 3.5,
-                repeat: Infinity,
-                ease: "easeInOut",
-                delay: 0.5,
-              }}
-            >
-              <p className="text-lg font-bold">98%</p>
-              <p className="text-[10px] opacity-80">Satisfação</p>
-            </motion.div>
+            <DiaAoVivo />
           </motion.div>
         </div>
       </div>
+
+      {/* Faixa de pista */}
+      <div aria-hidden className="absolute inset-x-0 bottom-0 h-14 bg-asfalto-3/80 border-t border-white/5 flex items-center">
+        <div
+          className="w-full h-[5px] motion-safe:animate-faixa"
+          style={{
+            backgroundImage: 'linear-gradient(90deg, #FACC15 0 36px, transparent 36px 64px)',
+            backgroundSize: '64px 5px',
+          }}
+        />
+      </div>
     </section>
-  );
+  )
 }

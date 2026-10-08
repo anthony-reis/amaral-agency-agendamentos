@@ -1,119 +1,143 @@
-'use client'
+import { Check, MessageCircle, Settings2, Wrench } from 'lucide-react'
+import { IMPLANTACAO, PLANOS, type Plano } from '../data/landing'
+import { MSG_PERSONALIZADO, whatsappLink } from '../constants'
+import { Revelar } from './Revelar'
 
-import { useRef } from 'react'
-import { motion, useInView } from 'framer-motion'
-import { Check, Zap, MessageSquare } from 'lucide-react'
-import { pricingPlans } from '../data/pricing'
-import { WHATSAPP_URL } from '../constants'
+function Preco({ plano, escuro }: { plano: Plano; escuro: boolean }) {
+  return (
+    <p className={`flex items-start gap-1 ${escuro ? 'text-white' : 'text-slate-900'}`}>
+      <span className="mt-2 text-base font-semibold opacity-70">R$</span>
+      <span className="font-display text-6xl font-extrabold tracking-[-0.04em] tabular-nums">{plano.reais}</span>
+      <span className="mt-2 flex flex-col leading-none">
+        <span className="font-display text-xl font-bold">,{plano.centavos}</span>
+        <span className={`mt-1 text-xs font-medium ${escuro ? 'text-white/55' : 'text-slate-500'}`}>por mês</span>
+      </span>
+    </p>
+  )
+}
+
+function CardPlano({ plano }: { plano: Plano }) {
+  const escuro = plano.destaque
+  return (
+    <div
+      className={`relative h-full flex flex-col rounded-3xl p-7 sm:p-8 ${
+        escuro
+          ? 'bg-asfalto text-white shadow-[0_40px_80px_-30px_rgba(13,22,40,0.7)] lg:-my-4 lg:py-12'
+          : 'bg-white ring-1 ring-slate-200'
+      }`}
+    >
+      {escuro && (
+        <span className="absolute -top-3 left-7 rounded-full bg-faixa px-3 py-1 text-xs font-bold text-asfalto">
+          Mais completo
+        </span>
+      )}
+      <h3 className={`font-display text-2xl font-bold ${escuro ? 'text-white' : 'text-slate-900'}`}>{plano.nome}</h3>
+      <p className={`mt-2 text-sm leading-relaxed min-h-[3.75rem] ${escuro ? 'text-white/65' : 'text-slate-600'}`}>{plano.resumo}</p>
+
+      <div className="mt-6">
+        <Preco plano={plano} escuro={escuro} />
+        <p className={`mt-2 text-xs ${escuro ? 'text-white/50' : 'text-slate-500'}`}>
+          + implantação de R$ {IMPLANTACAO.reais},{IMPLANTACAO.centavos} (pagamento único)
+        </p>
+      </div>
+
+      <a
+        href={plano.whatsapp}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={`mt-7 inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3.5 font-bold transition-colors ${
+          escuro
+            ? 'bg-brand-teal text-asfalto hover:bg-brand-teal-light shadow-[0_12px_32px_-8px_rgba(20,184,166,0.6)]'
+            : 'bg-asfalto text-white hover:bg-asfalto-3'
+        }`}
+      >
+        <MessageCircle className="w-5 h-5" />
+        Quero o plano {plano.nome}
+      </a>
+
+      <div className={`mt-8 pt-7 border-t ${escuro ? 'border-white/10' : 'border-slate-200'}`}>
+        {plano.incluiTudoDe && (
+          <p className={`mb-4 text-sm font-semibold ${escuro ? 'text-faixa' : 'text-slate-900'}`}>
+            Tudo do {plano.incluiTudoDe}, e mais:
+          </p>
+        )}
+        <ul className="space-y-3">
+          {plano.itens.map((item) => (
+            <li key={item} className={`flex gap-3 text-sm leading-snug ${escuro ? 'text-white/85' : 'text-slate-700'}`}>
+              <Check className={`w-4 h-4 mt-0.5 shrink-0 ${escuro ? 'text-brand-teal-light' : 'text-brand-teal-dark'}`} strokeWidth={3} />
+              {item}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  )
+}
 
 export function PricingSection() {
-  const ref = useRef<HTMLDivElement>(null)
-  const isInView = useInView(ref, { once: true, margin: '-80px' })
-
   return (
-    <section id="planos" className="py-24 bg-slate-50">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-          {/* Info Side */}
-          <div className="lg:col-span-7">
-            <motion.div
-              ref={ref}
-              initial={{ opacity: 0, x: -20 }}
-              animate={isInView ? { opacity: 1, x: 0 } : {}}
-              transition={{ duration: 0.5 }}
-            >
-              <span className="text-xs font-bold text-brand-teal uppercase tracking-[0.2em]">
-                O Próximo Passo
+    <section id="planos" className="bg-papel py-24 sm:py-28 scroll-mt-16 border-t border-slate-200/70">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <Revelar className="max-w-2xl">
+          <h2 className="font-display text-4xl sm:text-5xl font-extrabold tracking-[-0.025em] text-slate-900 leading-[1.05]">
+            Planos para cada momento da autoescola.
+          </h2>
+          <p className="mt-5 text-lg text-slate-600 leading-relaxed">
+            A contratação é feita direto com o nosso suporte, pelo WhatsApp. Escolha o plano e chame a gente.
+          </p>
+        </Revelar>
+
+        <Revelar delay={0.05} className="mt-10 rounded-2xl bg-white ring-1 ring-slate-200 px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
+          <span className="flex items-center gap-3">
+            <span className="w-10 h-10 rounded-xl bg-faixa/25 text-asfalto flex items-center justify-center shrink-0">
+              <Wrench className="w-5 h-5" />
+            </span>
+            <span className="font-display text-lg font-bold text-slate-900 whitespace-nowrap">
+              Implantação: R$ {IMPLANTACAO.reais},{IMPLANTACAO.centavos}
+            </span>
+          </span>
+          <span className="text-sm text-slate-600">
+            Pagamento único, igual nos dois planos. Inclui a configuração da autoescola, a importação dos seus alunos e o
+            treinamento da equipe.
+          </span>
+        </Revelar>
+
+        <div className="mt-12 grid lg:grid-cols-3 gap-5 lg:gap-6 items-stretch">
+          {PLANOS.map((p, i) => (
+            <Revelar key={p.id} delay={0.05 + i * 0.07} className="h-full">
+              <CardPlano plano={p} />
+            </Revelar>
+          ))}
+
+          <Revelar delay={0.2} className="h-full">
+            <div className="h-full flex flex-col rounded-3xl border-2 border-dashed border-slate-300 p-7 sm:p-8">
+              <span className="w-11 h-11 rounded-2xl bg-white ring-1 ring-slate-200 flex items-center justify-center">
+                <Settings2 className="w-5 h-5 text-brand-teal-dark" />
               </span>
-              <h2 className="mt-4 text-4xl font-black text-slate-900 leading-[1.1] tracking-tight">
-                Transforme sua <span className="text-brand-teal">Autoescola</span> com um investimento que se paga.
-              </h2>
-              <p className="mt-6 text-slate-600 text-lg leading-relaxed max-w-xl">
-                Diga adeus à desorganização. Nosso plano único foi desenhado para cobrir todas as necessidades da sua operação, da implantação ao suporte diário.
+              <h3 className="mt-5 font-display text-2xl font-bold text-slate-900">Personalizado</h3>
+              <p className="mt-2 text-sm text-slate-600 leading-relaxed">
+                Tem mais de uma unidade, muitos instrutores ou precisa de algo que não está nos planos? O suporte monta
+                um plano com o que a sua operação usa de verdade.
               </p>
-
-              <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-6">
-                {[
-                  { title: 'Implantação em 48h', desc: 'Sua escola rodando em tempo recorde.' },
-                  { title: 'Suporte VIP', desc: 'Atendimento direto via WhatsApp.' },
-                  { title: 'Treinamento Grátis', desc: 'Sua equipe dominando o sistema.' },
-                  { title: 'Sem Fidelidade', desc: 'Transparência total no contrato.' },
-                ].map((item) => (
-                  <div key={item.title} className="flex gap-4">
-                    <div className="w-1.5 h-1.5 rounded-full bg-brand-teal mt-2 shrink-0" />
-                    <div>
-                      <h4 className="text-sm font-bold text-slate-900">{item.title}</h4>
-                      <p className="text-xs text-slate-500 mt-0.5">{item.desc}</p>
-                    </div>
-                  </div>
+              <ul className="mt-6 space-y-3 text-sm text-slate-700 flex-1">
+                {['Só os módulos que a sua autoescola usa', 'Valores conversados direto com o suporte'].map((t) => (
+                  <li key={t} className="flex gap-3">
+                    <Check className="w-4 h-4 mt-0.5 shrink-0 text-brand-teal-dark" strokeWidth={3} />
+                    {t}
+                  </li>
                 ))}
-              </div>
-            </motion.div>
-          </div>
-
-          {/* Card Side */}
-          <div className="lg:col-span-5 relative">
-            {/* Background decoration */}
-            <div className="absolute -inset-4 bg-brand-teal/10 rounded-[2.5rem] blur-2xl pointer-events-none" />
-            
-            {pricingPlans.map((plan, i) => (
-              <motion.div
-                key={plan.id}
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={isInView ? { opacity: 1, scale: 1 } : {}}
-                transition={{ type: 'spring', stiffness: 100, damping: 20, delay: 0.2 }}
-                className="relative bg-brand-navy rounded-[2rem] p-10 shadow-2xl ring-1 ring-white/10"
+              </ul>
+              <a
+                href={whatsappLink(MSG_PERSONALIZADO)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-8 inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3.5 font-bold text-asfalto bg-white ring-1 ring-slate-300 hover:ring-asfalto transition"
               >
-                {/* Badge */}
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                  <span className="inline-flex items-center gap-2 px-5 py-2 bg-brand-teal text-white text-[10px] font-black uppercase tracking-widest rounded-full shadow-lg">
-                    <Zap className="w-3 h-3" />
-                    Plano Evolution
-                  </span>
-                </div>
-
-                <div className="text-center mb-10">
-                  <div className="flex items-baseline justify-center gap-1">
-                    <span className="text-5xl font-black text-white tracking-tighter">R$ 997</span>
-                    <span className="text-slate-400 text-sm font-semibold">/setup</span>
-                  </div>
-                  <div className="mt-2 text-brand-teal-light font-bold text-lg">
-                    + R$ 497 <span className="text-xs opacity-70 underline decoration-2">por mês</span>
-                  </div>
-                  <p className="mt-6 text-slate-400 text-sm leading-relaxed">
-                    Acesso completo, suporte ilimitado e todas as atualizações futuras.
-                  </p>
-                </div>
-
-                <ul className="space-y-4 mb-10 border-t border-white/5 pt-10">
-                  {plan.features.map((feature) => (
-                    <li key={feature} className="flex items-center gap-3">
-                      <div className="w-5 h-5 rounded-full bg-brand-teal/20 flex items-center justify-center shrink-0">
-                        <Check className="w-3 h-3 text-brand-teal" strokeWidth={3} />
-                      </div>
-                      <span className="text-sm text-slate-300 font-medium">{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-
-                <motion.a
-                  href={WHATSAPP_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="flex items-center justify-center gap-3 w-full py-5 px-6 bg-brand-teal text-white text-base font-black rounded-2xl hover:bg-brand-teal-dark transition-all shadow-xl shadow-brand-teal/30"
-                >
-                  <MessageSquare className="w-5 h-5" />
-                  Garantir Minha Vaga
-                </motion.a>
-
-                <p className="mt-6 text-center text-[10px] text-slate-500 font-bold uppercase tracking-widest">
-                  Implantação em até 48 horas
-                </p>
-              </motion.div>
-            ))}
-          </div>
+                <MessageCircle className="w-5 h-5" />
+                Pedir plano personalizado
+              </a>
+            </div>
+          </Revelar>
         </div>
       </div>
     </section>

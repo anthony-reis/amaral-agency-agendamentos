@@ -1,75 +1,81 @@
 import Link from 'next/link'
-import { Instagram, Linkedin, MessageCircle } from 'lucide-react'
-import { WHATSAPP_URL } from '../constants'
+import { Instagram, MessageCircle } from 'lucide-react'
+import { WHATSAPP_URL, MSG_PERSONALIZADO, whatsappLink } from '../constants'
 
-const footerLinks = {
-  Produto: [
-    { label: 'Recursos', href: '#recursos' },
-    { label: 'Planos', href: '#planos' },
-    { label: 'Como funciona', href: '#como-funciona' },
-  ],
-  Suporte: [
-    { label: 'Ajuda', href: '#' },
-    { label: 'WhatsApp', href: WHATSAPP_URL },
-    { label: 'Contato', href: '#contato' },
-  ],
-  Legal: [
-    { label: 'Termos de Uso', href: '#' },
-    { label: 'Privacidade', href: '#' },
-  ],
-}
+const colunas = [
+  {
+    titulo: 'Produto',
+    links: [
+      { label: 'O sistema', href: '#sistema' },
+      { label: 'Apps', href: '#apps' },
+      { label: 'Planos', href: '#planos' },
+      { label: 'Dúvidas', href: '#duvidas' },
+    ],
+  },
+  {
+    titulo: 'Entrar',
+    links: [
+      { label: 'Sou aluno', href: '/entrar?perfil=aluno' },
+      { label: 'Sou autoescola', href: '/entrar?perfil=escola' },
+    ],
+  },
+  {
+    titulo: 'Suporte',
+    links: [
+      { label: 'WhatsApp', href: WHATSAPP_URL },
+      { label: 'Plano personalizado', href: whatsappLink(MSG_PERSONALIZADO) },
+    ],
+  },
+]
 
 export function Footer() {
   return (
-    <footer id="contato" className="bg-slate-900 text-slate-400">
+    <footer className="bg-asfalto text-white/55 border-t border-white/5 pb-24 md:pb-0">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-8 mb-12">
-          {/* Brand */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-10">
           <div className="col-span-2">
-            <Link href="/" className="flex items-center gap-2 mb-4 group">
-              <img src="/logo.png" alt="AmaralPro" className="w-8 h-8 object-cover rounded-xl" />
-              <span className="font-bold text-lg text-white tracking-tight">
-                Amaral<span className="text-brand-teal">Pro</span>
-              </span>
+            <Link href="/" className="flex items-center gap-2">
+              <img src="/logo.png" alt="" className="w-8 h-8 object-cover rounded-xl" />
+              <span className="font-display font-bold text-lg text-white tracking-tight">AmaralPro</span>
             </Link>
-            <p className="text-sm leading-relaxed max-w-xs">
-              Sistema completo de gestão para autoescolas. Automatize, organize e cresça.
+            <p className="mt-4 text-sm leading-relaxed max-w-xs">
+              Sistema de gestão para autoescolas e instrutores autônomos: agenda, alunos, instrutores, vendas e financeiro
+              no mesmo lugar.
             </p>
-
-            {/* Social */}
-            <div className="flex items-center gap-3 mt-5">
-              {[
-                { Icon: Instagram, href: 'https://www.instagram.com/amaralagencyrp/' },
-                { Icon: MessageCircle, href: WHATSAPP_URL },
-                { Icon: Linkedin, href: '#' },
-              ].map(({ Icon, href }, i) => (
-                <a
-                  key={i}
-                  href={href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center hover:bg-brand-teal hover:text-white transition-colors"
-                >
-                  <Icon className="w-4 h-4" strokeWidth={1.75} />
-                </a>
-              ))}
+            <div className="mt-5 flex items-center gap-2">
+              <a
+                href="https://www.instagram.com/amaralagencyrp/"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Instagram"
+                className="w-9 h-9 rounded-lg bg-white/5 flex items-center justify-center hover:bg-white/10 hover:text-white transition-colors"
+              >
+                <Instagram className="w-4 h-4" />
+              </a>
+              <a
+                href={WHATSAPP_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="WhatsApp"
+                className="w-9 h-9 rounded-lg bg-white/5 flex items-center justify-center hover:bg-white/10 hover:text-white transition-colors"
+              >
+                <MessageCircle className="w-4 h-4" />
+              </a>
             </div>
           </div>
 
-          {/* Links */}
-          {Object.entries(footerLinks).map(([title, links]) => (
-            <div key={title}>
-              <h4 className="text-xs font-semibold text-white uppercase tracking-widest mb-4">
-                {title}
-              </h4>
+          {colunas.map((c) => (
+            <div key={c.titulo}>
+              <h4 className="text-sm font-semibold text-white mb-4">{c.titulo}</h4>
               <ul className="space-y-2.5">
-                {links.map((link) => (
-                  <li key={link.label}>
+                {c.links.map((l) => (
+                  <li key={l.label}>
                     <a
-                      href={link.href}
+                      href={l.href}
+                      {...(l.href.startsWith('http') ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
                       className="text-sm hover:text-white transition-colors"
                     >
-                      {link.label}
+                      {l.label}
                     </a>
                   </li>
                 ))}
@@ -78,11 +84,9 @@ export function Footer() {
           ))}
         </div>
 
-        {/* Bottom */}
-        <div className="pt-8 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-          <p>© {new Date().getFullYear()} AmaralPro. Todos os direitos reservados.</p>
-          <p>Feito com ❤️ para autoescolas brasileiras</p>
-        </div>
+        <p className="mt-12 pt-8 border-t border-white/5 text-xs">
+          © {new Date().getFullYear()} AmaralPro. Todos os direitos reservados.
+        </p>
       </div>
     </footer>
   )

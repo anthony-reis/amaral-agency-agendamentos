@@ -1,74 +1,34 @@
-'use client'
-
-import { useRef } from 'react'
-import { motion, useInView } from 'framer-motion'
-import { ArrowRight, Sparkles, MessageSquare } from 'lucide-react'
+import { MessageCircle } from 'lucide-react'
 import { WHATSAPP_URL } from '../constants'
+import { Revelar } from './Revelar'
 
 export function FinalCtaSection() {
-  const ref = useRef<HTMLDivElement>(null)
-  const isInView = useInView(ref, { once: true, margin: '-80px' })
-
   return (
-    <section className="py-24 bg-gradient-navy relative overflow-hidden">
-      {/* Decorative blobs */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-80 h-80 bg-brand-teal/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-brand-teal/5 rounded-full blur-3xl" />
-      </div>
-
-      <div className="relative max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-        <motion.div
-          ref={ref}
-          initial={{ opacity: 0, y: 24 }}
-          animate={isInView ? { opacity: 1, y: 0 } : {}}
-          transition={{ type: 'spring', stiffness: 150, damping: 26 }}
+    <section className="relative bg-asfalto overflow-hidden">
+      <div
+        aria-hidden
+        className="absolute inset-x-0 top-0 h-[5px] motion-safe:animate-faixa"
+        style={{ backgroundImage: 'linear-gradient(90deg, #FACC15 0 36px, transparent 36px 64px)', backgroundSize: '64px 5px' }}
+      />
+      <div aria-hidden className="absolute -top-32 left-1/2 -translate-x-1/2 w-[720px] h-[420px] rounded-full bg-brand-teal/15 blur-[120px]" />
+      <Revelar className="relative max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-24 sm:py-28 text-center">
+        <h2 className="font-display text-4xl sm:text-6xl font-extrabold tracking-[-0.03em] text-white leading-[1.02]">
+          Na semana que vem, seus alunos já podem marcar aula sozinhos.
+        </h2>
+        <p className="mt-6 text-lg text-white/65 leading-relaxed max-w-xl mx-auto">
+          Chame a gente no WhatsApp, conte como a sua autoescola funciona e veja o sistema rodando com a sua rotina.
+        </p>
+        <a
+          href={WHATSAPP_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-10 inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-2xl bg-brand-teal text-asfalto font-bold text-lg hover:bg-brand-teal-light transition-colors shadow-[0_16px_40px_-10px_rgba(20,184,166,0.7)]"
         >
-          {/* Badge */}
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-brand-teal/15 border border-brand-teal/25 rounded-full mb-8">
-            <Sparkles className="w-3.5 h-3.5 text-brand-teal" />
-            <span className="text-xs font-semibold text-brand-teal tracking-wide">
-              Pronto para começar?
-            </span>
-          </div>
-
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white leading-tight tracking-tight mb-6">
-            O futuro da sua autoescola <span className="text-brand-teal">começa aqui</span>.
-          </h2>
-          <p className="text-slate-400 text-lg leading-relaxed max-w-2xl mx-auto mb-10">
-            Junte-se às autoescolas que estão evoluindo a gestão e encantando alunos com tecnologia de ponta.
-          </p>
-
-          <motion.a
-            href={WHATSAPP_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
-            transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-            className="inline-flex items-center gap-3 px-8 py-5 bg-brand-teal text-white font-black rounded-2xl shadow-xl shadow-brand-teal/30 hover:bg-brand-teal-dark transition-all text-base ring-4 ring-brand-teal/10"
-          >
-            Começar Agora
-            <MessageSquare className="w-5 h-5" />
-          </motion.a>
-
-          {/* Trust signals */}
-          <div className="mt-12 flex flex-wrap items-center justify-center gap-8 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
-            <span className="flex items-center gap-2">
-              <div className="w-1 h-1 rounded-full bg-brand-teal" />
-              Sem taxa de adesão
-            </span>
-            <span className="flex items-center gap-2">
-              <div className="w-1 h-1 rounded-full bg-brand-teal" />
-              Implantação assistida
-            </span>
-            <span className="flex items-center gap-2">
-              <div className="w-1 h-1 rounded-full bg-brand-teal" />
-              Cancele quando quiser
-            </span>
-          </div>
-        </motion.div>
-      </div>
+          <MessageCircle className="w-5 h-5" />
+          Falar com a gente agora
+        </a>
+        <p className="mt-5 text-sm text-white/45">Implantação em até 48h. Sem fidelidade.</p>
+      </Revelar>
     </section>
   )
 }

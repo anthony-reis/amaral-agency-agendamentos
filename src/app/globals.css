@@ -54,3 +54,8 @@ html {
   --p-accent:     #0ea5e9;
   --p-hover:      rgba(255,255,255,0.05);
 }
+
+/* Landing: animações contínuas param para quem pede menos movimento. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-faixa, .animate-marquee { animation: none !important; }
+}

@@ -21,9 +21,14 @@ const config: Config = {
           'navy-card': '#0F2744',
           'navy-border': '#1E3A5F',
         },
+        // Landing: asfalto, faixa de pista e papel (fundo claro frio).
+        asfalto: { DEFAULT: '#0D1628', 2: '#13203A', 3: '#1B2B4A' },
+        faixa: '#FACC15',
+        papel: '#F5F7FA',
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
+        display: ['var(--font-display)', 'Inter', 'system-ui', 'sans-serif'],
       },
       backgroundImage: {
         'gradient-navy': 'linear-gradient(180deg, #0D1628 0%, #112036 40%, #1A3358 100%)',
@@ -34,8 +39,18 @@ const config: Config = {
       },
       animation: {
         'shake': 'shake 0.4s ease-in-out',
+        'faixa': 'faixa 1.1s linear infinite',
+        'marquee': 'marquee 40s linear infinite',
       },
       keyframes: {
+        faixa: {
+          from: { backgroundPosition: '0 0' },
+          to: { backgroundPosition: '-64px 0' },
+        },
+        marquee: {
+          from: { transform: 'translateX(0)' },
+          to: { transform: 'translateX(-50%)' },
+        },
         shake: {
           '0%, 100%': { transform: 'translateX(0)' },
           '20%': { transform: 'translateX(-4px)' },
