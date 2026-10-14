@@ -71,3 +71,12 @@ html {
 @media (prefers-reduced-motion: reduce) {
   .estrada-faixa-volta { animation: none; }
 }
+
+/* Modal da tela de Horários: só entrada (sem animação de saída, que fazia a tela piscar) */
+@keyframes horarios-fade { from { opacity: 0 } to { opacity: 1 } }
+@keyframes horarios-subir { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
+.horarios-overlay { animation: horarios-fade 120ms ease-out; }
+.horarios-modal { animation: horarios-subir 140ms ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .horarios-overlay, .horarios-modal { animation: none; }
+}

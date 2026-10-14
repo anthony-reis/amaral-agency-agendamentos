@@ -109,6 +109,11 @@ export async function atualizarInstrutor(
         .eq('instructor_name', oldName)
         .eq('autoescola_id', autoescola_id),
       supabase
+        .from('blockedTimeSlots')
+        .update({ instructor: newName })
+        .eq('instructor', oldName)
+        .eq('autoescola_id', autoescola_id),
+      supabase
         .from('instructor_passwords')
         .update({ instructor_name: newName })
         .eq('instructor_name', oldName)
@@ -179,13 +184,13 @@ export async function excluirInstrutor(
     autoescola_id,
   })
 
-  // Null out horarios linked to this instructor's name
+  // Cascata: os horários e bloqueios do instrutor não fazem sentido sem ele
+  // (antes os horários viravam "globais" e passavam a valer para todos os instrutores).
   if (inst?.name) {
-    await supabase
-      .from('horarios_disponiveis')
-      .update({ instrutor: null })
-      .eq('autoescola_id', autoescola_id)
-      .eq('instrutor', inst.name)
+    await Promise.all([
+      supabase.from('horarios_disponiveis').delete().eq('autoescola_id', autoescola_id).eq('instrutor', inst.name),
+      supabase.from('blockedTimeSlots').delete().eq('autoescola_id', autoescola_id).eq('instructor', inst.name),
+    ])
   }
 
   return { success: true, data: undefined }

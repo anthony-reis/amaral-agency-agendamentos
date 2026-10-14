@@ -25,6 +25,10 @@ export interface HorarioDisponivel {
   ordem: number
   ativo: boolean
   instrutor: string | null
+  /** ISO 1=Seg…7=Dom. null/vazio = todos os dias. */
+  dias_semana: number[] | null
+  /** YYYY-MM-DD: horário pontual (só nessa data). null = recorrente. */
+  data: string | null
   autoescola_id: string
   created_at: string
 }

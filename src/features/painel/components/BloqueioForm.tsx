@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useMemo, useState, useTransition } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Ban, Plus, Trash2, Pencil, X, AlertCircle, Calendar, Clock, CalendarRange, CalendarDays, UserX, Clock3 } from 'lucide-react'
-import { criarBloqueio, criarBloqueioSemanais, editarBloqueio, excluirBloqueio } from '../actions/bloqueios'
-import { canEditPainel, type BloqueioTimeSlot, type GrupoBloqueioSemanal } from '../types'
+import { Ban, Plus, Trash2, Pencil, X, AlertCircle, Calendar, Clock, CalendarRange, CalendarDays, Search } from 'lucide-react'
+import { criarBloqueio, criarBloqueioSemanalVarios, editarBloqueio, excluirBloqueio, atualizarBloqueioSemanal, limparBloqueiosOrfaos } from '../actions/bloqueios'
+import { BloqueioSemanalCampos, tipoDoTimeSlot, type CamposBloqueioSemanal } from './BloqueioSemanalCampos'
+import { canEditPainel, type BloqueioTimeSlot } from '../types'
 
 const TIPOS = [
   { value: 'dia', label: 'Dia Inteiro', icon: Calendar },
@@ -62,16 +63,78 @@ function formatSingle(d: string) {
   return `${day}/${m}/${y}`
 }
 
+
+// ─── Lista: filtros e agrupamento ─────────────────────────────────────────────
+
+const NOMES_DIA = ['', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
+const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
+const NOME_EN: Record<string, number> = { monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6, sunday: 7 }
+const TODOS_INSTR = '__todos__'
+const POR_PAGINA = 40
+
+const ehSemanal = (b: BloqueioTimeSlot) => b.date === 'RECORRENTE_DIA_SEMANA'
+const instrutorDe = (b: BloqueioTimeSlot) => (!b.instructor || b.instructor.trim().toUpperCase() === 'TODOS' ? null : b.instructor)
+const primeiroNome = (n: string) => n.split(' - ')[0].trim()
+const dataInicio = (b: BloqueioTimeSlot) => (b.date ?? '').split('/')[0]
+
+/** Dias da semana (ISO 1–7) de um bloqueio recorrente: aceita [1,2], "[1,2]", [0] (domingo) e nomes em inglês. */
+function diasIso(b: BloqueioTimeSlot): number[] {
+  let w: unknown = b.weekdays
+  if (typeof w === 'string') { try { w = JSON.parse(w) } catch { w = [] } }
+  let lista: unknown[] = []
+  if (Array.isArray(w)) lista = w
+  else if (w && typeof w === 'object') lista = Object.entries(w as Record<string, unknown>).filter(([, v]) => v).map(([k]) => k)
+  const out = lista.map((x) => {
+    if (typeof x === 'string' && NOME_EN[x.toLowerCase()]) return NOME_EN[x.toLowerCase()]
+    const n = Number(x)
+    return n === 0 ? 7 : n
+  }).filter((n) => n >= 1 && n <= 7)
+  return [...new Set(out)].sort()
+}
+
+function resumoDiasIso(d: number[]): string {
+  if (d.length === 0) return 'Semanal'
+  if (d.length === 7) return 'Seg–Dom'
+  if (d.join() === '1,2,3,4,5') return 'Seg–Sex'
+  if (d.join() === '6,7') return 'Sáb e Dom'
+  return d.map((x) => NOMES_DIA[x]).join(', ')
+}
+
+function rotuloHorario(t: string): { texto: string; tom: 'dia' | 'apos' | 'hora' } {
+  if (t === 'DIA_INTEIRO' || t === 'TODOS') return { texto: 'Dia inteiro', tom: 'dia' }
+  if (t?.startsWith('APOS_')) return { texto: `A partir das ${t.slice(5)}`, tom: 'apos' }
+  return { texto: t, tom: 'hora' }
+}
+
+function rotuloDia(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number)
+  if (!y) return iso
+  const dow = new Date(y, m - 1, d).getDay()
+  return `${['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][dow]}, ${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}`
+}
+
+function rotuloMes(chave: string): string {
+  const [y, m] = chave.split('-').map(Number)
+  return m ? `${MESES[m - 1][0].toUpperCase()}${MESES[m - 1].slice(1)} de ${y}` : chave
+}
+
+function Selo({ b }: { b: BloqueioTimeSlot }) {
+  const r = rotuloHorario(b.time_slot)
+  const cls = r.tom === 'dia' ? 'bg-red-500/10 text-red-400' : r.tom === 'apos' ? 'bg-orange-500/10 text-orange-400' : 'bg-[--p-hover] text-[--p-text-1]'
+  return <span className={`px-2 py-0.5 text-xs font-medium rounded-md tabular-nums whitespace-nowrap ${cls}`}>{r.texto}</span>
+}
+
+type Aba = 'proximos' | 'semanais' | 'passados' | 'todos'
+
 interface Props {
   bloqueios: BloqueioTimeSlot[]
+  hoje: string
   instrutores: string[]
   autoescola_id: string
   userRole: string
 }
 
-type GrupoUI = GrupoBloqueioSemanal & { id: number }
-
-export function BloqueioForm({ bloqueios: initial, instrutores, autoescola_id, userRole }: Props) {
+export function BloqueioForm({ bloqueios: initial, hoje, instrutores, autoescola_id, userRole }: Props) {
   const canEdit = canEditPainel(userRole)
   const [bloqueios, setBloqueios] = useState<BloqueioTimeSlot[]>(initial)
   const [showForm, setShowForm] = useState(false)
@@ -89,6 +152,22 @@ export function BloqueioForm({ bloqueios: initial, instrutores, autoescola_id, u
     reason: '',
   })
 
+  const [confirmarLimpeza, setConfirmarLimpeza] = useState(false)
+
+  // Filtros da lista
+  const [aba, setAba] = useState<Aba>('proximos')
+  const [fInstrutor, setFInstrutor] = useState('')
+  const [fVeiculo, setFVeiculo] = useState('')
+  const [fBusca, setFBusca] = useState('')
+  const [fDe, setFDe] = useState('')
+  const [fAte, setFAte] = useState('')
+  const [limite, setLimite] = useState(POR_PAGINA)
+
+  // Edição de bloqueio semanal (vários dias, tipo, horário, motivo, instrutor, veículo)
+  const [edSem, setEdSem] = useState<CamposBloqueioSemanal & { instrutor: string; vehicle: string }>({
+    tipo: 'dia_inteiro', horario: '', dias: [6], reason: '', instrutor: '', vehicle: 'TODOS',
+  })
+
   // Estado de edição
   const [editingId, setEditingId] = useState<string | null>(null)
 
@@ -98,17 +177,13 @@ export function BloqueioForm({ bloqueios: initial, instrutores, autoescola_id, u
     setSuccessMsg('')
     if (b.date === 'RECORRENTE_DIA_SEMANA') {
       setTipo('semanal')
-      const wds = Array.isArray(b.weekdays) ? b.weekdays : []
-      setSemanalDia(Number(wds[0] ?? 6))
-      setSemanalVehicle(b.vehicle_type ?? 'TODOS')
-      setSemanalReason(b.reason ?? '')
-      const horarioCorte = b.time_slot?.startsWith('APOS_') ? b.time_slot.replace('APOS_', '') : undefined
-      setGrupos([{
-        id: 1,
-        instrutores: b.instructor ? [b.instructor] : [],
-        tipo: b.time_slot === 'DIA_INTEIRO' ? 'dia_inteiro' : 'apos_horario',
-        horario_corte: horarioCorte,
-      }])
+      setEdSem({
+        ...tipoDoTimeSlot(b.time_slot),
+        dias: diasIso(b),
+        reason: b.reason ?? '',
+        instrutor: instrutorDe(b) ?? '',
+        vehicle: b.vehicle_type ?? 'TODOS',
+      })
     } else {
       const t = b.time_slot === 'DIA_INTEIRO' ? 'dia' : 'horario'
       setTipo(t)
@@ -129,84 +204,41 @@ export function BloqueioForm({ bloqueios: initial, instrutores, autoescola_id, u
     setShowForm(false)
     setEditingId(null)
     setError('')
+    setEdSem({ tipo: 'dia_inteiro', horario: '', dias: [6], reason: '', instrutor: '', vehicle: 'TODOS' })
   }
 
-  // Estado para o modo semanal
-  const [semanalDia, setSemanalDia] = useState(6)
-  const [semanalVehicle, setSemanalVehicle] = useState('TODOS')
-  const [semanalReason, setSemanalReason] = useState('')
-  const [grupos, setGrupos] = useState<GrupoUI[]>([
-    { id: 1, instrutores: [], tipo: 'dia_inteiro' },
-  ])
-  const nextGrupoId = () => Date.now()
-
-  function addGrupo() {
-    setGrupos((g) => [...g, { id: nextGrupoId(), instrutores: [], tipo: 'dia_inteiro' }])
-  }
-
-  function removeGrupo(id: number) {
-    setGrupos((g) => g.filter((x) => x.id !== id))
-  }
-
-  function updateGrupo(id: number, patch: Partial<GrupoBloqueioSemanal>) {
-    setGrupos((g) => g.map((x) => x.id === id ? { ...x, ...patch } : x))
-  }
-
-  function toggleInstrutor(grupoId: number, name: string) {
-    setGrupos((g) => g.map((x) => {
-      if (x.id !== grupoId) return x
-      const has = x.instrutores.includes(name)
-      return { ...x, instrutores: has ? x.instrutores.filter((i) => i !== name) : [...x.instrutores, name] }
-    }))
-  }
+  // Instrutores escolhidos na criação de bloqueio semanal (nenhum = todos)
+  const [semInstrs, setSemInstrs] = useState<string[]>([])
 
   function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     setError('')
     setSuccessMsg('')
 
-    if (tipo === 'semanal') {
-      if (grupos.length === 0) { setError('Adicione ao menos um grupo.'); return }
-      for (const g of grupos) {
-        if (g.tipo === 'apos_horario' && !g.horario_corte) {
-          setError('Informe o horário de corte em todos os grupos "Após horário".'); return
-        }
-      }
-
-      if (editingId) {
-        // Edição de bloco recorrente individual
-        const grupo = grupos[0]
-        const time_slot = grupo.tipo === 'dia_inteiro' ? 'DIA_INTEIRO' : `APOS_${grupo.horario_corte}`
-        startTransition(async () => {
-          const result = await editarBloqueio(editingId, {
-            time_slot,
-            vehicle_type: semanalVehicle,
-            instructor: grupo.instrutores[0] ?? null,
-            reason: semanalReason || 'Bloqueio recorrente',
-            weekdays: [semanalDia] as unknown as string[],
-          }, autoescola_id)
-          if (!result.success) { setError(result.error); return }
-          setBloqueios((prev) => prev.map((b) => b.id === editingId
-            ? { ...b, time_slot, vehicle_type: semanalVehicle, instructor: grupo.instrutores[0] ?? null, reason: semanalReason }
-            : b
-          ))
-          setSuccessMsg('Bloqueio atualizado.')
-          closeForm()
-        })
-        return
-      }
-
+    if (tipo === 'semanal' && editingId) {
       startTransition(async () => {
-        const result = await criarBloqueioSemanais({
-          dia_semana: semanalDia,
-          grupos: grupos.map(({ id: _id, ...g }) => g),
-          vehicle_type: semanalVehicle,
-          reason: semanalReason || 'Bloqueio recorrente',
-          autoescola_id,
+        const result = await atualizarBloqueioSemanal(editingId, {
+          dias: edSem.dias, tipo: edSem.tipo, horario: edSem.horario, reason: edSem.reason,
+          instrutor: edSem.instrutor || null, vehicle_type: edSem.vehicle,
+        }, autoescola_id)
+        if (!result.success) { setError(result.error); return }
+        setBloqueios((prev) => prev.map((b) => (b.id === editingId ? result.data : b)))
+        setSuccessMsg('Bloqueio atualizado.')
+        closeForm()
+      })
+      return
+    }
+
+    if (tipo === 'semanal') {
+      startTransition(async () => {
+        const result = await criarBloqueioSemanalVarios({
+          dias: edSem.dias, tipo: edSem.tipo, horario: edSem.horario, reason: edSem.reason,
+          instrutores: semInstrs, vehicle_type: edSem.vehicle, autoescola_id,
         })
         if (!result.success) { setError(result.error); return }
-        setBloqueios((prev) => [...result.data.registros, ...prev])
-        setSuccessMsg(`${result.data.total} bloqueio(s) recorrente(s) criado(s).`)
+        setBloqueios((prev) => [...result.data, ...prev])
+        setSuccessMsg(`${result.data.length} bloqueio${result.data.length !== 1 ? 's' : ''} semanal${result.data.length !== 1 ? 'is' : ''} criado${result.data.length !== 1 ? 's' : ''}.`)
+        setSemInstrs([])
         closeForm()
       })
       return
@@ -257,6 +289,112 @@ export function BloqueioForm({ bloqueios: initial, instrutores, autoescola_id, u
     })
   }
 
+  const nomesNaLista = useMemo(() => {
+    const set = new Set<string>(instrutores)
+    for (const b of bloqueios) { const i = instrutorDe(b); if (i) set.add(i) }
+    return [...set].sort((a, b) => a.localeCompare(b))
+  }, [bloqueios, instrutores])
+
+  // Filtros que valem para qualquer aba (os contadores das abas respeitam eles)
+  const baseFiltrada = useMemo(() => {
+    const q = fBusca.trim().toLowerCase()
+    return bloqueios.filter((b) => {
+      if (fInstrutor === TODOS_INSTR ? instrutorDe(b) !== null : fInstrutor && instrutorDe(b) !== fInstrutor) return false
+      if (fVeiculo && (b.vehicle_type ?? '').toUpperCase() !== fVeiculo) return false
+      if (q && !`${b.reason ?? ''} ${instrutorDe(b) ?? 'todos'}`.toLowerCase().includes(q)) return false
+      return true
+    })
+  }, [bloqueios, fInstrutor, fVeiculo, fBusca])
+
+  const contagem = useMemo(() => ({
+    proximos: baseFiltrada.filter((b) => !ehSemanal(b) && dataInicio(b) >= hoje).length,
+    semanais: baseFiltrada.filter(ehSemanal).length,
+    passados: baseFiltrada.filter((b) => !ehSemanal(b) && dataInicio(b) < hoje).length,
+    todos: baseFiltrada.length,
+  }), [baseFiltrada, hoje])
+
+  const visiveis = useMemo(() => {
+    let l = baseFiltrada.filter((b) => {
+      if (aba === 'semanais') return ehSemanal(b)
+      if (aba === 'proximos') return !ehSemanal(b) && dataInicio(b) >= hoje
+      if (aba === 'passados') return !ehSemanal(b) && dataInicio(b) < hoje
+      return true
+    })
+    if (aba !== 'semanais' && (fDe || fAte)) {
+      l = l.filter((b) => ehSemanal(b) || ((!fDe || dataInicio(b) >= fDe) && (!fAte || dataInicio(b) <= fAte)))
+    }
+    return l
+  }, [baseFiltrada, aba, hoje, fDe, fAte])
+
+  const semanais = visiveis.filter(ehSemanal)
+  const porData = useMemo(() => {
+    const datados = visiveis.filter((b) => !ehSemanal(b))
+    datados.sort((a, b) => (aba === 'proximos' ? dataInicio(a).localeCompare(dataInicio(b)) : dataInicio(b).localeCompare(dataInicio(a))) || (a.time_slot ?? '').localeCompare(b.time_slot ?? ''))
+    const dias = new Map<string, BloqueioTimeSlot[]>()
+    for (const b of datados.slice(0, limite)) {
+      const k = dataInicio(b)
+      dias.set(k, [...(dias.get(k) ?? []), b])
+    }
+    const meses = new Map<string, Array<[string, BloqueioTimeSlot[]]>>()
+    for (const [dia, lista] of dias) {
+      const m = dia.slice(0, 7)
+      meses.set(m, [...(meses.get(m) ?? []), [dia, lista]])
+    }
+    return { meses, total: datados.length, mostrados: Math.min(limite, datados.length) }
+  }, [visiveis, aba, limite])
+
+  const gruposSemanais = useMemo(() => {
+    const m = new Map<string, BloqueioTimeSlot[]>()
+    for (const b of semanais) { const k = instrutorDe(b) ?? ''; m.set(k, [...(m.get(k) ?? []), b]) }
+    return [...m.entries()].sort(([a], [b]) => (a === '' ? -1 : b === '' ? 1 : a.localeCompare(b)))
+  }, [semanais])
+
+  const filtrando = !!(fInstrutor || fVeiculo || fBusca || fDe || fAte)
+  function limparFiltros() { setFInstrutor(''); setFVeiculo(''); setFBusca(''); setFDe(''); setFAte(''); setLimite(POR_PAGINA) }
+  const mudarFiltro = <T,>(set: (v: T) => void) => (v: T) => { set(v); setLimite(POR_PAGINA) }
+
+  function Acoes({ b }: { b: BloqueioTimeSlot }) {
+    if (!canEdit) return null
+    return (
+      <div className="flex items-center justify-end gap-1 shrink-0">
+        <button
+          onClick={() => openEdit(b)}
+          disabled={isPending}
+          title="Editar"
+          aria-label="Editar bloqueio"
+          className="p-1.5 text-[--p-text-3] hover:text-blue-400 hover:bg-blue-400/5 rounded-lg transition-colors"
+        >
+          <Pencil className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => handleDelete(b.id)}
+          disabled={isPending}
+          aria-label="Excluir bloqueio"
+          className="p-1.5 text-[--p-text-3] hover:text-red-400 hover:bg-red-400/5 rounded-lg transition-colors"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+    )
+  }
+
+  // Bloqueios de instrutores que não existem mais (sobras de exclusões antigas)
+  const orfaos = useMemo(() => {
+    const existentes = new Set(instrutores)
+    return bloqueios.filter((b) => { const i = instrutorDe(b); return i !== null && !existentes.has(i) })
+  }, [bloqueios, instrutores])
+
+  function limparOrfaos() {
+    startTransition(async () => {
+      const r = await limparBloqueiosOrfaos(autoescola_id)
+      setConfirmarLimpeza(false)
+      if (!r.success) { setError(r.error); return }
+      const ids = new Set(orfaos.map((b) => b.id))
+      setBloqueios((prev) => prev.filter((b) => !ids.has(b.id)))
+      setSuccessMsg(`${r.data.removidos} bloqueio${r.data.removidos !== 1 ? 's' : ''} de instrutores removidos excluído${r.data.removidos !== 1 ? 's' : ''}.`)
+    })
+  }
+
   const TipoIcon = TIPOS.find((t) => t.value === tipo)?.icon ?? Calendar
 
   return (
@@ -272,7 +410,7 @@ export function BloqueioForm({ bloqueios: initial, instrutores, autoescola_id, u
         </div>
         {canEdit && (
           <button
-            onClick={() => { setEditingId(null); setShowForm((v) => !v) }}
+            onClick={() => { if (editingId) closeForm(); setEditingId(null); setShowForm((v) => !v) }}
             className="flex items-center gap-2 px-4 py-2.5 bg-red-500 text-white text-sm font-semibold rounded-xl hover:bg-red-600 transition-colors shadow-sm"
           >
             <Plus className="w-4 h-4" />
@@ -313,7 +451,7 @@ export function BloqueioForm({ bloqueios: initial, instrutores, autoescola_id, u
             </div>
 
             {/* Tipo tabs */}
-            <div className="flex gap-2">
+            {!editingId && <div className="flex gap-2">
               {TIPOS.map((t) => {
                 const Icon = t.icon
                 return (
@@ -332,7 +470,7 @@ export function BloqueioForm({ bloqueios: initial, instrutores, autoescola_id, u
                   </button>
                 )
               })}
-            </div>
+            </div>}
 
             <div className="grid grid-cols-2 gap-3">
               {tipo === 'dia' && (
@@ -451,102 +589,61 @@ export function BloqueioForm({ bloqueios: initial, instrutores, autoescola_id, u
               )}
             </div>
 
-            {/* Semanal/Recorrente */}
-            {tipo === 'semanal' && (
-              <div className="space-y-4">
+            {/* Semanal: edição completa (vários dias) */}
+            {tipo === 'semanal' && editingId && (
+              <div className="space-y-4 max-w-md">
+                <BloqueioSemanalCampos value={edSem} onChange={(v) => setEdSem((p) => ({ ...p, ...v }))} idPrefix="ed" />
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs text-[--p-text-3] mb-1">Dia da Semana</label>
-                    <select
-                      value={semanalDia}
-                      onChange={(e) => setSemanalDia(Number(e.target.value))}
-                      className="w-full px-3 py-2 rounded-xl bg-[--p-bg-input] border border-[--p-border] text-sm text-[--p-text-1] focus:outline-none focus:ring-1 focus:ring-red-400/40"
-                    >
-                      {DIAS_SEMANA.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs text-[--p-text-3] mb-1">Veículo</label>
-                    <select value={semanalVehicle} onChange={(e) => setSemanalVehicle(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-[--p-bg-input] border border-[--p-border] text-sm text-[--p-text-1] focus:outline-none focus:ring-1 focus:ring-red-400/40">
-                      <option value="TODOS">TODOS</option>
-                      <option value="CARRO">CARRO</option>
-                      <option value="MOTO">MOTO</option>
+                    <label htmlFor="ed-instr" className="block text-xs font-medium text-[--p-text-2] mb-1.5">Instrutor</label>
+                    <select id="ed-instr" value={edSem.instrutor} onChange={(e) => setEdSem((p) => ({ ...p, instrutor: e.target.value }))}
+                      className="w-full px-3 py-2.5 rounded-xl bg-[--p-bg-input] border border-[--p-border] text-sm text-[--p-text-1] focus:outline-none focus:ring-2 focus:ring-rose-500/40">
+                      <option value="">Todos os instrutores</option>
+                      {[...new Set([...instrutores, ...(edSem.instrutor ? [edSem.instrutor] : [])])].map((i) => <option key={i} value={i}>{i}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs text-[--p-text-3] mb-1">Motivo</label>
-                    <input type="text" placeholder="Ex: Sábado - não atende" value={semanalReason} onChange={(e) => setSemanalReason(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-[--p-bg-input] border border-[--p-border] text-sm text-[--p-text-1] placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-red-400/40" />
+                    <label htmlFor="ed-veic" className="block text-xs font-medium text-[--p-text-2] mb-1.5">Veículo</label>
+                    <select id="ed-veic" value={edSem.vehicle} onChange={(e) => setEdSem((p) => ({ ...p, vehicle: e.target.value }))}
+                      className="w-full px-3 py-2.5 rounded-xl bg-[--p-bg-input] border border-[--p-border] text-sm text-[--p-text-1] focus:outline-none focus:ring-2 focus:ring-rose-500/40">
+                      <option value="TODOS">Qualquer veículo</option>
+                      <option value="CARRO">Carro</option>
+                      <option value="MOTO">Moto</option>
+                    </select>
                   </div>
                 </div>
+              </div>
+            )}
 
-                {/* Grupos de instrutores */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold text-[--p-text-2]">Grupos de Instrutores</p>
-                    <button type="button" onClick={addGrupo}
-                      className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300 font-medium">
-                      <Plus className="w-3 h-3" /> Adicionar grupo
-                    </button>
+            {/* Semanal: criação (vários dias de uma vez) */}
+            {tipo === 'semanal' && !editingId && (
+              <div className="space-y-4 max-w-md">
+                <BloqueioSemanalCampos value={edSem} onChange={(v) => setEdSem((p) => ({ ...p, ...v }))} idPrefix="cr" />
+                <div>
+                  <label htmlFor="cr-veic" className="block text-xs font-medium text-[--p-text-2] mb-1.5">Veículo</label>
+                  <select id="cr-veic" value={edSem.vehicle} onChange={(e) => setEdSem((p) => ({ ...p, vehicle: e.target.value }))}
+                    className="w-full px-3 py-2.5 rounded-xl bg-[--p-bg-input] border border-[--p-border] text-sm text-[--p-text-1] focus:outline-none focus:ring-2 focus:ring-rose-500/40">
+                    <option value="TODOS">Qualquer veículo</option>
+                    <option value="CARRO">Carro</option>
+                    <option value="MOTO">Moto</option>
+                  </select>
+                </div>
+                <div>
+                  <span className="block text-xs font-medium text-[--p-text-2] mb-1.5">
+                    Instrutores <span className="text-[--p-text-3] font-normal">(nenhum selecionado = todos)</span>
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {instrutores.map((name) => {
+                      const sel = semInstrs.includes(name)
+                      return (
+                        <button key={name} type="button" aria-pressed={sel}
+                          onClick={() => setSemInstrs((p) => (sel ? p.filter((x) => x !== name) : [...p, name]))}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${sel ? 'bg-rose-500 text-white' : 'bg-[--p-hover] text-[--p-text-2] hover:text-[--p-text-1]'}`}>
+                          {primeiroNome(name)}
+                        </button>
+                      )
+                    })}
                   </div>
-
-                  {grupos.map((grupo, idx) => (
-                    <div key={grupo.id} className="rounded-xl border border-[--p-border] bg-[--p-bg-input] p-3 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-medium text-[--p-text-2]">Grupo {idx + 1}</span>
-                        {grupos.length > 1 && (
-                          <button type="button" onClick={() => removeGrupo(grupo.id)} className="text-[--p-text-3] hover:text-red-400">
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-
-                      {/* Tipo do grupo */}
-                      <div className="flex gap-2">
-                        <button type="button"
-                          onClick={() => updateGrupo(grupo.id, { tipo: 'dia_inteiro' })}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${grupo.tipo === 'dia_inteiro' ? 'bg-red-500 text-white' : 'bg-[--p-hover] text-[--p-text-3] hover:text-[--p-text-1]'}`}>
-                          <UserX className="w-3 h-3" /> Dia inteiro
-                        </button>
-                        <button type="button"
-                          onClick={() => updateGrupo(grupo.id, { tipo: 'apos_horario' })}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${grupo.tipo === 'apos_horario' ? 'bg-red-500 text-white' : 'bg-[--p-hover] text-[--p-text-3] hover:text-[--p-text-1]'}`}>
-                          <Clock3 className="w-3 h-3" /> Após horário
-                        </button>
-                      </div>
-
-                      {/* Horário de corte */}
-                      {grupo.tipo === 'apos_horario' && (
-                        <div>
-                          <label className="block text-xs text-[--p-text-3] mb-1">Bloquear a partir de (inclusive)</label>
-                          <input type="time" value={grupo.horario_corte ?? ''} onChange={(e) => updateGrupo(grupo.id, { horario_corte: e.target.value })}
-                            className="w-32 px-3 py-1.5 rounded-lg bg-[--p-bg-input] border border-[--p-border] text-sm text-[--p-text-1] focus:outline-none focus:ring-1 focus:ring-red-400/40" />
-                        </div>
-                      )}
-
-                      {/* Seleção de instrutores */}
-                      <div>
-                        <label className="block text-xs text-[--p-text-3] mb-1.5">
-                          Instrutores <span className="text-slate-500">(nenhum selecionado = todos)</span>
-                        </label>
-                        <div className="flex flex-wrap gap-1.5">
-                          {instrutores.map((name) => {
-                            const sel = grupo.instrutores.includes(name)
-                            return (
-                              <button key={name} type="button" onClick={() => toggleInstrutor(grupo.id, name)}
-                                className={`px-2 py-1 rounded-lg text-xs font-medium transition-colors ${sel ? 'bg-red-500 text-white' : 'bg-[--p-hover] text-[--p-text-3] hover:text-[--p-text-1]'}`}>
-                                {name.split(' - ')[0]}
-                              </button>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
                 </div>
               </div>
             )}
@@ -574,7 +671,7 @@ export function BloqueioForm({ bloqueios: initial, instrutores, autoescola_id, u
         )}
       </AnimatePresence>
 
-      {/* List */}
+      {/* Lista */}
       {bloqueios.length === 0 ? (
         <div className="text-center py-16 bg-[--p-bg-card] rounded-2xl border border-[--p-border]">
           <Ban className="w-10 h-10 text-slate-600 mx-auto mb-3" />
@@ -582,66 +679,174 @@ export function BloqueioForm({ bloqueios: initial, instrutores, autoescola_id, u
           <p className="text-slate-600 text-sm mt-1">Clique em "Novo Bloqueio" para adicionar.</p>
         </div>
       ) : (
-        <div className="bg-[--p-bg-card] rounded-2xl border border-[--p-border] overflow-hidden">
-          <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[700px]">
-            <thead className="sticky top-0 z-10 bg-[--p-bg-card]">
-              <tr className="border-b border-[--p-border]">
-                <th className="text-left text-xs font-semibold text-[--p-text-3] uppercase px-6 py-3.5">Data</th>
-                <th className="text-left text-xs font-semibold text-[--p-text-3] uppercase px-4 py-3.5">Horário</th>
-                <th className="text-left text-xs font-semibold text-[--p-text-3] uppercase px-4 py-3.5">Instrutor</th>
-                <th className="text-left text-xs font-semibold text-[--p-text-3] uppercase px-4 py-3.5">Veículo</th>
-                <th className="text-left text-xs font-semibold text-[--p-text-3] uppercase px-4 py-3.5">Motivo</th>
-                <th className="px-4 py-3.5" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[--p-border]">
-              {bloqueios.map((b) => (
-                <tr key={b.id} className="hover:bg-[--p-hover] transition-colors">
-                  <td className="px-6 py-3.5 text-[--p-text-1] font-medium">{formatDate(b)}</td>
-                  <td className="px-4 py-3.5">
-                    {b.time_slot === 'DIA_INTEIRO' ? (
-                      <span className="px-2 py-0.5 bg-red-500/10 text-red-400 text-xs font-medium rounded-md">Dia inteiro</span>
-                    ) : b.time_slot?.startsWith('APOS_') ? (
-                      <span className="px-2 py-0.5 bg-orange-500/10 text-orange-400 text-xs font-medium rounded-md">
-                        Após {b.time_slot.replace('APOS_', '')}
-                      </span>
-                    ) : (
-                      <span className="text-slate-300">{b.time_slot}</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3.5 text-[--p-text-2]">{b.instructor ?? 'Todos'}</td>
-                  <td className="px-4 py-3.5">
-                    <span className="px-2 py-0.5 text-xs font-medium rounded-md bg-[--p-hover] text-[--p-text-3]">
-                      {b.vehicle_type}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3.5 text-[--p-text-3] max-w-[200px] truncate">{b.reason}</td>
-                  <td className="px-4 py-3.5 text-right">
-                    {canEdit && (
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => openEdit(b)}
-                          disabled={isPending}
-                          className="p-1.5 text-[--p-text-3] hover:text-blue-400 hover:bg-blue-400/5 rounded-lg transition-colors"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(b.id)}
-                          disabled={isPending}
-                          className="p-1.5 text-[--p-text-3] hover:text-red-400 hover:bg-red-400/5 rounded-lg transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="space-y-4">
+          {canEdit && orfaos.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-3 text-sm text-[--p-text-1]">
+              <span>
+                <b>{orfaos.length}</b> bloqueio{orfaos.length !== 1 ? 's' : ''} {orfaos.length !== 1 ? 'são' : 'é'} de instrutores que não existem mais
+                ({[...new Set(orfaos.map((b) => primeiroNome(instrutorDe(b)!)))].join(', ')}). Excluir um instrutor agora apaga os bloqueios dele automaticamente.
+              </span>
+              {confirmarLimpeza ? (
+                <span className="flex items-center gap-2">
+                  <button onClick={limparOrfaos} disabled={isPending} className="px-3 py-1.5 rounded-lg bg-red-500 text-white text-xs font-semibold hover:bg-red-600 disabled:opacity-50">
+                    Excluir {orfaos.length} definitivamente
+                  </button>
+                  <button onClick={() => setConfirmarLimpeza(false)} className="px-3 py-1.5 text-xs text-[--p-text-2] hover:text-[--p-text-1]">Cancelar</button>
+                </span>
+              ) : (
+                <button onClick={() => setConfirmarLimpeza(true)} className="px-3 py-1.5 rounded-lg border border-amber-500/50 text-xs font-semibold hover:bg-amber-500/10">
+                  Limpar
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Abas */}
+          <div className="flex flex-wrap gap-2">
+            {([
+              ['proximos', 'Próximos'],
+              ['semanais', 'Semanais'],
+              ['passados', 'Passados'],
+              ['todos', 'Todos'],
+            ] as const).map(([k, label]) => (
+              <button
+                key={k}
+                onClick={() => { setAba(k); setLimite(POR_PAGINA) }}
+                aria-pressed={aba === k}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border text-sm font-medium transition-colors ${
+                  aba === k ? 'bg-red-500/10 border-red-500/60 text-[--p-text-1]' : 'bg-[--p-bg-card] border-[--p-border] text-[--p-text-2] hover:bg-[--p-hover]'
+                }`}
+              >
+                {label}
+                <span className={`text-xs tabular-nums px-1.5 py-0.5 rounded-md ${aba === k ? 'bg-red-500 text-white' : 'bg-[--p-hover] text-[--p-text-3]'}`}>{contagem[k]}</span>
+              </button>
+            ))}
           </div>
+
+          {/* Filtros */}
+          <div className="flex flex-wrap items-end gap-3 bg-[--p-bg-card] border border-[--p-border] rounded-2xl p-3">
+            <div className="relative flex-1 min-w-[180px]">
+              <label htmlFor="f-busca" className="block text-xs text-[--p-text-3] mb-1">Buscar</label>
+              <Search className="w-4 h-4 absolute left-3 bottom-2.5 text-[--p-text-3] pointer-events-none" />
+              <input
+                id="f-busca"
+                type="search"
+                placeholder="Motivo ou instrutor"
+                value={fBusca}
+                onChange={(e) => mudarFiltro(setFBusca)(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 rounded-xl bg-[--p-bg-input] border border-[--p-border] text-sm text-[--p-text-1] placeholder:text-[--p-text-3] focus:outline-none focus:ring-1 focus:ring-red-400/40"
+              />
+            </div>
+            <div>
+              <label htmlFor="f-instr" className="block text-xs text-[--p-text-3] mb-1">Instrutor</label>
+              <select id="f-instr" value={fInstrutor} onChange={(e) => mudarFiltro(setFInstrutor)(e.target.value)}
+                className="px-3 py-2 rounded-xl bg-[--p-bg-input] border border-[--p-border] text-sm text-[--p-text-1] focus:outline-none focus:ring-1 focus:ring-red-400/40">
+                <option value="">Todos</option>
+                <option value={TODOS_INSTR}>Valem para todos os instrutores</option>
+                {nomesNaLista.map((n) => <option key={n} value={n}>{primeiroNome(n)}{instrutores.includes(n) ? '' : ' (removido)'}</option>)}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="f-veic" className="block text-xs text-[--p-text-3] mb-1">Veículo</label>
+              <select id="f-veic" value={fVeiculo} onChange={(e) => mudarFiltro(setFVeiculo)(e.target.value)}
+                className="px-3 py-2 rounded-xl bg-[--p-bg-input] border border-[--p-border] text-sm text-[--p-text-1] focus:outline-none focus:ring-1 focus:ring-red-400/40">
+                <option value="">Todos</option>
+                <option value="CARRO">Carro</option>
+                <option value="MOTO">Moto</option>
+                <option value="TODOS">Qualquer veículo</option>
+              </select>
+            </div>
+            {aba !== 'semanais' && (
+              <>
+                <div>
+                  <label htmlFor="f-de" className="block text-xs text-[--p-text-3] mb-1">De</label>
+                  <input id="f-de" type="date" value={fDe} onChange={(e) => mudarFiltro(setFDe)(e.target.value)}
+                    className="px-3 py-2 rounded-xl bg-[--p-bg-input] border border-[--p-border] text-sm text-[--p-text-1] focus:outline-none focus:ring-1 focus:ring-red-400/40" />
+                </div>
+                <div>
+                  <label htmlFor="f-ate" className="block text-xs text-[--p-text-3] mb-1">Até</label>
+                  <input id="f-ate" type="date" value={fAte} onChange={(e) => mudarFiltro(setFAte)(e.target.value)}
+                    className="px-3 py-2 rounded-xl bg-[--p-bg-input] border border-[--p-border] text-sm text-[--p-text-1] focus:outline-none focus:ring-1 focus:ring-red-400/40" />
+                </div>
+              </>
+            )}
+            {filtrando && (
+              <button onClick={limparFiltros} className="px-3 py-2 text-sm text-red-400 hover:underline">Limpar filtros</button>
+            )}
+          </div>
+
+          {visiveis.length === 0 && (
+            <div className="text-center py-12 bg-[--p-bg-card] rounded-2xl border border-[--p-border]">
+              <p className="text-[--p-text-2] font-medium">Nenhum bloqueio encontrado</p>
+              <p className="text-sm text-[--p-text-3] mt-1">{filtrando ? 'Tente remover algum filtro.' : 'Não há bloqueios nesta aba.'}</p>
+            </div>
+          )}
+
+          {/* Semanais, agrupados por instrutor */}
+          {gruposSemanais.length > 0 && (
+            <div className="space-y-3">
+              {gruposSemanais.map(([nome, lista]) => (
+                <section key={nome || 'todos'} className="bg-[--p-bg-card] rounded-2xl border border-[--p-border] overflow-hidden">
+                  <h3 className="px-4 py-2.5 text-sm font-semibold text-[--p-text-1] border-b border-[--p-border] flex items-center gap-2">
+                    <CalendarDays className="w-4 h-4 text-red-400" />
+                    {nome ? primeiroNome(nome) : 'Todos os instrutores'}
+                    <span className="text-xs font-normal text-[--p-text-3] tabular-nums">{lista.length} semanal{lista.length !== 1 ? 'is' : ''}</span>
+                  </h3>
+                  <ul className="divide-y divide-[--p-border]">
+                    {lista.map((b) => (
+                      <li key={b.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2.5 text-sm hover:bg-[--p-hover] transition-colors">
+                        <span className="font-medium text-[--p-text-1] min-w-[96px]">{resumoDiasIso(diasIso(b))}</span>
+                        <Selo b={b} />
+                        <span className="text-xs text-[--p-text-3]">{b.vehicle_type === 'TODOS' ? 'Qualquer veículo' : b.vehicle_type}</span>
+                        <span className="text-xs text-[--p-text-3] truncate flex-1 min-w-[80px]">{b.reason}</span>
+                        <Acoes b={b} />
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ))}
+            </div>
+          )}
+
+          {/* Por data: mês → dia */}
+          {[...porData.meses.entries()].map(([mes, dias]) => (
+            <section key={mes} className="bg-[--p-bg-card] rounded-2xl border border-[--p-border] overflow-hidden">
+              <h3 className="px-4 py-2.5 text-sm font-semibold text-[--p-text-1] border-b border-[--p-border] bg-[--p-hover]">
+                {rotuloMes(mes)}
+                <span className="ml-2 text-xs font-normal text-[--p-text-3] tabular-nums">{dias.reduce((n, [, l]) => n + l.length, 0)}</span>
+              </h3>
+              <div className="divide-y divide-[--p-border]">
+                {dias.map(([dia, lista]) => (
+                  <div key={dia} className="flex gap-4 px-4 py-3">
+                    <div className="w-24 shrink-0 text-sm font-semibold text-[--p-text-1] tabular-nums pt-0.5">
+                      {rotuloDia(dia)}
+                      {dia === hoje && <span className="block text-[10px] font-semibold text-sky-500">hoje</span>}
+                    </div>
+                    <ul className="flex-1 min-w-0 space-y-1.5">
+                      {lista.map((b) => (
+                        <li key={b.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                          <span className="text-[--p-text-2] min-w-[90px]">{instrutorDe(b) ? primeiroNome(instrutorDe(b)!) : 'Todos'}</span>
+                          <Selo b={b} />
+                          <span className="text-xs text-[--p-text-3]">{b.vehicle_type === 'TODOS' ? '' : b.vehicle_type}</span>
+                          <span className="text-xs text-[--p-text-3] truncate flex-1 min-w-[80px]">{b.reason}</span>
+                          <Acoes b={b} />
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ))}
+
+          {porData.total > porData.mostrados && (
+            <div className="flex items-center justify-center gap-3 text-sm text-[--p-text-3]">
+              Mostrando {porData.mostrados} de {porData.total}
+              <button onClick={() => setLimite((l) => l + POR_PAGINA)} className="px-3.5 py-1.5 rounded-xl border border-[--p-border] text-[--p-text-1] hover:bg-[--p-hover]">
+                Mostrar mais
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -6,6 +6,7 @@ import { getCurrentUsername, assertPodeEditar } from './authPainel'
 import { bloqueioFeature, autoescolaTemFeature } from '@/lib/features.server'
 import { buscarExamesBancaAgendados } from '@/lib/exameBanca'
 import type { ExameBancaAgendado } from '@/lib/exameBancaTypes'
+import { horariosDoInstrutorNoDia, isoWeekday, bloqueioAplicaAoInstrutor } from '@/lib/horariosDia'
 
 export interface DiaCalendario {
   date: string          // 'YYYY-MM-DD'
@@ -158,15 +159,14 @@ export async function getSlotsDoDia(
   // 1. Horários ativos
   const { data: horariosRaw } = await supabase
     .from('horarios_disponiveis')
-    .select('horario, ordem, instrutor')
+    .select('horario, ordem, instrutor, dias_semana, data')
     .eq('autoescola_id', autoescola_id)
     .eq('ativo', true)
     .order('ordem', { ascending: true })
 
-  // Horários específicos do instrutor têm prioridade; senão usa globais
-  const especificos = (horariosRaw ?? []).filter((h) => h.instrutor === instructor_name).map((h) => h.horario)
-  const globais = (horariosRaw ?? []).filter((h) => !h.instrutor).map((h) => h.horario)
-  const baseSlots = especificos.length > 0 ? especificos : globais
+  // Horários próprios do instrutor têm prioridade sobre os globais; dias_semana restringe por dia
+  const baseSlots = horariosDoInstrutorNoDia(horariosRaw ?? [], instructor_name, isoWeekday(date), date)
+  const temEspecificos = (horariosRaw ?? []).some((h) => !h.data && h.instrutor === instructor_name)
   const baseSet = new Set(baseSlots)
 
   // Ordem para sort
@@ -186,7 +186,7 @@ export async function getSlotsDoDia(
   const dayOfWeek = new Date(date + 'T12:00:00').getDay()
 
   const blocksForInst = (blocked ?? []).filter((b) => {
-    if (b.instructor && b.instructor !== instructor_name) return false
+    if (!bloqueioAplicaAoInstrutor(b.instructor, instructor_name)) return false
     const vt = normalizeVehicleType(b.vehicle_type)
     if (vt !== 'TODOS' && vt !== instructor_category.toUpperCase()) return false
     if (b.date === date) return true
@@ -266,7 +266,7 @@ export async function getSlotsDoDia(
   for (const ag of agsRaw ?? []) {
     if (allSlots.has(ag.time_slot)) continue
     // Só adiciona slots fora do base se: não há específicos (usa global) OU o agendamento está ativo
-    if (especificos.length === 0 || ag.status !== 'cancelled') {
+    if (!temEspecificos || ag.status !== 'cancelled') {
       allSlots.add(ag.time_slot)
       if (!slotOrdem.has(ag.time_slot)) slotOrdem.set(ag.time_slot, 9999)
     }

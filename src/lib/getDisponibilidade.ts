@@ -1,4 +1,5 @@
 import { createServiceClient } from '@/lib/supabase/server'
+import { horariosDoInstrutorNoDia, isoWeekday, bloqueioAplicaAoInstrutor } from './horariosDia'
 
 export interface InstructorDisponivel {
   nome: string
@@ -58,7 +59,7 @@ export async function getDisponibilidade(
   // 2. Available time slots (active)
   const { data: timeSlots } = await supabase
     .from('horarios_disponiveis')
-    .select('horario, instrutor')
+    .select('horario, instrutor, dias_semana, data')
     .eq('autoescola_id', autoescolaId)
     .eq('ativo', true)
 
@@ -97,10 +98,8 @@ export async function getDisponibilidade(
     .map((inst) => {
       const nome = inst.name
 
-      // Instructor-specific slots take priority over global slots
-      const instSpecific = (timeSlots ?? []).filter((t) => t.instrutor === nome).map((t) => t.horario)
-      const globalSlots = (timeSlots ?? []).filter((t) => !t.instrutor).map((t) => t.horario)
-      const baseTimes = [...new Set(instSpecific.length > 0 ? instSpecific : globalSlots)]
+      // Horários próprios do instrutor têm prioridade sobre os globais; dias_semana restringe por dia
+      const baseTimes = horariosDoInstrutorNoDia(timeSlots ?? [], nome, isoWeekday(date), date)
 
       // Already booked slots for this instructor on this date
       const bookedForInst = (agendamentos ?? [])
@@ -110,7 +109,7 @@ export async function getDisponibilidade(
       // Blocks that apply to this instructor
       const blocksForInst = (blocked ?? []).filter((b) => {
         // Instructor filter: if block targets a specific instructor, must match
-        if (b.instructor && b.instructor !== nome) return false
+        if (!bloqueioAplicaAoInstrutor(b.instructor, nome)) return false
 
         // Vehicle type: normalize DB values ('car'→'CARRO', 'moto'/'motorcycle'→'MOTO', 'TODOS'→wildcard)
         const vt = normalizeVehicleType(b.vehicle_type)

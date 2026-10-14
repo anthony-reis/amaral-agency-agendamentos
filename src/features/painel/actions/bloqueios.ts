@@ -2,7 +2,33 @@
 
 import { createServiceClient } from '@/lib/supabase/server'
 import { getCurrentUsername, assertPodeEditar } from './authPainel'
+import { conflitoEntreBloqueios, mensagemConflitoBloqueio, parseWeekdaysIso, bloqueiosParaData, isoWeekday } from '@/lib/horariosDia'
 import type { BloqueioTimeSlot, NovoBloqueioInput, NovoBloqueioSemanalInput, ActionResult } from '../types'
+
+
+/** Erro se já existe bloqueio semanal cobrindo o mesmo instrutor/veículo/dia/horário (para qualquer um dos alvos). */
+async function erroDeBloqueioDuplicado(
+  autoescola_id: string,
+  alvos: Array<string | null>,
+  vehicle_type: string,
+  time_slot: string,
+  dias: number[],
+  ignorarId?: string
+): Promise<string | null> {
+  const supabase = createServiceClient()
+  const { data } = await supabase
+    .from('blockedTimeSlots')
+    .select('id, instructor, vehicle_type, time_slot, weekdays, reason')
+    .eq('autoescola_id', autoescola_id)
+    .eq('status', 'Bloqueado')
+    .eq('date', 'RECORRENTE_DIA_SEMANA')
+  const existentes = (data ?? []).map((b) => ({ ...b, weekdays: parseWeekdaysIso(b.weekdays) }))
+  for (const instructor of alvos) {
+    const c = conflitoEntreBloqueios({ instructor, vehicle_type, time_slot, weekdays: dias }, existentes, ignorarId)
+    if (c) return mensagemConflitoBloqueio(c)
+  }
+  return null
+}
 
 export async function listarBloqueios(autoescola_id: string): Promise<BloqueioTimeSlot[]> {
   const supabase = createServiceClient()
@@ -219,4 +245,271 @@ export async function excluirBloqueio(
   })
 
   return { success: true, data: undefined }
+}
+
+/**
+ * Bloqueio semanal criado pela agenda de Horários: uma linha recorrente com vários dias (ISO 1=Seg…7=Dom).
+ * tipo: dia inteiro | a partir de um horário | um horário específico.
+ */
+export async function criarBloqueioSemanalLivre(input: {
+  dias: number[]
+  tipo: 'dia_inteiro' | 'apos' | 'horario'
+  horario?: string
+  instrutor: string | null
+  reason: string
+  autoescola_id: string
+}): Promise<ActionResult<BloqueioTimeSlot>> {
+  const guard = await assertPodeEditar('operacao')
+  if (!guard.ok) return { success: false, error: guard.error }
+
+  const dias = [...new Set(input.dias.filter((d) => Number.isInteger(d) && d >= 1 && d <= 7))].sort()
+  if (dias.length === 0) return { success: false, error: 'Selecione ao menos um dia da semana.' }
+  if (input.tipo !== 'dia_inteiro' && !/^([01]\d|2[0-3]):[0-5]\d$/.test(input.horario ?? '')) {
+    return { success: false, error: 'Horário inválido. Use HH:MM.' }
+  }
+
+  const time_slot =
+    input.tipo === 'dia_inteiro' ? 'DIA_INTEIRO' : input.tipo === 'apos' ? `APOS_${input.horario}` : input.horario!
+
+  const duplicado = await erroDeBloqueioDuplicado(input.autoescola_id, [input.instrutor], 'TODOS', time_slot, dias)
+  if (duplicado) return { success: false, error: duplicado }
+
+  const supabase = createServiceClient()
+  const { data, error } = await supabase
+    .from('blockedTimeSlots')
+    .insert({
+      date: 'RECORRENTE_DIA_SEMANA',
+      time_slot,
+      vehicle_type: 'TODOS',
+      instructor: input.instrutor,
+      reason: input.reason.trim() || null,
+      weekdays: dias,
+      autoescola_id: input.autoescola_id,
+    })
+    .select()
+    .single()
+
+  if (error || !data) return { success: false, error: 'Erro ao criar bloqueio.' }
+
+  const userAct = await getCurrentUsername()
+  await supabase.from('activity_logs_painel').insert({
+    username: userAct,
+    action_type: 'bloqueio',
+    description: `Bloqueio semanal criado: ${time_slot} (dias ${dias.join(',')}) para ${input.instrutor || 'TODOS'}`,
+    autoescola_id: input.autoescola_id,
+  })
+
+  return { success: true, data }
+}
+
+/**
+ * Edita um bloqueio semanal por completo (vários dias, tipo, horário, motivo).
+ * instrutor/vehicle_type só mudam quando informados.
+ */
+export async function atualizarBloqueioSemanal(
+  id: string,
+  input: {
+    dias: number[]
+    tipo: 'dia_inteiro' | 'apos' | 'horario'
+    horario?: string
+    reason: string
+    instrutor?: string | null
+    vehicle_type?: string
+  },
+  autoescola_id: string
+): Promise<ActionResult<BloqueioTimeSlot>> {
+  const guard = await assertPodeEditar('operacao')
+  if (!guard.ok) return { success: false, error: guard.error }
+
+  const dias = [...new Set(input.dias.filter((d) => Number.isInteger(d) && d >= 1 && d <= 7))].sort()
+  if (dias.length === 0) return { success: false, error: 'Selecione ao menos um dia da semana.' }
+  if (input.tipo !== 'dia_inteiro' && !/^([01]\d|2[0-3]):[0-5]\d$/.test(input.horario ?? '')) {
+    return { success: false, error: 'Horário inválido. Use HH:MM.' }
+  }
+
+  const time_slot =
+    input.tipo === 'dia_inteiro' ? 'DIA_INTEIRO' : input.tipo === 'apos' ? `APOS_${input.horario}` : input.horario!
+
+  const supabase = createServiceClient()
+  const { data: atual } = await supabase.from('blockedTimeSlots').select('instructor, vehicle_type').eq('id', id).eq('autoescola_id', autoescola_id).single()
+  if (!atual) return { success: false, error: 'Bloqueio não encontrado.' }
+  const duplicado = await erroDeBloqueioDuplicado(
+    autoescola_id,
+    [input.instrutor !== undefined ? input.instrutor : atual.instructor],
+    input.vehicle_type ?? atual.vehicle_type,
+    time_slot,
+    dias,
+    id
+  )
+  if (duplicado) return { success: false, error: duplicado }
+
+  const patch: Record<string, unknown> = { time_slot, weekdays: dias, reason: input.reason.trim() || null }
+  if (input.instrutor !== undefined) patch.instructor = input.instrutor
+  if (input.vehicle_type !== undefined) patch.vehicle_type = input.vehicle_type
+
+  const { data, error } = await supabase
+    .from('blockedTimeSlots')
+    .update(patch)
+    .eq('id', id)
+    .eq('autoescola_id', autoescola_id)
+    .eq('date', 'RECORRENTE_DIA_SEMANA')
+    .select()
+    .single()
+
+  if (error || !data) return { success: false, error: 'Erro ao editar bloqueio.' }
+
+  const userAct = await getCurrentUsername()
+  await supabase.from('activity_logs_painel').insert({
+    username: userAct,
+    action_type: 'bloqueio',
+    description: `Bloqueio semanal editado: ${time_slot} (dias ${dias.join(',')}) para ${data.instructor || 'TODOS'}`,
+    autoescola_id,
+  })
+
+  return { success: true, data }
+}
+
+/** Cria o mesmo bloqueio semanal (vários dias) para vários instrutores — lista vazia = todos. */
+export async function criarBloqueioSemanalVarios(input: {
+  dias: number[]
+  tipo: 'dia_inteiro' | 'apos' | 'horario'
+  horario?: string
+  instrutores: string[]
+  vehicle_type: string
+  reason: string
+  autoescola_id: string
+}): Promise<ActionResult<BloqueioTimeSlot[]>> {
+  const guard = await assertPodeEditar('operacao')
+  if (!guard.ok) return { success: false, error: guard.error }
+
+  const dias = [...new Set(input.dias.filter((d) => Number.isInteger(d) && d >= 1 && d <= 7))].sort()
+  if (dias.length === 0) return { success: false, error: 'Selecione ao menos um dia da semana.' }
+  if (input.tipo !== 'dia_inteiro' && !/^([01]\d|2[0-3]):[0-5]\d$/.test(input.horario ?? '')) {
+    return { success: false, error: 'Horário inválido. Use HH:MM.' }
+  }
+  const time_slot =
+    input.tipo === 'dia_inteiro' ? 'DIA_INTEIRO' : input.tipo === 'apos' ? `APOS_${input.horario}` : input.horario!
+  const alvos: Array<string | null> = input.instrutores.length > 0 ? input.instrutores : [null]
+
+  const duplicado = await erroDeBloqueioDuplicado(input.autoescola_id, alvos, input.vehicle_type || 'TODOS', time_slot, dias)
+  if (duplicado) return { success: false, error: duplicado }
+
+  const supabase = createServiceClient()
+  const { data, error } = await supabase
+    .from('blockedTimeSlots')
+    .insert(
+      alvos.map((instructor) => ({
+        date: 'RECORRENTE_DIA_SEMANA',
+        time_slot,
+        vehicle_type: input.vehicle_type || 'TODOS',
+        instructor,
+        reason: input.reason.trim() || null,
+        weekdays: dias,
+        autoescola_id: input.autoescola_id,
+      }))
+    )
+    .select()
+  if (error || !data) return { success: false, error: 'Erro ao criar bloqueio.' }
+
+  const userAct = await getCurrentUsername()
+  await supabase.from('activity_logs_painel').insert({
+    username: userAct,
+    action_type: 'bloqueio',
+    description: `Bloqueio semanal criado: ${time_slot} (dias ${dias.join(',')}) para ${input.instrutores.length > 0 ? input.instrutores.join(', ') : 'TODOS'}`,
+    autoescola_id: input.autoescola_id,
+  })
+  return { success: true, data }
+}
+
+/** Remove bloqueios de instrutores que não existem mais (sobras de antes da exclusão em cascata). */
+export async function limparBloqueiosOrfaos(autoescola_id: string): Promise<ActionResult<{ removidos: number }>> {
+  const guard = await assertPodeEditar('operacao')
+  if (!guard.ok) return { success: false, error: guard.error }
+
+  const supabase = createServiceClient()
+  const [{ data: instrutores }, { data: blocos }] = await Promise.all([
+    supabase.from('instructors').select('name').eq('autoescola_id', autoescola_id),
+    supabase.from('blockedTimeSlots').select('id, instructor').eq('autoescola_id', autoescola_id).not('instructor', 'is', null),
+  ])
+  const existentes = new Set((instrutores ?? []).map((i) => i.name))
+  const ids = (blocos ?? [])
+    .filter((b) => b.instructor && b.instructor.trim().toUpperCase() !== 'TODOS' && !existentes.has(b.instructor))
+    .map((b) => b.id)
+  if (ids.length === 0) return { success: true, data: { removidos: 0 } }
+
+  const { error } = await supabase.from('blockedTimeSlots').delete().in('id', ids).eq('autoescola_id', autoescola_id)
+  if (error) return { success: false, error: 'Erro ao remover bloqueios.' }
+
+  const userAct = await getCurrentUsername()
+  await supabase.from('activity_logs_painel').insert({
+    username: userAct,
+    action_type: 'bloqueio',
+    description: `Bloqueios de instrutores removidos limpos: ${ids.length}`,
+    autoescola_id,
+  })
+  return { success: true, data: { removidos: ids.length } }
+}
+
+/** Bloqueio só numa data (feriado, exame, manutenção...) criado pela agenda. */
+export async function criarBloqueioPontual(input: {
+  date: string
+  tipo: 'dia_inteiro' | 'apos' | 'horario'
+  horario?: string
+  instrutor: string | null
+  reason: string
+  autoescola_id: string
+}): Promise<ActionResult<BloqueioTimeSlot>> {
+  const guard = await assertPodeEditar('operacao')
+  if (!guard.ok) return { success: false, error: guard.error }
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date) || isNaN(new Date(input.date + 'T12:00:00').getTime())) {
+    return { success: false, error: 'Data inválida.' }
+  }
+  if (input.date < new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' })) {
+    return { success: false, error: 'Escolha uma data de hoje em diante.' }
+  }
+  if (input.tipo !== 'dia_inteiro' && !/^([01]\d|2[0-3]):[0-5]\d$/.test(input.horario ?? '')) {
+    return { success: false, error: 'Horário inválido. Use HH:MM.' }
+  }
+  const time_slot =
+    input.tipo === 'dia_inteiro' ? 'DIA_INTEIRO' : input.tipo === 'apos' ? `APOS_${input.horario}` : input.horario!
+
+  const supabase = createServiceClient()
+  const { data: rows } = await supabase
+    .from('blockedTimeSlots')
+    .select('id, instructor, vehicle_type, time_slot, weekdays, reason, date')
+    .eq('autoescola_id', input.autoescola_id)
+    .eq('status', 'Bloqueado')
+    .or(`date.eq.${input.date},date.eq.RECORRENTE_DIA_SEMANA`)
+  const existentes = bloqueiosParaData(
+    input.date,
+    (rows ?? []).map((b) => ({ ...b, date: b.date === 'RECORRENTE_DIA_SEMANA' ? null : b.date, weekdays: parseWeekdaysIso(b.weekdays) }))
+  )
+  const dia = isoWeekday(input.date)
+  const c = conflitoEntreBloqueios({ instructor: input.instrutor, vehicle_type: 'TODOS', time_slot, weekdays: [dia] }, existentes)
+  if (c) return { success: false, error: mensagemConflitoBloqueio(c) }
+
+  const { data, error } = await supabase
+    .from('blockedTimeSlots')
+    .insert({
+      date: input.date,
+      time_slot,
+      vehicle_type: 'TODOS',
+      instructor: input.instrutor,
+      reason: input.reason.trim() || null,
+      weekdays: [],
+      autoescola_id: input.autoescola_id,
+    })
+    .select()
+    .single()
+  if (error || !data) return { success: false, error: 'Erro ao criar bloqueio.' }
+
+  const userAct = await getCurrentUsername()
+  await supabase.from('activity_logs_painel').insert({
+    username: userAct,
+    action_type: 'bloqueio',
+    description: `Bloqueio criado: ${time_slot} em ${input.date.split('-').reverse().join('/')} para ${input.instrutor || 'TODOS'}`,
+    autoescola_id: input.autoescola_id,
+  })
+  return { success: true, data }
 }

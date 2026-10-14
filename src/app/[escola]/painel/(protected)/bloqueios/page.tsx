@@ -23,6 +23,7 @@ export default async function BloqueiosPage({ params }: Props) {
   return (
     <BloqueioForm
       bloqueios={bloqueios}
+      hoje={new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' })}
       instrutores={instrutores.map((i) => i.name)}
       autoescola_id={session.autoescola_id}
       userRole={await roleParaArea('operacao')}

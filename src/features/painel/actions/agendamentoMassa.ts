@@ -87,6 +87,30 @@ export async function criarAgendamentosMassa(data: {
   const supabase = createServiceClient()
   const rpcCat = data.category === 'CARRO' ? 'aulas_cat_b' : 'aulas_cat_a'
 
+  // Revalida cada aula contra a disponibilidade real (dias da semana, bloqueios e
+  // agendamentos existentes) — não confia no que o cliente mandou.
+  const vistos = new Set<string>()
+  const disponibilidadePorDia = new Map<string, Awaited<ReturnType<typeof getDisponibilidade>>>()
+  for (const a of data.agendamentos) {
+    const chave = `${a.date}|${a.instructorName}|${a.timeSlot}`
+    if (vistos.has(chave)) {
+      return { success: false, created: 0, error: `Horário repetido na seleção: ${a.instructorName} ${a.date} ${a.timeSlot}.` }
+    }
+    vistos.add(chave)
+
+    if (!disponibilidadePorDia.has(a.date)) {
+      disponibilidadePorDia.set(a.date, await getDisponibilidade(data.autoescola_id, a.date, data.category))
+    }
+    const inst = disponibilidadePorDia.get(a.date)!.find((i) => i.nome === a.instructorName)
+    if (!inst || !inst.horarios.includes(a.timeSlot)) {
+      return {
+        success: false,
+        created: 0,
+        error: `${a.instructorName} não está disponível em ${a.date.split('-').reverse().join('/')} às ${a.timeSlot}. Atualize a busca e escolha outro horário.`,
+      }
+    }
+  }
+
   // Verificar créditos disponíveis
   const { data: creds } = await supabase
     .from('student_credits')
