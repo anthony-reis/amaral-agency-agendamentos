@@ -26,10 +26,11 @@ export async function middleware(request: NextRequest) {
   }
 
   // ─── Instrutor: renova o cookie a cada acesso (sessão deslizante) ─────────
-  if (/^\/[^/]+\/instrutor(\/|$)/.test(pathname) && !pathname.endsWith('/login')) {
+  if (/^\/[^/]+\/instrutor(\/|$)/.test(pathname)) {
     const response = NextResponse.next()
     const cookie = request.cookies.get('instrutor_session')?.value
-    if (cookie) {
+    // No login só passa direto (sem sessão a renovar e sem checar o admin)
+    if (cookie && !pathname.endsWith('/login')) {
       response.cookies.set('instrutor_session', cookie, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
