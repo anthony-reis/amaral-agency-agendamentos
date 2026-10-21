@@ -1,6 +1,13 @@
 import type { Metadata } from 'next'
+import { Geist } from 'next/font/google'
 import './globals.css'
 import { Providers } from './providers'
+
+const geist = Geist({
+  subsets: ['latin'],
+  variable: '--font-sans',
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
   title: 'AmaralPro — Sistema de Gestão para Autoescolas',
@@ -20,7 +27,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="pt-BR" className="scroll-smooth" suppressHydrationWarning>
+    <html lang="pt-BR" className={`${geist.variable} scroll-smooth`} suppressHydrationWarning>
       <body className="antialiased" suppressHydrationWarning>
         <Providers>{children}</Providers>
       </body>

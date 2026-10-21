@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAcessoPainel } from '@/lib/permissoes.server'
 import { permite } from '@/lib/permissoes'
-import { getFinanceiroMensal } from '@/features/painel/actions/financeiro'
+import { getFinanceiro } from '@/features/painel/actions/financeiro'
 import { autoescolaTemFeature } from '@/lib/features.server'
 
 export async function GET(
@@ -22,13 +22,20 @@ export async function GET(
   }
 
   const sp = request.nextUrl.searchParams
-  const mes = parseInt(sp.get('mes') ?? String(new Date().getMonth() + 1), 10)
-  const ano = parseInt(sp.get('ano') ?? String(new Date().getFullYear()), 10)
-
-  if (isNaN(mes) || mes < 1 || mes > 12 || isNaN(ano)) {
+  const de = sp.get('de') ?? ''
+  const ate = sp.get('ate') ?? ''
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(de) || !/^\d{4}-\d{2}-\d{2}$/.test(ate)) {
     return NextResponse.json({ error: 'Parâmetros inválidos' }, { status: 400 })
   }
 
-  const data = await getFinanceiroMensal(session.autoescola_id, mes, ano)
+  const origem = sp.get('origem')
+  const data = await getFinanceiro(session.autoescola_id, {
+    de,
+    ate,
+    origem: origem === 'manual' || origem === 'mercado_pago' ? origem : '',
+    forma: sp.get('forma') ?? '',
+    vendedor: sp.get('vendedor') ?? '',
+    categoria: sp.get('categoria') ?? '',
+  })
   return NextResponse.json(data)
 }

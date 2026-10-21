@@ -1,6 +1,7 @@
 'use server'
 
 import { createServiceClient } from '@/lib/supabase/server'
+import { buscarTodos } from '@/lib/buscarTodos'
 
 export interface FechamentoAula {
   id: string
@@ -50,16 +51,20 @@ export async function getFechamentoMensal(
   const lastDay = new Date(ano, mes, 0).getDate()
   const dateEnd = `${ano}-${String(mes).padStart(2, '0')}-${lastDay}`
 
-  const { data } = await supabase
-    .from('agendamentos')
-    .select('id, date, time_slot, student_name, instructor_name, instructorCategory, km_inicial, km_final, km_rodado, status, tipo')
-    .eq('autoescola_id', autoescola_id)
-    .eq('status', 'completed')
-    .gte('date', dateStart)
-    .lte('date', dateEnd)
-    .not('instructor_name', 'is', null)
-    .order('date', { ascending: true })
-    .order('time_slot', { ascending: true })
+  const data = await buscarTodos((from, to) =>
+    supabase
+      .from('agendamentos')
+      .select('id, date, time_slot, student_name, instructor_name, instructorCategory, km_inicial, km_final, km_rodado, status, tipo')
+      .eq('autoescola_id', autoescola_id)
+      .eq('status', 'completed')
+      .gte('date', dateStart)
+      .lte('date', dateEnd)
+      .not('instructor_name', 'is', null)
+      .order('date', { ascending: true })
+      .order('time_slot', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to)
+  )
 
   const { data: insts } = await supabase
     .from('instructors')
@@ -74,7 +79,7 @@ export async function getFechamentoMensal(
     (insts ?? []).map((i) => [i.name, i.valor_banca != null ? Number(i.valor_banca) : null])
   )
 
-  const rows = (data ?? []).map((r) => ({ ...r, tipo: (r.tipo as 'aula' | 'banca') ?? 'aula' })) as FechamentoAula[]
+  const rows = data.map((r) => ({ ...r, tipo: (r.tipo as 'aula' | 'banca') ?? 'aula' })) as FechamentoAula[]
 
   const map = new Map<string, FechamentoInstrutor>()
   for (const row of rows) {

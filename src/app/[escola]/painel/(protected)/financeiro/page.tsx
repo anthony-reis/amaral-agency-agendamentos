@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { getPainelSession } from '@/features/painel/actions/authPainel'
 import { exigirArea, roleParaArea } from '@/lib/permissoes.server'
 import { exigirFeature } from '@/lib/features.server'
-import { getFinanceiroMensal } from '@/features/painel/actions/financeiro'
+import { getFinanceiro } from '@/features/painel/actions/financeiro'
 import { FinanceiroDashboard } from '@/features/painel/components/FinanceiroDashboard'
 
 interface Props {
@@ -16,17 +16,14 @@ export default async function FinanceiroPage({ params }: Props) {
   await exigirArea('financeiro')
   await exigirFeature(session.autoescola_id, 'financeiro')
 
-  const now = new Date()
-  const mes = now.getMonth() + 1
-  const ano = now.getFullYear()
-
-  const data = await getFinanceiroMensal(session.autoescola_id, mes, ano)
+  // Mês corrente no horário de Brasília
+  const hoje = new Date(Date.now() - 3 * 3_600_000).toISOString().slice(0, 10)
+  const data = await getFinanceiro(session.autoescola_id, { de: `${hoje.slice(0, 8)}01`, ate: hoje })
 
   return (
     <FinanceiroDashboard
       initialData={data}
       escola={escola}
-      autoescola_id={session.autoescola_id}
     />
   )
 }
