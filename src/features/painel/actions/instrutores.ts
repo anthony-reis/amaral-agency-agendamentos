@@ -3,6 +3,7 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { getCurrentUsername, assertPodeEditar } from './authPainel'
 import type { Instrutor, NovoInstrutorInput, ActionResult } from '../types'
+import { parseCambio } from '@/lib/cambio'
 
 // Postgres `numeric` chega como string via Supabase/PostgREST — normaliza para number.
 function normalizarInstrutor(row: Instrutor): Instrutor {
@@ -67,7 +68,7 @@ export async function criarInstrutor(
 
 export async function atualizarInstrutor(
   id: string,
-  input: Partial<Pick<Instrutor, 'name' | 'category' | 'valor_hora_aula' | 'valor_banca'>>,
+  input: Partial<Pick<Instrutor, 'name' | 'category' | 'valor_hora_aula' | 'valor_banca' | 'cambio'>>,
   autoescola_id: string
 ): Promise<ActionResult<Instrutor>> {
   const guard = await assertPodeEditar('cadastros')
@@ -85,7 +86,7 @@ export async function atualizarInstrutor(
 
   const { data, error } = await supabase
     .from('instructors')
-    .update(input)
+    .update({ ...input, ...(input.cambio !== undefined && { cambio: parseCambio(input.cambio) }) })
     .eq('id', id)
     .eq('autoescola_id', autoescola_id)
     .select()

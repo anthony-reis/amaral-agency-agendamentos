@@ -6,10 +6,12 @@ import { InstructorLoginForm } from '@/features/instrutor/components/InstructorL
 
 interface Props {
   params: Promise<{ escola: string }>
+  searchParams: Promise<{ expirada?: string }>
 }
 
-export default async function InstructorLoginPage({ params }: Props) {
+export default async function InstructorLoginPage({ params, searchParams }: Props) {
   const { escola } = await params
+  const { expirada } = await searchParams
   const supabase = createServiceClient()
 
   const { data: autoescola } = await supabase
@@ -27,6 +29,7 @@ export default async function InstructorLoginPage({ params }: Props) {
       instructors={instructors}
       escola={escola}
       escolaNome={autoescola.nome}
+      sessaoExpirada={expirada === '1'}
     />
   )
 }

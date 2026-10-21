@@ -29,6 +29,7 @@ export default async function InstrutoesPage({ params }: Props) {
       autoescola_id={session.autoescola_id}
       userRole={await roleParaArea('cadastros')}
       mostrarValores={veValores}
+      mostrarCambio={features.separar_cambio}
     />
   )
 }

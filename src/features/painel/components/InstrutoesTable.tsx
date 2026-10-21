@@ -7,6 +7,7 @@ import {
   criarInstrutor, excluirInstrutor, atualizarInstrutor, alterarSenhaInstrutor,
 } from '../actions/instrutores'
 import { canEditPainel, type Instrutor } from '../types'
+import { CAMBIOS, parseCambio, labelCambio } from '@/lib/cambio'
 
 const CATEGORIAS_FALLBACK = ['CARRO', 'MOTO', 'AMBOS']
 
@@ -17,9 +18,11 @@ interface Props {
   userRole: string
   /** Módulo "financeiro": colunas de valor hora/aula e banca. */
   mostrarValores?: boolean
+  /** Módulo "separar_cambio": câmbio manual/automático do instrutor de carro. */
+  mostrarCambio?: boolean
 }
 
-export function InstrutoesTable({ instrutores: initial, autoescola_id, categoriasOpcoes, userRole, mostrarValores = false }: Props) {
+export function InstrutoesTable({ instrutores: initial, autoescola_id, categoriasOpcoes, userRole, mostrarValores = false, mostrarCambio = false }: Props) {
   const canEdit = canEditPainel(userRole)
   const CATEGORIAS = categoriasOpcoes ?? CATEGORIAS_FALLBACK
   const [instrutores, setInstrutores] = useState<Instrutor[]>(initial)
@@ -30,7 +33,7 @@ export function InstrutoesTable({ instrutores: initial, autoescola_id, categoria
   const [passwordId, setPasswordId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [newForm, setNewForm] = useState({ name: '', category: 'CARRO' })
-  const [editForm, setEditForm] = useState({ name: '', category: '', valor_hora_aula: '', valor_banca: '' })
+  const [editForm, setEditForm] = useState({ name: '', category: '', valor_hora_aula: '', valor_banca: '', cambio: '' })
   const [novaSenha, setNovaSenha] = useState('')
 
   const filtered = filter === 'TODOS'
@@ -57,6 +60,7 @@ export function InstrutoesTable({ instrutores: initial, autoescola_id, categoria
       category: validCategory,
       valor_hora_aula: instrutor.valor_hora_aula != null ? String(instrutor.valor_hora_aula) : '',
       valor_banca: instrutor.valor_banca != null ? String(instrutor.valor_banca) : '',
+      cambio: instrutor.cambio ?? '',
     })
   }
 
@@ -67,6 +71,7 @@ export function InstrutoesTable({ instrutores: initial, autoescola_id, categoria
       const result = await atualizarInstrutor(id, {
         name: editForm.name,
         category: editForm.category,
+        ...(mostrarCambio && { cambio: editForm.category === 'MOTO' ? null : parseCambio(editForm.cambio) }),
         valor_hora_aula: valorTrim === '' ? null : Number(valorTrim),
         valor_banca: valorBancaTrim === '' ? null : Number(valorBancaTrim),
       }, autoescola_id)
@@ -245,6 +250,7 @@ export function InstrutoesTable({ instrutores: initial, autoescola_id, categoria
                   </td>
                   <td className="px-4 py-3.5">
                     {editingId === instrutor.id ? (
+                      <>
                       <select
                         value={editForm.category}
                         onChange={(e) => setEditForm((p) => ({ ...p, category: e.target.value }))}
@@ -252,6 +258,17 @@ export function InstrutoesTable({ instrutores: initial, autoescola_id, categoria
                       >
                         {CATEGORIAS.map((c) => <option key={c}>{c}</option>)}
                       </select>
+                      {mostrarCambio && editForm.category !== 'MOTO' && (
+                        <select
+                          value={editForm.cambio}
+                          onChange={(e) => setEditForm((p) => ({ ...p, cambio: e.target.value }))}
+                          className="ml-2 px-2 py-1 rounded-lg bg-[--p-bg-input] border border-[--p-border] text-sm text-[--p-text-1] focus:outline-none"
+                        >
+                          <option value="">Qualquer câmbio</option>
+                          {CAMBIOS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                        </select>
+                      )}
+                      </>
                     ) : (
                       <span className={`px-2.5 py-0.5 text-xs font-bold rounded-md ${
                         instrutor.category === 'CARRO'
@@ -261,6 +278,11 @@ export function InstrutoesTable({ instrutores: initial, autoescola_id, categoria
                           : 'bg-slate-500/20 text-slate-300'
                       }`}>
                         {instrutor.category}
+                      </span>
+                    )}
+                    {editingId !== instrutor.id && mostrarCambio && instrutor.category !== 'MOTO' && instrutor.cambio && (
+                      <span className="ml-2 px-2 py-0.5 text-xs font-bold rounded-md bg-amber-500/20 text-amber-300">
+                        {labelCambio(instrutor.cambio)}
                       </span>
                     )}
                   </td>

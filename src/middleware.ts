@@ -25,6 +25,22 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // ─── Instrutor: renova o cookie a cada acesso (sessão deslizante) ─────────
+  if (/^\/[^/]+\/instrutor(\/|$)/.test(pathname) && !pathname.endsWith('/login')) {
+    const response = NextResponse.next()
+    const cookie = request.cookies.get('instrutor_session')?.value
+    if (cookie) {
+      response.cookies.set('instrutor_session', cookie, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 30,
+        path: '/',
+      })
+    }
+    return response
+  }
+
   // ─── Admin interno: verifica Supabase Auth ────────────────────────────────
   let supabaseResponse = NextResponse.next({ request })
 
@@ -67,5 +83,7 @@ export const config = {
     '/admin/((?!login).*)',
     // Painel: protege /:slug/painel/* EXCETO /:slug/painel/login
     '/:slug/painel/((?!login).*)',
+    // Instrutor: só renova o cookie de sessão
+    '/:slug/instrutor/:path*',
   ],
 }

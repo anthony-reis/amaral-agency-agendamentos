@@ -190,6 +190,7 @@ export function AgendamentoFlow({
           autoescolaId,
           dateStr(selectedDate),
           cat,
+          studentId,
         );
         setAvailableInstructors(data);
         setStep(4);

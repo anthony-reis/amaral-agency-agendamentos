@@ -43,16 +43,22 @@ function parseWeekdays(weekdays: unknown): number[] {
 export async function getDisponibilidade(
   autoescolaId: string,
   date: string,
-  category: string
+  category: string,
+  cambio?: 'MANUAL' | 'AUTOMATICO' | null
 ): Promise<InstructorDisponivel[]> {
   const supabase = createServiceClient()
 
   // 1. Instructors matching category or AMBOS
-  const { data: instructors } = await supabase
+  const { data: instructorsAll } = await supabase
     .from('instructors')
-    .select('id, name, category')
+    .select('id, name, category, cambio')
     .eq('autoescola_id', autoescolaId)
     .or(`category.eq.${category},category.eq.AMBOS`)
+
+  // Câmbio do aluno: instrutor sem câmbio definido atende qualquer um
+  const instructors = cambio
+    ? (instructorsAll ?? []).filter((i) => !i.cambio || i.cambio === cambio)
+    : instructorsAll
 
   if (!instructors || instructors.length === 0) return []
 

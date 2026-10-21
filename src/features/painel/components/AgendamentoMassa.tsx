@@ -113,6 +113,7 @@ export function AgendamentoMassa({
         category,
         Math.min(creditosCategoria * 2, 30), // busca até 2x os créditos para dar opções
         instructorFilter || undefined,
+        alunoSelecionado.id,
       );
       setDias(result);
       setStep(3);

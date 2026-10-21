@@ -1,5 +1,6 @@
 'use server'
 
+import { parseCambio } from '@/lib/cambio'
 import { bloqueioFeature } from '@/lib/features.server'
 import { revalidatePath } from 'next/cache'
 import { createServiceClient } from '@/lib/supabase/server'
@@ -94,6 +95,7 @@ export async function criarAluno(
       document_id: docLimpo,
       phone: input.phone?.trim() || null,
       email: input.email?.trim() || null,
+      cambio: parseCambio(input.cambio),
       autoescola_id: input.autoescola_id,
     })
     .select()
@@ -189,7 +191,7 @@ export async function criarAluno(
 
 export async function editarAluno(
   id: string,
-  input: Partial<{ name: string; phone: string; email: string }>,
+  input: Partial<{ name: string; phone: string; email: string; cambio: string }>,
   autoescola_id: string
 ): Promise<ActionResult<void>> {
   const guard = await assertPodeEditar('cadastros')
@@ -202,6 +204,7 @@ export async function editarAluno(
       ...(input.name && { name: input.name.trim() }),
       ...(input.phone !== undefined && { phone: input.phone.trim() || null }),
       ...(input.email !== undefined && { email: input.email.trim() || null }),
+      ...(input.cambio !== undefined && { cambio: parseCambio(input.cambio) }),
     })
     .eq('id', id)
     .eq('autoescola_id', autoescola_id)
@@ -212,7 +215,7 @@ export async function editarAluno(
   await supabase.from('activity_logs_painel').insert({
     username: userAct,
     action_type: 'aluno',
-    description: `Aluno editado (ID: ${id})`,
+    description: `Aluno editado (ID: ${id})${input.cambio !== undefined ? ` — câmbio: ${parseCambio(input.cambio) ?? 'livre'}` : ''}`,
     autoescola_id,
   })
 

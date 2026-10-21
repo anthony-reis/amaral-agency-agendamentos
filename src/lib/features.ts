@@ -31,6 +31,11 @@ export const FEATURES = {
     label: 'Dashboard do aluno',
     descricao: 'Tela inicial do aluno com resumo. Desligado: após identificar, vai direto para Agendar.',
   },
+  separar_cambio: {
+    label: 'Câmbio manual/automático',
+    descricao:
+      'Instrutores de carro e alunos ganham um câmbio (manual ou automático); o aluno só agenda com instrutor do mesmo câmbio. Sem câmbio definido = sem restrição.',
+  },
   login_senha_aluno: {
     label: 'Login do aluno com senha',
     descricao:

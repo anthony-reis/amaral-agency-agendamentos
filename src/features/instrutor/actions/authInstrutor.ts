@@ -6,7 +6,9 @@ import { autoescolaAcessivel } from '@/lib/autoescolaAcesso'
 import type { InstructorSession, ActionResult } from '@/features/painel/types'
 
 const COOKIE_NAME = 'instrutor_session'
-const COOKIE_MAX_AGE = 60 * 60 * 8 // 8 hours
+// 30 dias, renovado a cada acesso (middleware): só expira quem fica 30 dias sem abrir
+const COOKIE_MAX_AGE = 60 * 60 * 24 * 30
+
 
 export async function listarInstrutoresParaLogin(
   autoescola_id: string
@@ -84,7 +86,8 @@ export async function getInstructorSession(slug: string): Promise<InstructorSess
 
   try {
     const session = JSON.parse(raw) as InstructorSession
-    if (session.autoescola_slug !== slug) return null
+    if (!session.instructorId || !session.autoescola_id) return null
+    if (session.autoescola_slug?.toLowerCase() !== slug.toLowerCase()) return null
     return session
   } catch {
     return null

@@ -11,9 +11,10 @@ interface Props {
   instructors: { id: string; name: string }[]
   escola: string
   escolaNome: string
+  sessaoExpirada?: boolean
 }
 
-export function InstructorLoginForm({ instructors, escola, escolaNome }: Props) {
+export function InstructorLoginForm({ instructors, escola, escolaNome, sessaoExpirada }: Props) {
   const [instructorId, setInstructorId] = useState(instructors[0]?.id ?? '')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -91,6 +92,13 @@ export function InstructorLoginForm({ instructors, escola, escolaNome }: Props) 
                 className="w-full px-3 py-2.5 rounded-xl bg-[--p-bg-input] border border-[--p-border] text-sm text-[--p-text-1] placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-purple-500/40"
               />
             </div>
+
+            {sessaoExpirada && !error && (
+              <div className="flex items-center gap-2 text-sm text-amber-400 bg-amber-500/10 px-3 py-2 rounded-lg">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                Sua sessão expirou. Entre novamente.
+              </div>
+            )}
 
             {error && (
               <div className="flex items-center gap-2 text-sm text-red-400 bg-red-500/10 px-3 py-2 rounded-lg">

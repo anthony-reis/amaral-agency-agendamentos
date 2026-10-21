@@ -21,7 +21,7 @@ export default async function InstructorPage({ params }: Props) {
   const { escola } = await params
   const session = await getInstructorSession(escola)
 
-  if (!session) redirect(`/${escola}/instrutor/login`)
+  if (!session) redirect(`/${escola}/instrutor/login?expirada=1`)
 
   const hoje = new Date().toISOString().split('T')[0]
   const weekStart = getMondayOfCurrentWeek()

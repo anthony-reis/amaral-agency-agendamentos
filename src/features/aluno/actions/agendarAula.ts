@@ -4,6 +4,7 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { getDisponibilidade } from '@/lib/getDisponibilidade'
 import { liberarReservasVencidas } from '@/lib/reservasPosPacote'
+import { cambioDoAluno, bloqueioCambio } from '@/lib/cambio.server'
 
 /**
  * Returns current date string (YYYY-MM-DD) in São Paulo timezone (UTC-3).
@@ -66,10 +67,12 @@ async function validateOneClassPerDay(
 export async function fetchDisponibilidade(
   autoescolaId: string,
   date: string,
-  category: string
+  category: string,
+  studentId?: string
 ) {
   await liberarReservasVencidas(autoescolaId)
-  return getDisponibilidade(autoescolaId, date, category)
+  const cambio = await cambioDoAluno(autoescolaId, studentId, category)
+  return getDisponibilidade(autoescolaId, date, category, cambio)
 }
 
 /**
@@ -125,6 +128,8 @@ export async function criarAgendamento(data: {
   // ── Validations ──
   validateNotInPast(data.date, data.timeSlot)
   await validateOneClassPerDay(supabase, data.autoescola_id, data.studentDocument, data.date)
+  const erroCambio = await bloqueioCambio(data.autoescola_id, data.studentId, data.category, data.instructorName)
+  if (erroCambio) throw new Error(erroCambio)
   
   // Insert agendamento
   const { error: insertError } = await supabase
@@ -219,6 +224,9 @@ export async function reagendarAula(agendamentoId: string, data: {
   await validateOneClassPerDay(supabase, data.autoescola_id, data.studentDocument, data.date, agendamentoId)
 
   const oldCategory = oldAgendamento.instructorCategory
+
+  const erroCambio = await bloqueioCambio(data.autoescola_id, data.studentId, data.category, data.instructorName)
+  if (erroCambio) throw new Error(erroCambio)
 
   // 2. Adjust credits if category changed
   if (oldCategory !== data.category) {

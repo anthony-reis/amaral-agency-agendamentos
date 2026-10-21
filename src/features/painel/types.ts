@@ -9,6 +9,8 @@ export interface Instrutor {
   created_at: string
   valor_hora_aula: number | null
   valor_banca: number | null
+  /** Câmbio do carro (módulo separar_cambio). null = atende qualquer aluno. */
+  cambio: 'MANUAL' | 'AUTOMATICO' | null
 }
 
 export type NovoInstrutorInput = {
@@ -179,6 +181,8 @@ export function canEditPainel(role: string | null | undefined): boolean {
 export interface Aluno {
   id: string
   name: string
+  /** Câmbio do carro (módulo separar_cambio). null = vê qualquer instrutor. */
+  cambio: 'MANUAL' | 'AUTOMATICO' | null
   email: string | null
   phone: string | null
   document_id: string
@@ -210,6 +214,7 @@ export type NovoAlunoInput = {
   document_id: string
   phone?: string
   email?: string
+  cambio?: string
   autoescola_id: string
 }
 

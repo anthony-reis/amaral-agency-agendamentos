@@ -1,5 +1,6 @@
 'use client'
 
+import { CAMBIOS, parseCambio } from '@/lib/cambio'
 import { useState, useTransition } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { GraduationCap, Plus, Search, Download, Pencil, Trash2, X, Minus, ArrowUp, ArrowDown, ArrowUpDown, FileCheck, Check, KeyRound } from 'lucide-react'
@@ -23,6 +24,8 @@ interface Props {
   examesAtivo?: boolean
   /** Módulo "login_senha_aluno": resetar a senha do aluno no Editar. */
   loginSenhaAtivo?: boolean
+  /** Módulo "separar_cambio": câmbio manual/automático do aluno. */
+  cambioAtivo?: boolean
 }
 
 const PAYMENT_METHODS = [
@@ -60,6 +63,7 @@ export function AlunosList({
   podeVender = false,
   examesAtivo = false,
   loginSenhaAtivo = false,
+  cambioAtivo = false,
 }: Props) {
   const canEdit = canEditPainel(userRole)
   const [alunos, setAlunos] = useState<AlunoComCreditos[]>(initial)
@@ -71,7 +75,7 @@ export function AlunosList({
   // Modal state
   const [modalNovo, setModalNovo] = useState(false)
   const [modalEditar, setModalEditar] = useState<AlunoComCreditos | null>(null)
-  const [formData, setFormData] = useState({ name: '', document_id: '', phone: '', email: '' })
+  const [formData, setFormData] = useState({ name: '', document_id: '', phone: '', email: '', cambio: '' })
   const [formError, setFormError] = useState('')
   const [vendaTipo, setVendaTipo] = useState<'nenhuma' | 'plano' | 'avulsa'>('nenhuma')
   const [vendaProdutoId, setVendaProdutoId] = useState('')
@@ -121,7 +125,7 @@ export function AlunosList({
   const media = alunos.length > 0 ? (totalCreditosGeral / alunos.length).toFixed(1) : '0'
 
   function openNovo() {
-    setFormData({ name: '', document_id: '', phone: '', email: '' })
+    setFormData({ name: '', document_id: '', phone: '', email: '', cambio: '' })
     setFormError('')
     setVendaTipo('nenhuma')
     setVendaProdutoId('')
@@ -131,7 +135,7 @@ export function AlunosList({
   }
 
   function openEditar(a: AlunoComCreditos) {
-    setFormData({ name: a.name, document_id: a.document_id, phone: a.phone ?? '', email: a.email ?? '' })
+    setFormData({ name: a.name, document_id: a.document_id, phone: a.phone ?? '', email: a.email ?? '', cambio: a.cambio ?? '' })
     setFormError('')
     setConfirmarResetSenha(false)
     setResetSenhaOk(false)
@@ -179,11 +183,12 @@ export function AlunosList({
         name: formData.name,
         phone: formData.phone,
         email: formData.email,
+        ...(cambioAtivo && { cambio: formData.cambio }),
       }, autoescola_id)
       if (!result.success) { setFormError(result.error); return }
       setAlunos((prev) => prev.map((a) =>
         a.id === modalEditar.id
-          ? { ...a, name: formData.name, phone: formData.phone || null, email: formData.email || null }
+          ? { ...a, name: formData.name, phone: formData.phone || null, email: formData.email || null, ...(cambioAtivo && { cambio: parseCambio(formData.cambio) }) }
           : a
       ))
       setModalEditar(null)
@@ -554,6 +559,16 @@ export function AlunosList({
                     <label className="block text-xs font-medium text-[--p-text-2] mb-1">E-mail</label>
                     <input type="email" value={formData.email} onChange={(e) => setFormData((p) => ({ ...p, email: e.target.value }))} className={inputCls} placeholder="email@exemplo.com" />
                   </div>
+
+                  {cambioAtivo && (
+                    <div>
+                      <label className="block text-xs font-medium text-[--p-text-2] mb-1">Câmbio do carro</label>
+                      <select value={formData.cambio} onChange={(e) => setFormData((p) => ({ ...p, cambio: e.target.value }))} className={inputCls}>
+                        <option value="">Sem restrição (vê todos os instrutores)</option>
+                        {CAMBIOS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                      </select>
+                    </div>
+                  )}
 
                   {!modalEditar && (planos.length > 0 || avulsas.length > 0) && (
                     <div className="pt-2 border-t border-[--p-border] space-y-3">

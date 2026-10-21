@@ -5,6 +5,7 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { getCurrentUsername, assertPodeEditar } from './authPainel'
 import { reservarProximasAulas, liberarReservasVencidas } from '@/lib/reservasPosPacote'
 import { autoescolaTemFeature } from '@/lib/features.server'
+import { cambioDoAluno } from '@/lib/cambio.server'
 
 // Feriados nacionais fixos (MM-DD)
 const FERIADOS_FIXOS = new Set([
@@ -29,9 +30,11 @@ export async function buscarDisponibilidadeMassa(
   startDate: string,
   category: string,
   daysNeeded: number,
-  instructorFilter?: string
+  instructorFilter?: string,
+  studentId?: string
 ): Promise<DiaDisponivel[]> {
   await liberarReservasVencidas(autoescola_id)
+  const cambio = await cambioDoAluno(autoescola_id, studentId, category)
 
   const result: DiaDisponivel[] = []
   const current = new Date(startDate + 'T12:00:00')
@@ -44,7 +47,7 @@ export async function buscarDisponibilidadeMassa(
     const dateStr = current.toISOString().split('T')[0]
 
     if (!isNonWorkday(current)) {
-      const disponivel = await getDisponibilidade(autoescola_id, dateStr, category)
+      const disponivel = await getDisponibilidade(autoescola_id, dateStr, category, cambio)
       const filtered = instructorFilter
         ? disponivel.filter((i) => i.nome === instructorFilter)
         : disponivel
@@ -90,6 +93,7 @@ export async function criarAgendamentosMassa(data: {
   // Revalida cada aula contra a disponibilidade real (dias da semana, bloqueios e
   // agendamentos existentes) — não confia no que o cliente mandou.
   const vistos = new Set<string>()
+  const cambioAluno = await cambioDoAluno(data.autoescola_id, data.studentId, data.category)
   const disponibilidadePorDia = new Map<string, Awaited<ReturnType<typeof getDisponibilidade>>>()
   for (const a of data.agendamentos) {
     const chave = `${a.date}|${a.instructorName}|${a.timeSlot}`
@@ -99,7 +103,7 @@ export async function criarAgendamentosMassa(data: {
     vistos.add(chave)
 
     if (!disponibilidadePorDia.has(a.date)) {
-      disponibilidadePorDia.set(a.date, await getDisponibilidade(data.autoescola_id, a.date, data.category))
+      disponibilidadePorDia.set(a.date, await getDisponibilidade(data.autoescola_id, a.date, data.category, cambioAluno))
     }
     const inst = disponibilidadePorDia.get(a.date)!.find((i) => i.nome === a.instructorName)
     if (!inst || !inst.horarios.includes(a.timeSlot)) {

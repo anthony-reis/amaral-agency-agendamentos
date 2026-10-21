@@ -24,7 +24,7 @@ export default async function EstatisticasPage({ params }: Props) {
   const { escola } = await params
   const session = await getInstructorSession(escola)
 
-  if (!session) redirect(`/${escola}/instrutor/login`)
+  if (!session) redirect(`/${escola}/instrutor/login?expirada=1`)
 
   const range = getMesAtualRange()
 
