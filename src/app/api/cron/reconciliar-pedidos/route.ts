@@ -5,11 +5,12 @@ import { reconciliarPedidosPendentes } from '@/lib/reconciliarPedidos'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
-// Vercel Cron envia `Authorization: Bearer $CRON_SECRET`. Sem CRON_SECRET
-// configurada a rota fica fechada (fail-closed).
+// Chamada pelo Vercel Cron (user-agent `vercel-cron/1.0`). Não há segredo: o
+// user-agent é falsificável, mas a rota é idempotente e só aplica o que o próprio
+// Mercado Pago confirma — o pior caso de uma chamada indevida é consultar a API
+// do MP à toa.
 export async function GET(req: NextRequest) {
-  const secret = process.env.CRON_SECRET
-  if (!secret || req.headers.get('authorization') !== `Bearer ${secret}`) {
+  if (!req.headers.get('user-agent')?.startsWith('vercel-cron')) {
     return NextResponse.json({ error: 'não autorizado' }, { status: 401 })
   }
 
