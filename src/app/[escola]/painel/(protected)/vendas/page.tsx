@@ -1,11 +1,12 @@
 import { redirect } from 'next/navigation'
 import { Receipt } from 'lucide-react'
 import { getPainelSession } from '@/features/painel/actions/authPainel'
-import { exigirArea, podeReembolsarVendas } from '@/lib/permissoes.server'
+import { exigirArea, nivelArea, podeReembolsarVendas } from '@/lib/permissoes.server'
 import { exigirFeature } from '@/lib/features.server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { reconciliarPedidosPendentes } from '@/lib/reconciliarPedidos'
-import { listarVendas } from '@/features/painel/actions/vendas'
+import { listarVendasPaginado } from '@/features/painel/actions/vendas'
+import { FILTROS_VENDAS_PADRAO } from '@/lib/vendas-filtros'
 import { VendasList } from '@/features/painel/components/VendasList'
 
 interface Props {
@@ -29,7 +30,9 @@ export default async function VendasPage({ params }: Props) {
     console.error('[vendas] Falha ao reconciliar pedidos pendentes:', e)
   }
 
-  const vendas = await listarVendas(session.autoescola_id)
+  const inicial = await listarVendasPaginado(session.autoescola_id, FILTROS_VENDAS_PADRAO)
+  if (!inicial.success) throw new Error(inicial.error)
+  const podeEditar = (await nivelArea('vendas')) === 'editar'
 
   return (
     <div>
@@ -43,7 +46,12 @@ export default async function VendasPage({ params }: Props) {
         </div>
       </div>
 
-      <VendasList autoescola_id={session.autoescola_id} vendas={vendas} podeReembolsar={podeReembolsar} />
+      <VendasList
+        autoescola_id={session.autoescola_id}
+        vendasIniciais={inicial.data}
+        podeReembolsar={podeReembolsar}
+        podeEditar={podeEditar}
+      />
     </div>
   )
 }

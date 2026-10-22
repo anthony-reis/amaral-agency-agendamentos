@@ -1,16 +1,30 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
-import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Loader2, Receipt, RefreshCw, Search, Undo2, X, XCircle } from 'lucide-react'
-import { listarVendas, reembolsarPedido, verificarPagamentosPendentes, type PedidoComAluno } from '../actions/vendas'
-import { formatarPrecoCentavos, type PedidoLojaStatus } from '@/lib/loja-types'
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import { AnimatePresence, animate, motion, useMotionValue, useReducedMotion } from 'framer-motion'
+import {
+  AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Download, Loader2, Receipt, RefreshCw, Search, Undo2, X, XCircle,
+} from 'lucide-react'
+import {
+  exportarVendasCsv, listarVendasPaginado, reembolsarPedido, verificarPagamentosPendentes,
+  type PedidoComAluno, type VendasPagina,
+} from '../actions/vendas'
+import { formatarPrecoCentavos } from '@/lib/loja-types'
+import {
+  FILTROS_VENDAS_PADRAO, VENDAS_POR_PAGINA,
+  type FiltroOrigemVenda, type FiltroPeriodoVenda, type FiltroStatusVenda, type FiltrosVendas,
+} from '@/lib/vendas-filtros'
+import { METODO_LABEL, STATUS_BADGE, STATUS_LABEL, formatarData } from './vendasUi'
+import { VendaDetalheDrawer } from './VendaDetalheDrawer'
 
 interface Props {
   autoescola_id: string
-  vendas: PedidoComAluno[]
+  /** Primeira página, já carregada no servidor com os filtros padrão. */
+  vendasIniciais: VendasPagina
   /** Permissão individual de reembolso (concedida no /admin, não vem do perfil). */
   podeReembolsar: boolean
+  /** Perfil com "Editar" em Vendas (consultar pagamento no MP). */
+  podeEditar: boolean
 }
 
 /** Prazo usual para o dinheiro voltar ao aluno, por forma de pagamento. */
@@ -22,44 +36,15 @@ const PRAZO_REEMBOLSO: Record<string, string> = {
   account_money: 'Saldo Mercado Pago: volta para o saldo da conta do pagador.',
 }
 
+
 type ModalReembolso =
   | { etapa: 'confirmar'; pedido: PedidoComAluno }
   | { etapa: 'processando'; pedido: PedidoComAluno }
   | { etapa: 'sucesso'; pedido: PedidoComAluno }
   | { etapa: 'erro'; pedido: PedidoComAluno; erro: string }
 
-const STATUS_LABEL: Record<PedidoLojaStatus, string> = {
-  pendente: 'Pendente',
-  aprovado: 'Aprovado',
-  rejeitado: 'Rejeitado',
-  cancelado: 'Cancelado',
-  expirado: 'Expirado',
-  reembolsado: 'Reembolsado',
-}
 
-const STATUS_BADGE: Record<PedidoLojaStatus, string> = {
-  pendente: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
-  aprovado: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
-  rejeitado: 'bg-red-500/10 text-red-500 border-red-500/20',
-  cancelado: 'bg-slate-500/10 text-slate-400 border-slate-500/20',
-  expirado: 'bg-slate-500/10 text-slate-400 border-slate-500/20',
-  reembolsado: 'bg-violet-500/10 text-violet-500 border-violet-500/20',
-}
-
-const METODO_LABEL: Record<string, string> = {
-  credit_card: 'Cartão de crédito',
-  debit_card: 'Cartão de débito',
-  bank_transfer: 'Pix',
-  ticket: 'Boleto',
-  account_money: 'Saldo MP',
-}
-
-// "Todas" esconde pedidos abandonados (expirado/cancelado), que só poluem a lista.
-type FiltroStatus = 'todas' | 'aprovado' | 'pendente' | 'rejeitado' | 'reembolsado' | 'abandonados'
-type FiltroPeriodo = 'tudo' | 'hoje' | '7d' | '30d' | 'mes'
-type FiltroOrigem = 'todas' | 'mercado_pago' | 'manual'
-
-const FILTROS_STATUS: Array<{ id: FiltroStatus; label: string }> = [
+const FILTROS_STATUS: Array<{ id: FiltroStatusVenda; label: string }> = [
   { id: 'todas', label: 'Todas' },
   { id: 'aprovado', label: 'Aprovadas' },
   { id: 'pendente', label: 'Pendentes' },
@@ -68,7 +53,7 @@ const FILTROS_STATUS: Array<{ id: FiltroStatus; label: string }> = [
   { id: 'abandonados', label: 'Abandonadas' },
 ]
 
-const PERIODOS: Array<{ id: FiltroPeriodo; label: string }> = [
+const PERIODOS: Array<{ id: FiltroPeriodoVenda; label: string }> = [
   { id: 'tudo', label: 'Todo o período' },
   { id: 'hoje', label: 'Hoje' },
   { id: '7d', label: 'Últimos 7 dias' },
@@ -76,123 +61,110 @@ const PERIODOS: Array<{ id: FiltroPeriodo; label: string }> = [
   { id: 'mes', label: 'Este mês' },
 ]
 
-const POR_PAGINA = 25
+/** Número que "sobe" até o valor novo quando ele muda (respeita prefers-reduced-motion). */
+function Numero({ valor, formato }: { valor: number; formato: (n: number) => string }) {
+  const reduzir = useReducedMotion()
+  const mv = useMotionValue(valor)
+  const formatoRef = useRef(formato)
+  formatoRef.current = formato
+  const [texto, setTexto] = useState(() => formato(valor))
 
-function inicioPeriodo(periodo: FiltroPeriodo): number {
-  const agora = new Date()
-  const hoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate()).getTime()
-  switch (periodo) {
-    case 'hoje': return hoje
-    case '7d': return hoje - 6 * 86400000
-    case '30d': return hoje - 29 * 86400000
-    case 'mes': return new Date(agora.getFullYear(), agora.getMonth(), 1).getTime()
-    default: return 0
-  }
+  useEffect(() => {
+    if (reduzir) {
+      mv.set(valor)
+      setTexto(formatoRef.current(valor))
+      return
+    }
+    const unsub = mv.on('change', (v) => setTexto(formatoRef.current(Math.round(v))))
+    const controle = animate(mv, valor, { duration: 0.6, ease: 'easeOut' })
+    return () => { controle.stop(); unsub() }
+  }, [valor, reduzir, mv])
+
+  return <>{texto}</>
 }
 
-function casaStatus(v: PedidoComAluno, f: FiltroStatus): boolean {
-  switch (f) {
-    case 'todas': return v.status !== 'expirado' && v.status !== 'cancelado'
-    case 'abandonados': return v.status === 'expirado' || v.status === 'cancelado'
-    default: return v.status === f
-  }
-}
-
-function normalizar(t: string) {
-  return t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
-}
-
-function formatarData(iso: string) {
-  return new Date(iso).toLocaleDateString('pt-BR', {
-    day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit',
-  })
-}
-
-function Resumo({ rotulo, valor, detalhe }: { rotulo: string; valor: string; detalhe?: string }) {
+function Resumo({ rotulo, children, detalhe, indice }: { rotulo: string; children: React.ReactNode; detalhe?: string; indice: number }) {
   return (
-    <div className="bg-[--p-bg-card] border border-[--p-border] rounded-2xl px-4 py-3">
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: indice * 0.05, duration: 0.25 }}
+      className="bg-[--p-bg-card] border border-[--p-border] rounded-2xl px-4 py-3"
+    >
       <p className="text-xs font-semibold text-[--p-text-3]">{rotulo}</p>
-      <p className="text-xl font-bold text-[--p-text-1] mt-0.5">{valor}</p>
+      <p className="text-xl font-bold text-[--p-text-1] mt-0.5">{children}</p>
       {detalhe && <p className="text-[11px] text-[--p-text-3] mt-0.5">{detalhe}</p>}
-    </div>
+    </motion.div>
   )
 }
 
 const selectCls =
   'text-xs font-semibold px-3 py-2 rounded-lg border bg-[--p-bg-card] text-[--p-text-2] border-[--p-border] focus:outline-none focus:border-[--p-accent]/50'
 
-export function VendasList({ autoescola_id, vendas: initial, podeReembolsar }: Props) {
-  const [vendas, setVendas] = useState<PedidoComAluno[]>(initial)
-  const [status, setStatus] = useState<FiltroStatus>('todas')
-  const [periodo, setPeriodo] = useState<FiltroPeriodo>('tudo')
-  const [origem, setOrigem] = useState<FiltroOrigem>('todas')
-  const [busca, setBusca] = useState('')
-  const [pagina, setPagina] = useState(1)
+export function VendasList({ autoescola_id, vendasIniciais, podeReembolsar, podeEditar }: Props) {
+  const reduzir = useReducedMotion()
+  const [dados, setDados] = useState<VendasPagina>(vendasIniciais)
+  const [filtros, setFiltros] = useState<FiltrosVendas>(FILTROS_VENDAS_PADRAO)
+  const [buscaDigitada, setBuscaDigitada] = useState('')
+  const [carregando, setCarregando] = useState(false)
+  const [erroLista, setErroLista] = useState<string | null>(null)
+  const [exportando, setExportando] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [modal, setModal] = useState<ModalReembolso | null>(null)
+  const [detalheId, setDetalheId] = useState<string | null>(null)
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
+  const requisicao = useRef(0)
+  const primeiraRender = useRef(true)
 
-  // Filtros que não dependem do status: base para os contadores dos chips e o resumo.
-  const base = useMemo(() => {
-    const desde = inicioPeriodo(periodo)
-    const q = normalizar(busca.trim())
-    const qDigitos = busca.replace(/\D/g, '')
-    return vendas.filter((v) => {
-      if (desde && new Date(v.created_at).getTime() < desde) return false
-      if (origem !== 'todas' && v.origem !== origem) return false
-      if (q) {
-        const nome = normalizar(v.aluno?.name ?? '')
-        const produto = normalizar(v.produto_snapshot?.nome ?? '')
-        const doc = (v.aluno?.document_id ?? '').replace(/\D/g, '')
-        const casa = nome.includes(q) || produto.includes(q) || (qDigitos.length >= 3 && doc.includes(qDigitos))
-        if (!casa) return false
-      }
-      return true
-    })
-  }, [vendas, periodo, origem, busca])
-
-  const contagem = useMemo(() => {
-    const c = {} as Record<FiltroStatus, number>
-    for (const f of FILTROS_STATUS) c[f.id] = base.filter((v) => casaStatus(v, f.id)).length
-    return c
-  }, [base])
-
-  const filtradas = useMemo(() => base.filter((v) => casaStatus(v, status)), [base, status])
-
-  const resumo = useMemo(() => {
-    const aprovadas = base.filter((v) => v.status === 'aprovado')
-    const pendentes = base.filter((v) => v.status === 'pendente')
-    const soma = (l: PedidoComAluno[]) => l.reduce((acc, v) => acc + v.valor_centavos, 0)
-    return {
-      aprovadoValor: soma(aprovadas), aprovadoQtd: aprovadas.length,
-      pendenteValor: soma(pendentes), pendenteQtd: pendentes.length,
-      reembolsadoQtd: base.filter((v) => v.status === 'reembolsado').length,
-    }
-  }, [base])
-
-  const totalPaginas = Math.max(1, Math.ceil(filtradas.length / POR_PAGINA))
-  const paginaAtual = Math.min(pagina, totalPaginas)
-  const visiveis = filtradas.slice((paginaAtual - 1) * POR_PAGINA, paginaAtual * POR_PAGINA)
-  const filtrosAtivos = status !== 'todas' || periodo !== 'tudo' || origem !== 'todas' || busca !== ''
-
-  function limparFiltros() {
-    setStatus('todas'); setPeriodo('tudo'); setOrigem('todas'); setBusca(''); setPagina(1)
+  // Busca no servidor sempre que um filtro muda; só a resposta mais recente vale.
+  async function carregar(novos: FiltrosVendas) {
+    const id = ++requisicao.current
+    setCarregando(true)
+    const r = await listarVendasPaginado(autoescola_id, novos)
+    if (id !== requisicao.current) return
+    setCarregando(false)
+    if (!r.success) { setErroLista(r.error); return }
+    setErroLista(null)
+    setDados(r.data)
+    // O servidor pode ter ajustado a página (ex.: filtro encolheu a lista)
+    if (r.data.pagina !== novos.pagina) setFiltros((f) => ({ ...f, pagina: r.data.pagina }))
   }
 
-  function atualizar() {
-    startTransition(async () => {
-      setVendas(await listarVendas(autoescola_id))
-    })
+  useEffect(() => {
+    if (primeiraRender.current) { primeiraRender.current = false; return }
+    carregar(filtros)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtros])
+
+  // Debounce da busca por texto
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setFiltros((f) => (f.busca === buscaDigitada.trim() ? f : { ...f, busca: buscaDigitada.trim(), pagina: 1 }))
+    }, 350)
+    return () => clearTimeout(t)
+  }, [buscaDigitada])
+
+  const filtrosAtivos =
+    filtros.status !== 'todas' || filtros.periodo !== 'tudo' || filtros.origem !== 'todas' || filtros.busca !== ''
+
+  function mudar(parcial: Partial<FiltrosVendas>) {
+    setFiltros((f) => ({ ...f, ...parcial, pagina: parcial.pagina ?? 1 }))
+  }
+
+  function limparFiltros() {
+    setBuscaDigitada('')
+    setFiltros(FILTROS_VENDAS_PADRAO)
+  }
+
+  function recarregar() {
+    carregar(filtros)
   }
 
   function verificarPagamentos() {
     setAviso(null)
     startTransition(async () => {
       const r = await verificarPagamentosPendentes(autoescola_id)
-      if (!r.success) {
-        setAviso({ tipo: 'erro', texto: r.error })
-        return
-      }
+      if (!r.success) { setAviso({ tipo: 'erro', texto: r.error }); return }
       const { aprovados, expirados, erros } = r.data
       setAviso({
         tipo: erros > 0 ? 'erro' : 'ok',
@@ -201,8 +173,24 @@ export function VendasList({ autoescola_id, vendas: initial, podeReembolsar }: P
           : erros > 0 ? 'Não foi possível consultar o Mercado Pago para alguns pedidos. Tente de novo.'
           : `Nenhum pagamento novo encontrado${expirados > 0 ? ` (${expirados} pedido(s) abandonado(s) marcado(s) como expirado)` : ''}.`,
       })
-      setVendas(await listarVendas(autoescola_id))
+      await carregar(filtros)
     })
+  }
+
+  async function exportarCsv() {
+    setAviso(null)
+    setExportando(true)
+    const r = await exportarVendasCsv(autoescola_id, filtros)
+    setExportando(false)
+    if (!r.success) { setAviso({ tipo: 'erro', texto: r.error }); return }
+    const blob = new Blob([r.data.csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `vendas-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+    setAviso({ tipo: 'ok', texto: `${r.data.linhas} venda(s) exportada(s) com os filtros atuais.` })
   }
 
   function confirmarReembolso() {
@@ -216,23 +204,35 @@ export function VendasList({ autoescola_id, vendas: initial, podeReembolsar }: P
         return
       }
       setModal({ etapa: 'sucesso', pedido })
-      setVendas(await listarVendas(autoescola_id))
+      await carregar(filtros)
     })
   }
 
   const fecharModal = () => { if (modal?.etapa !== 'processando') setModal(null) }
 
+  const { vendas, total, pagina, totalPaginas, contagem, resumo } = dados
+  const de = total === 0 ? 0 : (pagina - 1) * VENDAS_POR_PAGINA + 1
+  const ate = Math.min(pagina * VENDAS_POR_PAGINA, total)
+  const dinheiro = useMemo(() => (n: number) => formatarPrecoCentavos(n), [])
+  const inteiro = useMemo(() => (n: number) => String(n), [])
+  const ticketMedio = resumo.aprovadoQtd ? Math.round(resumo.aprovadoValor / resumo.aprovadoQtd) : 0
+
   return (
     <div className="space-y-4">
       {/* Resumo (respeita busca, período e origem) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Resumo rotulo="Vendas aprovadas" valor={formatarPrecoCentavos(resumo.aprovadoValor)} detalhe={`${resumo.aprovadoQtd} venda${resumo.aprovadoQtd !== 1 ? 's' : ''}`} />
-        <Resumo
-          rotulo="Ticket médio"
-          valor={resumo.aprovadoQtd ? formatarPrecoCentavos(Math.round(resumo.aprovadoValor / resumo.aprovadoQtd)) : '—'}
-        />
-        <Resumo rotulo="Aguardando pagamento" valor={formatarPrecoCentavos(resumo.pendenteValor)} detalhe={`${resumo.pendenteQtd} pedido${resumo.pendenteQtd !== 1 ? 's' : ''}`} />
-        <Resumo rotulo="Reembolsadas" valor={String(resumo.reembolsadoQtd)} />
+        <Resumo indice={0} rotulo="Vendas aprovadas" detalhe={`${resumo.aprovadoQtd} venda${resumo.aprovadoQtd !== 1 ? 's' : ''}`}>
+          <Numero valor={resumo.aprovadoValor} formato={dinheiro} />
+        </Resumo>
+        <Resumo indice={1} rotulo="Ticket médio">
+          {resumo.aprovadoQtd ? <Numero valor={ticketMedio} formato={dinheiro} /> : '—'}
+        </Resumo>
+        <Resumo indice={2} rotulo="Aguardando pagamento" detalhe={`${resumo.pendenteQtd} pedido${resumo.pendenteQtd !== 1 ? 's' : ''}`}>
+          <Numero valor={resumo.pendenteValor} formato={dinheiro} />
+        </Resumo>
+        <Resumo indice={3} rotulo="Reembolsadas">
+          <Numero valor={resumo.reembolsadoQtd} formato={inteiro} />
+        </Resumo>
       </div>
 
       {/* Busca + período + origem + ações */}
@@ -240,57 +240,88 @@ export function VendasList({ autoescola_id, vendas: initial, podeReembolsar }: P
         <div className="relative flex-1 min-w-[220px]">
           <Search className="w-4 h-4 text-[--p-text-3] absolute left-3 top-1/2 -translate-y-1/2" />
           <input
-            value={busca}
-            onChange={(e) => { setBusca(e.target.value); setPagina(1) }}
+            value={buscaDigitada}
+            onChange={(e) => setBuscaDigitada(e.target.value)}
             placeholder="Buscar por aluno, CPF/CNH ou produto"
             className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border bg-[--p-bg-card] text-[--p-text-1] border-[--p-border] placeholder:text-[--p-text-3] focus:outline-none focus:border-[--p-accent]/50"
           />
         </div>
-        <select value={periodo} onChange={(e) => { setPeriodo(e.target.value as FiltroPeriodo); setPagina(1) }} className={selectCls} aria-label="Período">
+        <select value={filtros.periodo} onChange={(e) => mudar({ periodo: e.target.value as FiltroPeriodoVenda })} className={selectCls} aria-label="Período">
           {PERIODOS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
         </select>
-        <select value={origem} onChange={(e) => { setOrigem(e.target.value as FiltroOrigem); setPagina(1) }} className={selectCls} aria-label="Origem">
+        <select value={filtros.origem} onChange={(e) => mudar({ origem: e.target.value as FiltroOrigemVenda })} className={selectCls} aria-label="Origem">
           <option value="todas">Todas as origens</option>
           <option value="mercado_pago">Mercado Pago</option>
           <option value="manual">Manual</option>
         </select>
         <button
-          onClick={verificarPagamentos}
-          disabled={isPending}
-          className="text-xs font-semibold px-3 py-2 rounded-lg border bg-[--p-bg-card] text-[--p-text-2] border-[--p-border] hover:text-[--p-text-1] transition-colors disabled:opacity-50"
-          title="Consulta o Mercado Pago e libera os créditos de pagamentos já confirmados"
+          onClick={exportarCsv}
+          disabled={exportando || total === 0}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg border bg-[--p-bg-card] text-[--p-text-2] border-[--p-border] hover:text-[--p-text-1] transition-colors disabled:opacity-50"
+          title="Baixa todas as vendas do filtro atual (não só a página)"
         >
-          Verificar pagamentos
+          {exportando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+          Exportar CSV
         </button>
+        {podeEditar && (
+          <button
+            onClick={verificarPagamentos}
+            disabled={isPending}
+            className="text-xs font-semibold px-3 py-2 rounded-lg border bg-[--p-bg-card] text-[--p-text-2] border-[--p-border] hover:text-[--p-text-1] transition-colors disabled:opacity-50"
+            title="Consulta o Mercado Pago e libera os créditos de pagamentos já confirmados"
+          >
+            Verificar pagamentos
+          </button>
+        )}
         <button
-          onClick={atualizar}
-          disabled={isPending}
+          onClick={recarregar}
+          disabled={carregando}
           className="p-2 rounded-lg text-[--p-text-3] hover:text-[--p-text-1] hover:bg-[--p-hover] transition-colors"
           title="Atualizar lista"
         >
-          <RefreshCw className={`w-4 h-4 ${isPending ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`w-4 h-4 ${carregando ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
-      {aviso && (
-        <p className={`text-sm ${aviso.tipo === 'ok' ? 'text-emerald-500' : 'text-red-500'}`}>{aviso.texto}</p>
-      )}
+      <AnimatePresence initial={false}>
+        {aviso && (
+          <motion.p
+            key={aviso.texto}
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className={`text-sm ${aviso.tipo === 'ok' ? 'text-emerald-500' : 'text-red-500'}`}
+          >
+            {aviso.texto}
+          </motion.p>
+        )}
+      </AnimatePresence>
 
       {/* Status com contadores */}
       <div className="flex flex-wrap items-center gap-2">
-        {FILTROS_STATUS.map((f) => (
-          <button
-            key={f.id}
-            onClick={() => { setStatus(f.id); setPagina(1) }}
-            className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
-              status === f.id
-                ? 'bg-[--p-accent]/10 text-[--p-accent] border-[--p-accent]/30'
-                : 'bg-[--p-bg-card] text-[--p-text-3] border-[--p-border] hover:text-[--p-text-1]'
-            }`}
-          >
-            {f.label} <span className="opacity-70">{contagem[f.id]}</span>
-          </button>
-        ))}
+        {FILTROS_STATUS.map((f) => {
+          const ativo = filtros.status === f.id
+          return (
+            <button
+              key={f.id}
+              onClick={() => mudar({ status: f.id })}
+              className={`relative text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
+                ativo
+                  ? 'text-[--p-accent] border-[--p-accent]/30'
+                  : 'bg-[--p-bg-card] text-[--p-text-3] border-[--p-border] hover:text-[--p-text-1]'
+              }`}
+            >
+              {ativo && (
+                <motion.span
+                  layoutId="vendas-chip-ativo"
+                  className="absolute inset-0 rounded-lg bg-[--p-accent]/10"
+                  transition={reduzir ? { duration: 0 } : { type: 'spring', stiffness: 500, damping: 40 }}
+                />
+              )}
+              <span className="relative">{f.label} <span className="opacity-70">{contagem[f.id]}</span></span>
+            </button>
+          )
+        })}
         {filtrosAtivos && (
           <button onClick={limparFiltros} className="ml-auto text-xs font-semibold text-[--p-text-3] hover:text-[--p-text-1] inline-flex items-center gap-1">
             <X className="w-3.5 h-3.5" /> Limpar filtros
@@ -298,7 +329,14 @@ export function VendasList({ autoescola_id, vendas: initial, podeReembolsar }: P
         )}
       </div>
 
-      {filtradas.length === 0 ? (
+      {erroLista && (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-500">
+          <span>{erroLista}</span>
+          <button onClick={recarregar} className="font-semibold hover:underline">Tentar de novo</button>
+        </div>
+      )}
+
+      {total === 0 && !carregando ? (
         <div className="bg-[--p-bg-card] border border-[--p-border] rounded-2xl py-14 text-center">
           <Receipt className="w-8 h-8 text-[--p-text-3] mx-auto mb-3" />
           <p className="text-sm text-[--p-text-3]">
@@ -311,8 +349,26 @@ export function VendasList({ autoescola_id, vendas: initial, podeReembolsar }: P
           )}
         </div>
       ) : (
-        <div className="bg-[--p-bg-card] border border-[--p-border] rounded-2xl overflow-hidden">
-          <div className="overflow-x-auto">
+        <div className="relative bg-[--p-bg-card] border border-[--p-border] rounded-2xl overflow-hidden">
+          {/* Barra de progresso fina enquanto o servidor responde */}
+          <AnimatePresence>
+            {carregando && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute top-0 left-0 right-0 h-0.5 bg-[--p-accent]/20 overflow-hidden z-10"
+              >
+                <motion.div
+                  className="h-full w-1/3 bg-[--p-accent]"
+                  animate={reduzir ? undefined : { x: ['-100%', '300%'] }}
+                  transition={{ duration: 1, repeat: Infinity, ease: 'easeInOut' }}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <div className={`overflow-x-auto transition-opacity ${carregando ? 'opacity-60' : 'opacity-100'}`}>
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[--p-border] text-left">
@@ -327,8 +383,15 @@ export function VendasList({ autoescola_id, vendas: initial, podeReembolsar }: P
                 </tr>
               </thead>
               <tbody className="divide-y divide-[--p-border]">
-                {visiveis.map((v) => (
-                  <tr key={v.id} className="hover:bg-[--p-hover] transition-colors">
+                {vendas.map((v: PedidoComAluno, i: number) => (
+                  <motion.tr
+                    key={v.id}
+                    initial={reduzir ? false : { opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: Math.min(i, 12) * 0.02, duration: 0.2 }}
+                    onClick={() => setDetalheId(v.id)}
+                    className="hover:bg-[--p-hover] transition-colors cursor-pointer"
+                  >
                     <td className="px-4 py-3 text-[--p-text-3] whitespace-nowrap">{formatarData(v.created_at)}</td>
                     <td className="px-4 py-3">
                       <p className="text-[--p-text-1] font-medium">{v.aluno?.name ?? '—'}</p>
@@ -367,7 +430,7 @@ export function VendasList({ autoescola_id, vendas: initial, podeReembolsar }: P
                       {/* Reembolso só para vendas do Mercado Pago (venda manual não tem pagamento no MP) */}
                       {podeReembolsar && v.status === 'aprovado' && v.origem !== 'manual' && (
                         <button
-                          onClick={() => setModal({ etapa: 'confirmar', pedido: v })}
+                          onClick={(e) => { e.stopPropagation(); setModal({ etapa: 'confirmar', pedido: v }) }}
                           className="inline-flex items-center gap-1 text-xs font-semibold text-red-500 hover:text-red-600"
                           title="Reembolsar pedido"
                         >
@@ -376,30 +439,28 @@ export function VendasList({ autoescola_id, vendas: initial, podeReembolsar }: P
                         </button>
                       )}
                     </td>
-                  </tr>
+                  </motion.tr>
                 ))}
               </tbody>
             </table>
           </div>
 
-          {/* Paginação */}
+          {/* Paginação (no servidor) */}
           <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-[--p-border] text-xs text-[--p-text-3]">
-            <span>
-              {(paginaAtual - 1) * POR_PAGINA + 1}–{Math.min(paginaAtual * POR_PAGINA, filtradas.length)} de {filtradas.length}
-            </span>
+            <span>{de}–{ate} de {total}</span>
             <div className="flex items-center gap-1">
               <button
-                onClick={() => setPagina(paginaAtual - 1)}
-                disabled={paginaAtual <= 1}
+                onClick={() => mudar({ pagina: pagina - 1 })}
+                disabled={pagina <= 1 || carregando}
                 className="p-1.5 rounded-lg hover:bg-[--p-hover] hover:text-[--p-text-1] disabled:opacity-40 disabled:hover:bg-transparent"
                 aria-label="Página anterior"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              <span className="px-2 font-semibold text-[--p-text-2]">{paginaAtual} / {totalPaginas}</span>
+              <span className="px-2 font-semibold text-[--p-text-2]">{pagina} / {totalPaginas}</span>
               <button
-                onClick={() => setPagina(paginaAtual + 1)}
-                disabled={paginaAtual >= totalPaginas}
+                onClick={() => mudar({ pagina: pagina + 1 })}
+                disabled={pagina >= totalPaginas || carregando}
                 className="p-1.5 rounded-lg hover:bg-[--p-hover] hover:text-[--p-text-1] disabled:opacity-40 disabled:hover:bg-transparent"
                 aria-label="Próxima página"
               >
@@ -409,6 +470,16 @@ export function VendasList({ autoescola_id, vendas: initial, podeReembolsar }: P
           </div>
         </div>
       )}
+
+      <VendaDetalheDrawer
+        autoescola_id={autoescola_id}
+        pedidoId={detalheId}
+        podeEditar={podeEditar}
+        podeReembolsar={podeReembolsar}
+        onFechar={() => setDetalheId(null)}
+        onReembolsar={(pedido) => { setDetalheId(null); setModal({ etapa: 'confirmar', pedido }) }}
+        onAtualizou={recarregar}
+      />
 
       <AnimatePresence>
         {modal && (

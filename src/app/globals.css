@@ -79,3 +79,31 @@ html {
 @media (prefers-reduced-motion: reduce) {
   .horarios-overlay, .horarios-modal { animation: none; }
 }
+
+/* Barra de rolagem fina e discreta para sidebars: trilho invisível, polegar
+   só aparece ao passar o mouse na lista (funciona em claro e escuro). */
+.scrollbar-fino {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.scrollbar-fino:hover {
+  scrollbar-color: rgb(148 163 184 / 0.45) transparent;
+}
+.scrollbar-fino::-webkit-scrollbar {
+  width: 6px;
+}
+.scrollbar-fino::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-fino::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border-radius: 9999px;
+}
+.scrollbar-fino:hover::-webkit-scrollbar-thumb {
+  background-color: rgb(148 163 184 / 0.45);
+}
+.scrollbar-fino::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(148 163 184 / 0.7);
+}

@@ -430,7 +430,7 @@ export function PainelNav({
       </div>
 
       {/* Nav items */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+      <nav className="flex-1 min-h-0 px-3 py-4 space-y-0.5 scrollbar-fino">
         {/* Dashboard (solto, fora dos grupos) — só para quem tem acesso */}
         {mostrarDashboard && (() => {
           const Icon = dashboardItem.icon;

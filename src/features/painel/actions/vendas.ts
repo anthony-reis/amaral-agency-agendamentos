@@ -7,6 +7,12 @@ import { reconciliarPedidosPendentes, type ResumoReconciliacao } from '@/lib/rec
 import { getCurrentUserId, getCurrentUsername, getPainelAutoescolaId } from './authPainel'
 import { criarReembolso } from '@/lib/mercadopago'
 import type { PedidoLoja, PedidoLojaStatus } from '@/lib/loja-types'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { buscarTodos } from '@/lib/buscarTodos'
+import {
+  ORIGEM_VENDA_IDS, PERIODO_VENDA_IDS, STATUS_VENDA_IDS, VENDAS_POR_PAGINA,
+  type FiltroOrigemVenda, type FiltroPeriodoVenda, type FiltroStatusVenda, type FiltrosVendas,
+} from '@/lib/vendas-filtros'
 import type { ActionResult } from '@/features/admin/types'
 
 export interface PedidoComAluno extends PedidoLoja {
@@ -14,31 +20,315 @@ export interface PedidoComAluno extends PedidoLoja {
   vendedor: { full_name: string; username: string } | null
 }
 
-export async function listarVendas(
+export interface ResumoVendas {
+  aprovadoValor: number
+  aprovadoQtd: number
+  pendenteValor: number
+  pendenteQtd: number
+  reembolsadoQtd: number
+}
+
+export interface VendasPagina {
+  vendas: PedidoComAluno[]
+  total: number
+  pagina: number
+  totalPaginas: number
+  contagem: Record<FiltroStatusVenda, number>
+  resumo: ResumoVendas
+}
+
+export interface DetalheVenda {
+  pedido: PedidoComAluno
+  alunoContato: { email: string | null; phone: string | null } | null
+  logs: Array<{ created_at: string; username: string | null; description: string }>
+}
+
+const SELECT_VENDA = '*, aluno:students(name, document_id), vendedor:users_painel(full_name, username)'
+
+/** Mensagem de erro, ou null se a sessão pode ver as vendas desta escola. */
+async function bloqueioVerVendas(autoescola_id: string): Promise<string | null> {
+  const bloqueioPermissao = await bloqueioArea('vendas', 'ver')
+  if (bloqueioPermissao) return bloqueioPermissao
+  if ((await getPainelAutoescolaId()) !== autoescola_id) return 'Sessão inválida.'
+  return bloqueioFeature(autoescola_id, 'vendas')
+}
+
+/** Início do período em UTC, com "hoje" e "mês" no fuso de Brasília (UTC-3, sem horário de verão). */
+function inicioPeriodoISO(periodo: FiltroPeriodoVenda): string | null {
+  if (periodo === 'tudo') return null
+  const BRT = 3 * 3600000
+  const brt = new Date(Date.now() - BRT)
+  const y = brt.getUTCFullYear()
+  const m = brt.getUTCMonth()
+  let inicio = Date.UTC(y, m, brt.getUTCDate()) + BRT
+  if (periodo === '7d') inicio -= 6 * 86400000
+  if (periodo === '30d') inicio -= 29 * 86400000
+  if (periodo === 'mes') inicio = Date.UTC(y, m, 1) + BRT
+  return new Date(inicio).toISOString()
+}
+
+function filtrosSeguros(f: Partial<FiltrosVendas>): FiltrosVendas {
+  return {
+    status: STATUS_VENDA_IDS.includes(f.status as FiltroStatusVenda) ? (f.status as FiltroStatusVenda) : 'todas',
+    periodo: PERIODO_VENDA_IDS.includes(f.periodo as FiltroPeriodoVenda) ? (f.periodo as FiltroPeriodoVenda) : 'tudo',
+    origem: ORIGEM_VENDA_IDS.includes(f.origem as FiltroOrigemVenda) ? (f.origem as FiltroOrigemVenda) : 'todas',
+    busca: typeof f.busca === 'string' ? f.busca.trim().slice(0, 80) : '',
+    pagina: Number.isInteger(f.pagina) && (f.pagina as number) >= 1 ? (f.pagina as number) : 1,
+  }
+}
+
+// Remove o que tem sentido na sintaxe de filtro do PostgREST (vírgula, parênteses,
+// curingas, aspas) para o termo digitado nunca virar parte do filtro.
+function termoSeguro(t: string): string {
+  return t.replace(/[,()%_*\\"'\u0000]/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
+// "123456" casa com "123.456.789-00": intercala curinga entre os dígitos.
+function padraoDocumento(digitos: string): string {
+  return digitos.split('').join('*')
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Qb = any
+
+/** Filtros de período, origem e busca (tudo, menos o status). */
+async function aplicarFiltrosBase(supabase: SupabaseClient, q: Qb, autoescola_id: string, f: FiltrosVendas): Promise<Qb> {
+  q = q.eq('autoescola_id', autoescola_id)
+
+  const desde = inicioPeriodoISO(f.periodo)
+  if (desde) q = q.gte('created_at', desde)
+  if (f.origem !== 'todas') q = q.eq('origem', f.origem)
+
+  const termo = termoSeguro(f.busca)
+  if (termo) {
+    const digitos = f.busca.replace(/\D/g, '')
+    const condAluno = [`name.ilike.*${termo}*`]
+    if (digitos.length >= 3) condAluno.push(`document_id.ilike.*${padraoDocumento(digitos)}*`)
+    const { data: alunos } = await supabase
+      .from('students')
+      .select('id')
+      .eq('autoescola_id', autoescola_id)
+      .or(condAluno.join(','))
+      .limit(300)
+    const ids = (alunos ?? []).map((a: { id: string }) => a.id)
+
+    const conds = [`produto_snapshot->>nome.ilike.*${termo}*`]
+    if (ids.length > 0) conds.push(`student_id.in.(${ids.join(',')})`)
+    q = q.or(conds.join(','))
+  }
+  return q
+}
+
+function aplicarStatus(q: Qb, status: FiltroStatusVenda): Qb {
+  switch (status) {
+    case 'todas': return q.not('status', 'in', '(expirado,cancelado)')
+    case 'abandonados': return q.in('status', ['expirado', 'cancelado'])
+    default: return q.eq('status', status)
+  }
+}
+
+function achatar(row: Record<string, unknown>): PedidoComAluno {
+  const aluno = row.aluno as unknown
+  const vendedor = row.vendedor as unknown
+  return {
+    ...row,
+    aluno: Array.isArray(aluno) ? aluno[0] ?? null : aluno ?? null,
+    vendedor: Array.isArray(vendedor) ? vendedor[0] ?? null : vendedor ?? null,
+  } as PedidoComAluno
+}
+
+/**
+ * Lista paginada no servidor. Uma consulta leve (status + valor) sobre todo o
+ * conjunto filtrado alimenta contadores e resumo; outra traz só a página.
+ */
+export async function listarVendasPaginado(
   autoescola_id: string,
-  filtro?: { status?: PedidoLojaStatus | 'todos' }
-): Promise<PedidoComAluno[]> {
+  filtrosEntrada: Partial<FiltrosVendas> = {}
+): Promise<ActionResult<VendasPagina>> {
+  const erro = await bloqueioVerVendas(autoescola_id)
+  if (erro) return { success: false, error: erro }
+
+  const f = filtrosSeguros(filtrosEntrada)
   const supabase = createServiceClient()
 
-  let query = supabase
-    .from('pedidos_loja')
-    .select('*, aluno:students(name, document_id), vendedor:users_painel(full_name, username)')
-    .eq('autoescola_id', autoescola_id)
-    .order('created_at', { ascending: false })
-    .limit(1000)
+  try {
+    const leves = await buscarTodos<{ status: PedidoLojaStatus; valor_centavos: number }>(async (from, to) => {
+      const q = await aplicarFiltrosBase(supabase, supabase.from('pedidos_loja').select('status, valor_centavos'), autoescola_id, f)
+      return q.order('created_at', { ascending: false }).order('id').range(from, to)
+    })
 
-  if (filtro?.status && filtro.status !== 'todos') {
-    query = query.eq('status', filtro.status)
+    const contagem: Record<FiltroStatusVenda, number> = {
+      todas: 0, aprovado: 0, pendente: 0, rejeitado: 0, reembolsado: 0, abandonados: 0,
+    }
+    const resumo: ResumoVendas = { aprovadoValor: 0, aprovadoQtd: 0, pendenteValor: 0, pendenteQtd: 0, reembolsadoQtd: 0 }
+    for (const p of leves) {
+      if (p.status === 'expirado' || p.status === 'cancelado') contagem.abandonados++
+      else contagem.todas++
+      if (p.status === 'aprovado') { contagem.aprovado++; resumo.aprovadoQtd++; resumo.aprovadoValor += p.valor_centavos }
+      if (p.status === 'pendente') { contagem.pendente++; resumo.pendenteQtd++; resumo.pendenteValor += p.valor_centavos }
+      if (p.status === 'rejeitado') contagem.rejeitado++
+      if (p.status === 'reembolsado') { contagem.reembolsado++; resumo.reembolsadoQtd++ }
+    }
+
+    const total = contagem[f.status]
+    const totalPaginas = Math.max(1, Math.ceil(total / VENDAS_POR_PAGINA))
+    const pagina = Math.min(f.pagina, totalPaginas)
+    const de = (pagina - 1) * VENDAS_POR_PAGINA
+
+    let qPagina = await aplicarFiltrosBase(supabase, supabase.from('pedidos_loja').select(SELECT_VENDA), autoescola_id, f)
+    qPagina = aplicarStatus(qPagina, f.status)
+    const { data, error } = await qPagina
+      .order('created_at', { ascending: false })
+      .order('id')
+      .range(de, de + VENDAS_POR_PAGINA - 1)
+    if (error) throw new Error(error.message)
+
+    return {
+      success: true,
+      data: { vendas: (data ?? []).map(achatar), total, pagina, totalPaginas, contagem, resumo },
+    }
+  } catch (e) {
+    console.error('[vendas] Erro ao listar vendas:', e)
+    return { success: false, error: 'Não foi possível carregar as vendas. Tente novamente.' }
   }
+}
 
-  const { data, error } = await query
-  if (error) throw new Error(error.message)
+const METODO_CSV: Record<string, string> = {
+  credit_card: 'Cartão de crédito', debit_card: 'Cartão de débito', bank_transfer: 'Pix', ticket: 'Boleto', account_money: 'Saldo MP',
+}
+const STATUS_CSV: Record<PedidoLojaStatus, string> = {
+  pendente: 'Pendente', aprovado: 'Aprovado', rejeitado: 'Rejeitado', cancelado: 'Cancelado', expirado: 'Expirado', reembolsado: 'Reembolsado',
+}
 
-  return (data ?? []).map((row) => ({
-    ...row,
-    aluno: Array.isArray(row.aluno) ? row.aluno[0] ?? null : row.aluno ?? null,
-    vendedor: Array.isArray(row.vendedor) ? row.vendedor[0] ?? null : row.vendedor ?? null,
-  })) as PedidoComAluno[]
+// Aspas duplas + neutraliza fórmulas (=, +, -, @) abertas no Excel a partir de texto do aluno.
+function celulaCsv(valor: string): string {
+  const seguro = /^[=+\-@\t\r]/.test(valor) ? `'${valor}` : valor
+  return `"${seguro.replace(/"/g, '""')}"`
+}
+
+/** CSV (separador `;`, UTF-8 com BOM, abre direto no Excel pt-BR) com TODAS as vendas do filtro atual. */
+export async function exportarVendasCsv(
+  autoescola_id: string,
+  filtrosEntrada: Partial<FiltrosVendas> = {}
+): Promise<ActionResult<{ csv: string; linhas: number }>> {
+  const erro = await bloqueioVerVendas(autoescola_id)
+  if (erro) return { success: false, error: erro }
+
+  const f = filtrosSeguros(filtrosEntrada)
+  const supabase = createServiceClient()
+
+  try {
+    const pedidos = await buscarTodos<Record<string, unknown>>(async (from, to) => {
+      let q = await aplicarFiltrosBase(supabase, supabase.from('pedidos_loja').select(SELECT_VENDA), autoescola_id, f)
+      q = aplicarStatus(q, f.status)
+      return q.order('created_at', { ascending: false }).order('id').range(from, to)
+    })
+
+    const fmtData = (iso: string | null) =>
+      iso ? new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' }) : ''
+
+    const cabecalho = ['Data', 'Aluno', 'CPF/CNH', 'Produto', 'Origem', 'Vendedor', 'Valor (R$)', 'Método', 'Status', 'Pago em', 'ID do pedido', 'ID do pagamento MP']
+    const linhas = pedidos.map(achatar).map((v) => [
+      fmtData(v.created_at),
+      v.aluno?.name ?? '',
+      v.aluno?.document_id ?? '',
+      v.produto_snapshot?.nome ?? '',
+      v.origem === 'manual' ? 'Manual' : 'Mercado Pago',
+      v.vendedor?.full_name ?? '',
+      (v.valor_centavos / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      v.payment_method ? METODO_CSV[v.payment_method] ?? v.payment_method : '',
+      STATUS_CSV[v.status] ?? v.status,
+      fmtData(v.paid_at),
+      v.id,
+      v.mp_payment_id ?? '',
+    ].map((c) => celulaCsv(String(c))).join(';'))
+
+    // Exportar dados pessoais (CPF) fica registrado na auditoria
+    await supabase.from('activity_logs_painel').insert({
+      user_id: await getCurrentUserId(),
+      username: await getCurrentUsername(),
+      action_type: 'venda',
+      description: `Exportou vendas em CSV (${linhas.length} linha${linhas.length !== 1 ? 's' : ''}).`,
+      metadata: { ...f, linhas: linhas.length },
+      autoescola_id,
+    })
+
+    return {
+      success: true,
+      data: { csv: '﻿' + [cabecalho.map((c) => celulaCsv(c)).join(';'), ...linhas].join('\r\n'), linhas: linhas.length },
+    }
+  } catch (e) {
+    console.error('[vendas] Erro ao exportar CSV:', e)
+    return { success: false, error: 'Não foi possível exportar. Tente novamente.' }
+  }
+}
+
+/** Dados completos de uma venda para o painel lateral de detalhe. */
+export async function getDetalheVenda(autoescola_id: string, pedido_id: string): Promise<ActionResult<DetalheVenda>> {
+  const erro = await bloqueioVerVendas(autoescola_id)
+  if (erro) return { success: false, error: erro }
+
+  const supabase = createServiceClient()
+  const { data } = await supabase
+    .from('pedidos_loja')
+    .select(SELECT_VENDA)
+    .eq('id', pedido_id)
+    .eq('autoescola_id', autoescola_id)
+    .single()
+  if (!data) return { success: false, error: 'Venda não encontrada.' }
+  const pedido = achatar(data)
+
+  const [{ data: contato }, { data: logs }] = await Promise.all([
+    pedido.student_id
+      ? supabase.from('students').select('email, phone').eq('id', pedido.student_id).eq('autoescola_id', autoescola_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    // Os logs citam o pedido pelos 8 primeiros caracteres do id
+    supabase
+      .from('activity_logs_painel')
+      .select('created_at, username, description')
+      .eq('autoescola_id', autoescola_id)
+      .ilike('description', `%pedido ${pedido.id.slice(0, 8)}%`)
+      .order('created_at', { ascending: false })
+      .limit(10),
+  ])
+
+  return { success: true, data: { pedido, alunoContato: contato ?? null, logs: logs ?? [] } }
+}
+
+/** Consulta o Mercado Pago para UM pedido pendente e libera os créditos se já foi pago. */
+export async function verificarPedido(
+  autoescola_id: string,
+  pedido_id: string
+): Promise<ActionResult<{ status: PedidoLojaStatus; creditado: boolean }>> {
+  const bloqueioPermissao = await bloqueioArea('vendas', 'editar')
+  if (bloqueioPermissao) return { success: false, error: bloqueioPermissao }
+  if ((await getPainelAutoescolaId()) !== autoescola_id) return { success: false, error: 'Sessão inválida.' }
+  const bloqueio = await bloqueioFeature(autoescola_id, 'vendas')
+  if (bloqueio) return { success: false, error: bloqueio }
+
+  const supabase = createServiceClient()
+  const resumo = await reconciliarPedidosPendentes(supabase, { autoescolaId: autoescola_id, pedidoId: pedido_id })
+  if (resumo.erros > 0) return { success: false, error: 'Não foi possível consultar o Mercado Pago. Tente de novo.' }
+
+  const { data } = await supabase
+    .from('pedidos_loja')
+    .select('status')
+    .eq('id', pedido_id)
+    .eq('autoescola_id', autoescola_id)
+    .single()
+  if (!data) return { success: false, error: 'Venda não encontrada.' }
+
+  if (resumo.aprovados > 0) {
+    await supabase.from('activity_logs_painel').insert({
+      user_id: await getCurrentUserId(),
+      username: await getCurrentUsername(),
+      action_type: 'venda',
+      description: `Verificação de pagamento: pedido ${pedido_id.slice(0, 8)} aprovado no Mercado Pago, créditos liberados.`,
+      metadata: { pedido_id },
+      autoescola_id,
+    })
+  }
+  return { success: true, data: { status: data.status as PedidoLojaStatus, creditado: resumo.aprovados > 0 } }
 }
 
 /**

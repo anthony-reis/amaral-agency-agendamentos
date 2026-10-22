@@ -25,7 +25,7 @@ export interface ResumoReconciliacao {
  */
 export async function reconciliarPedidosPendentes(
   supabase: SupabaseClient,
-  opts: { autoescolaId?: string; dias?: number } = {}
+  opts: { autoescolaId?: string; dias?: number; pedidoId?: string } = {}
 ): Promise<ResumoReconciliacao> {
   const resumo: ResumoReconciliacao = { verificados: 0, aprovados: 0, expirados: 0, erros: 0 }
   const desde = new Date(Date.now() - (opts.dias ?? DIAS_JANELA) * 24 * 3600 * 1000).toISOString()
@@ -36,10 +36,12 @@ export async function reconciliarPedidosPendentes(
     .eq('origem', 'mercado_pago')
     .in('status', ['pendente', 'expirado'])
     .eq('creditos_liberados', false)
-    .gte('created_at', desde)
     .order('created_at', { ascending: true })
     .limit(500)
   if (opts.autoescolaId) query = query.eq('autoescola_id', opts.autoescolaId)
+  // Um pedido específico (botão no detalhe) ignora a janela de dias
+  if (opts.pedidoId) query = query.eq('id', opts.pedidoId)
+  else query = query.gte('created_at', desde)
 
   const { data } = await query
   const pedidos = (data ?? []) as PedidoLoja[]
