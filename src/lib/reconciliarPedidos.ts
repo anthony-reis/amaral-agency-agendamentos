@@ -25,10 +25,10 @@ export interface ResumoReconciliacao {
  */
 export async function reconciliarPedidosPendentes(
   supabase: SupabaseClient,
-  opts: { autoescolaId?: string } = {}
+  opts: { autoescolaId?: string; dias?: number } = {}
 ): Promise<ResumoReconciliacao> {
   const resumo: ResumoReconciliacao = { verificados: 0, aprovados: 0, expirados: 0, erros: 0 }
-  const desde = new Date(Date.now() - DIAS_JANELA * 24 * 3600 * 1000).toISOString()
+  const desde = new Date(Date.now() - (opts.dias ?? DIAS_JANELA) * 24 * 3600 * 1000).toISOString()
 
   let query = supabase
     .from('pedidos_loja')

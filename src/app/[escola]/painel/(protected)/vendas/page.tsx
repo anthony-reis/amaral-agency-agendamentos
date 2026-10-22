@@ -3,6 +3,8 @@ import { Receipt } from 'lucide-react'
 import { getPainelSession } from '@/features/painel/actions/authPainel'
 import { exigirArea, podeReembolsarVendas } from '@/lib/permissoes.server'
 import { exigirFeature } from '@/lib/features.server'
+import { createServiceClient } from '@/lib/supabase/server'
+import { reconciliarPedidosPendentes } from '@/lib/reconciliarPedidos'
 import { listarVendas } from '@/features/painel/actions/vendas'
 import { VendasList } from '@/features/painel/components/VendasList'
 
@@ -18,6 +20,14 @@ export default async function VendasPage({ params }: Props) {
   // Reembolso é permissão individual (/admin), não vem de "Editar" em Vendas.
   const podeReembolsar = podeReembolsarVendas(acesso)
   await exigirFeature(session.autoescola_id, 'vendas')
+
+  // Pix pago no app do banco pode não disparar o webhook: ao abrir a tela,
+  // confirma no MP os pedidos recentes ainda pendentes (idempotente).
+  try {
+    await reconciliarPedidosPendentes(createServiceClient(), { autoescolaId: session.autoescola_id, dias: 3 })
+  } catch (e) {
+    console.error('[vendas] Falha ao reconciliar pedidos pendentes:', e)
+  }
 
   const vendas = await listarVendas(session.autoescola_id)
 
