@@ -25,7 +25,7 @@ export async function listarVendas(
     .select('*, aluno:students(name, document_id), vendedor:users_painel(full_name, username)')
     .eq('autoescola_id', autoescola_id)
     .order('created_at', { ascending: false })
-    .limit(300)
+    .limit(1000)
 
   if (filtro?.status && filtro.status !== 'todos') {
     query = query.eq('status', filtro.status)

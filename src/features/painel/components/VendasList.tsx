@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useMemo, useState, useTransition } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { AlertTriangle, CheckCircle2, Loader2, Receipt, RefreshCw, Undo2, X, XCircle } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Loader2, Receipt, RefreshCw, Search, Undo2, X, XCircle } from 'lucide-react'
 import { listarVendas, reembolsarPedido, verificarPagamentosPendentes, type PedidoComAluno } from '../actions/vendas'
 import { formatarPrecoCentavos, type PedidoLojaStatus } from '@/lib/loja-types'
 
@@ -54,9 +54,53 @@ const METODO_LABEL: Record<string, string> = {
   account_money: 'Saldo MP',
 }
 
-const FILTROS: Array<PedidoLojaStatus | 'todos'> = [
-  'todos', 'aprovado', 'pendente', 'rejeitado', 'reembolsado',
+// "Todas" esconde pedidos abandonados (expirado/cancelado), que só poluem a lista.
+type FiltroStatus = 'todas' | 'aprovado' | 'pendente' | 'rejeitado' | 'reembolsado' | 'abandonados'
+type FiltroPeriodo = 'tudo' | 'hoje' | '7d' | '30d' | 'mes'
+type FiltroOrigem = 'todas' | 'mercado_pago' | 'manual'
+
+const FILTROS_STATUS: Array<{ id: FiltroStatus; label: string }> = [
+  { id: 'todas', label: 'Todas' },
+  { id: 'aprovado', label: 'Aprovadas' },
+  { id: 'pendente', label: 'Pendentes' },
+  { id: 'rejeitado', label: 'Rejeitadas' },
+  { id: 'reembolsado', label: 'Reembolsadas' },
+  { id: 'abandonados', label: 'Abandonadas' },
 ]
+
+const PERIODOS: Array<{ id: FiltroPeriodo; label: string }> = [
+  { id: 'tudo', label: 'Todo o período' },
+  { id: 'hoje', label: 'Hoje' },
+  { id: '7d', label: 'Últimos 7 dias' },
+  { id: '30d', label: 'Últimos 30 dias' },
+  { id: 'mes', label: 'Este mês' },
+]
+
+const POR_PAGINA = 25
+
+function inicioPeriodo(periodo: FiltroPeriodo): number {
+  const agora = new Date()
+  const hoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate()).getTime()
+  switch (periodo) {
+    case 'hoje': return hoje
+    case '7d': return hoje - 6 * 86400000
+    case '30d': return hoje - 29 * 86400000
+    case 'mes': return new Date(agora.getFullYear(), agora.getMonth(), 1).getTime()
+    default: return 0
+  }
+}
+
+function casaStatus(v: PedidoComAluno, f: FiltroStatus): boolean {
+  switch (f) {
+    case 'todas': return v.status !== 'expirado' && v.status !== 'cancelado'
+    case 'abandonados': return v.status === 'expirado' || v.status === 'cancelado'
+    default: return v.status === f
+  }
+}
+
+function normalizar(t: string) {
+  return t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+}
 
 function formatarData(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', {
@@ -64,18 +108,80 @@ function formatarData(iso: string) {
   })
 }
 
+function Resumo({ rotulo, valor, detalhe }: { rotulo: string; valor: string; detalhe?: string }) {
+  return (
+    <div className="bg-[--p-bg-card] border border-[--p-border] rounded-2xl px-4 py-3">
+      <p className="text-xs font-semibold text-[--p-text-3]">{rotulo}</p>
+      <p className="text-xl font-bold text-[--p-text-1] mt-0.5">{valor}</p>
+      {detalhe && <p className="text-[11px] text-[--p-text-3] mt-0.5">{detalhe}</p>}
+    </div>
+  )
+}
+
+const selectCls =
+  'text-xs font-semibold px-3 py-2 rounded-lg border bg-[--p-bg-card] text-[--p-text-2] border-[--p-border] focus:outline-none focus:border-[--p-accent]/50'
+
 export function VendasList({ autoescola_id, vendas: initial, podeReembolsar }: Props) {
   const [vendas, setVendas] = useState<PedidoComAluno[]>(initial)
-  const [filtro, setFiltro] = useState<PedidoLojaStatus | 'todos'>('todos')
+  const [status, setStatus] = useState<FiltroStatus>('todas')
+  const [periodo, setPeriodo] = useState<FiltroPeriodo>('tudo')
+  const [origem, setOrigem] = useState<FiltroOrigem>('todas')
+  const [busca, setBusca] = useState('')
+  const [pagina, setPagina] = useState(1)
   const [isPending, startTransition] = useTransition()
   const [modal, setModal] = useState<ModalReembolso | null>(null)
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
 
-  function aplicarFiltro(novo: PedidoLojaStatus | 'todos') {
-    setFiltro(novo)
+  // Filtros que não dependem do status: base para os contadores dos chips e o resumo.
+  const base = useMemo(() => {
+    const desde = inicioPeriodo(periodo)
+    const q = normalizar(busca.trim())
+    const qDigitos = busca.replace(/\D/g, '')
+    return vendas.filter((v) => {
+      if (desde && new Date(v.created_at).getTime() < desde) return false
+      if (origem !== 'todas' && v.origem !== origem) return false
+      if (q) {
+        const nome = normalizar(v.aluno?.name ?? '')
+        const produto = normalizar(v.produto_snapshot?.nome ?? '')
+        const doc = (v.aluno?.document_id ?? '').replace(/\D/g, '')
+        const casa = nome.includes(q) || produto.includes(q) || (qDigitos.length >= 3 && doc.includes(qDigitos))
+        if (!casa) return false
+      }
+      return true
+    })
+  }, [vendas, periodo, origem, busca])
+
+  const contagem = useMemo(() => {
+    const c = {} as Record<FiltroStatus, number>
+    for (const f of FILTROS_STATUS) c[f.id] = base.filter((v) => casaStatus(v, f.id)).length
+    return c
+  }, [base])
+
+  const filtradas = useMemo(() => base.filter((v) => casaStatus(v, status)), [base, status])
+
+  const resumo = useMemo(() => {
+    const aprovadas = base.filter((v) => v.status === 'aprovado')
+    const pendentes = base.filter((v) => v.status === 'pendente')
+    const soma = (l: PedidoComAluno[]) => l.reduce((acc, v) => acc + v.valor_centavos, 0)
+    return {
+      aprovadoValor: soma(aprovadas), aprovadoQtd: aprovadas.length,
+      pendenteValor: soma(pendentes), pendenteQtd: pendentes.length,
+      reembolsadoQtd: base.filter((v) => v.status === 'reembolsado').length,
+    }
+  }, [base])
+
+  const totalPaginas = Math.max(1, Math.ceil(filtradas.length / POR_PAGINA))
+  const paginaAtual = Math.min(pagina, totalPaginas)
+  const visiveis = filtradas.slice((paginaAtual - 1) * POR_PAGINA, paginaAtual * POR_PAGINA)
+  const filtrosAtivos = status !== 'todas' || periodo !== 'tudo' || origem !== 'todas' || busca !== ''
+
+  function limparFiltros() {
+    setStatus('todas'); setPeriodo('tudo'); setOrigem('todas'); setBusca(''); setPagina(1)
+  }
+
+  function atualizar() {
     startTransition(async () => {
-      const data = await listarVendas(autoescola_id, { status: novo })
-      setVendas(data)
+      setVendas(await listarVendas(autoescola_id))
     })
   }
 
@@ -95,7 +201,7 @@ export function VendasList({ autoescola_id, vendas: initial, podeReembolsar }: P
           : erros > 0 ? 'Não foi possível consultar o Mercado Pago para alguns pedidos. Tente de novo.'
           : `Nenhum pagamento novo encontrado${expirados > 0 ? ` (${expirados} pedido(s) abandonado(s) marcado(s) como expirado)` : ''}.`,
       })
-      setVendas(await listarVendas(autoescola_id, { status: filtro }))
+      setVendas(await listarVendas(autoescola_id))
     })
   }
 
@@ -110,46 +216,57 @@ export function VendasList({ autoescola_id, vendas: initial, podeReembolsar }: P
         return
       }
       setModal({ etapa: 'sucesso', pedido })
-      setVendas(await listarVendas(autoescola_id, { status: filtro }))
+      setVendas(await listarVendas(autoescola_id))
     })
   }
 
   const fecharModal = () => { if (modal?.etapa !== 'processando') setModal(null) }
 
-  const totalAprovado = vendas
-    .filter((v) => v.status === 'aprovado')
-    .reduce((acc, v) => acc + v.valor_centavos, 0)
-
   return (
     <div className="space-y-4">
-      {/* Filtros + resumo */}
+      {/* Resumo (respeita busca, período e origem) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Resumo rotulo="Vendas aprovadas" valor={formatarPrecoCentavos(resumo.aprovadoValor)} detalhe={`${resumo.aprovadoQtd} venda${resumo.aprovadoQtd !== 1 ? 's' : ''}`} />
+        <Resumo
+          rotulo="Ticket médio"
+          valor={resumo.aprovadoQtd ? formatarPrecoCentavos(Math.round(resumo.aprovadoValor / resumo.aprovadoQtd)) : '—'}
+        />
+        <Resumo rotulo="Aguardando pagamento" valor={formatarPrecoCentavos(resumo.pendenteValor)} detalhe={`${resumo.pendenteQtd} pedido${resumo.pendenteQtd !== 1 ? 's' : ''}`} />
+        <Resumo rotulo="Reembolsadas" valor={String(resumo.reembolsadoQtd)} />
+      </div>
+
+      {/* Busca + período + origem + ações */}
       <div className="flex flex-wrap items-center gap-2">
-        {FILTROS.map((f) => (
-          <button
-            key={f}
-            onClick={() => aplicarFiltro(f)}
-            className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
-              filtro === f
-                ? 'bg-[--p-accent]/10 text-[--p-accent] border-[--p-accent]/30'
-                : 'bg-[--p-bg-card] text-[--p-text-3] border-[--p-border] hover:text-[--p-text-1]'
-            }`}
-          >
-            {f === 'todos' ? 'Todos' : STATUS_LABEL[f]}
-          </button>
-        ))}
+        <div className="relative flex-1 min-w-[220px]">
+          <Search className="w-4 h-4 text-[--p-text-3] absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            value={busca}
+            onChange={(e) => { setBusca(e.target.value); setPagina(1) }}
+            placeholder="Buscar por aluno, CPF/CNH ou produto"
+            className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border bg-[--p-bg-card] text-[--p-text-1] border-[--p-border] placeholder:text-[--p-text-3] focus:outline-none focus:border-[--p-accent]/50"
+          />
+        </div>
+        <select value={periodo} onChange={(e) => { setPeriodo(e.target.value as FiltroPeriodo); setPagina(1) }} className={selectCls} aria-label="Período">
+          {PERIODOS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+        </select>
+        <select value={origem} onChange={(e) => { setOrigem(e.target.value as FiltroOrigem); setPagina(1) }} className={selectCls} aria-label="Origem">
+          <option value="todas">Todas as origens</option>
+          <option value="mercado_pago">Mercado Pago</option>
+          <option value="manual">Manual</option>
+        </select>
         <button
           onClick={verificarPagamentos}
           disabled={isPending}
-          className="ml-auto text-xs font-semibold px-3 py-1.5 rounded-lg border bg-[--p-bg-card] text-[--p-text-3] border-[--p-border] hover:text-[--p-text-1] transition-colors disabled:opacity-50"
+          className="text-xs font-semibold px-3 py-2 rounded-lg border bg-[--p-bg-card] text-[--p-text-2] border-[--p-border] hover:text-[--p-text-1] transition-colors disabled:opacity-50"
           title="Consulta o Mercado Pago e libera os créditos de pagamentos já confirmados"
         >
           Verificar pagamentos
         </button>
         <button
-          onClick={() => aplicarFiltro(filtro)}
+          onClick={atualizar}
           disabled={isPending}
           className="p-2 rounded-lg text-[--p-text-3] hover:text-[--p-text-1] hover:bg-[--p-hover] transition-colors"
-          title="Atualizar"
+          title="Atualizar lista"
         >
           <RefreshCw className={`w-4 h-4 ${isPending ? 'animate-spin' : ''}`} />
         </button>
@@ -159,18 +276,39 @@ export function VendasList({ autoescola_id, vendas: initial, podeReembolsar }: P
         <p className={`text-sm ${aviso.tipo === 'ok' ? 'text-emerald-500' : 'text-red-500'}`}>{aviso.texto}</p>
       )}
 
-      <p className="text-sm text-[--p-text-3]">
-        {vendas.length} venda{vendas.length !== 1 ? 's' : ''}
-        {totalAprovado > 0 && (
-          <> · <span className="text-[--p-text-1] font-semibold">{formatarPrecoCentavos(totalAprovado)}</span> em vendas aprovadas (nesta lista)</>
+      {/* Status com contadores */}
+      <div className="flex flex-wrap items-center gap-2">
+        {FILTROS_STATUS.map((f) => (
+          <button
+            key={f.id}
+            onClick={() => { setStatus(f.id); setPagina(1) }}
+            className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
+              status === f.id
+                ? 'bg-[--p-accent]/10 text-[--p-accent] border-[--p-accent]/30'
+                : 'bg-[--p-bg-card] text-[--p-text-3] border-[--p-border] hover:text-[--p-text-1]'
+            }`}
+          >
+            {f.label} <span className="opacity-70">{contagem[f.id]}</span>
+          </button>
+        ))}
+        {filtrosAtivos && (
+          <button onClick={limparFiltros} className="ml-auto text-xs font-semibold text-[--p-text-3] hover:text-[--p-text-1] inline-flex items-center gap-1">
+            <X className="w-3.5 h-3.5" /> Limpar filtros
+          </button>
         )}
-      </p>
+      </div>
 
-
-      {vendas.length === 0 ? (
+      {filtradas.length === 0 ? (
         <div className="bg-[--p-bg-card] border border-[--p-border] rounded-2xl py-14 text-center">
           <Receipt className="w-8 h-8 text-[--p-text-3] mx-auto mb-3" />
-          <p className="text-sm text-[--p-text-3]">Nenhuma venda encontrada.</p>
+          <p className="text-sm text-[--p-text-3]">
+            {filtrosAtivos ? 'Nenhuma venda com esses filtros.' : 'Nenhuma venda encontrada.'}
+          </p>
+          {filtrosAtivos && (
+            <button onClick={limparFiltros} className="mt-3 text-xs font-semibold text-[--p-accent] hover:underline">
+              Limpar filtros
+            </button>
+          )}
         </div>
       ) : (
         <div className="bg-[--p-bg-card] border border-[--p-border] rounded-2xl overflow-hidden">
@@ -189,7 +327,7 @@ export function VendasList({ autoescola_id, vendas: initial, podeReembolsar }: P
                 </tr>
               </thead>
               <tbody className="divide-y divide-[--p-border]">
-                {vendas.map((v) => (
+                {visiveis.map((v) => (
                   <tr key={v.id} className="hover:bg-[--p-hover] transition-colors">
                     <td className="px-4 py-3 text-[--p-text-3] whitespace-nowrap">{formatarData(v.created_at)}</td>
                     <td className="px-4 py-3">
@@ -219,6 +357,11 @@ export function VendasList({ autoescola_id, vendas: initial, podeReembolsar }: P
                       <span className={`text-[10px] font-semibold px-2 py-1 rounded-full border whitespace-nowrap ${STATUS_BADGE[v.status]}`}>
                         {STATUS_LABEL[v.status]}
                       </span>
+                      {v.status === 'pendente' && v.origem !== 'manual' && (
+                        <p className="text-[10px] text-[--p-text-3] mt-0.5">
+                          {v.payment_method ? 'Aguardando pagamento' : 'Checkout aberto'}
+                        </p>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-right">
                       {/* Reembolso só para vendas do Mercado Pago (venda manual não tem pagamento no MP) */}
@@ -237,6 +380,32 @@ export function VendasList({ autoescola_id, vendas: initial, podeReembolsar }: P
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Paginação */}
+          <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-[--p-border] text-xs text-[--p-text-3]">
+            <span>
+              {(paginaAtual - 1) * POR_PAGINA + 1}–{Math.min(paginaAtual * POR_PAGINA, filtradas.length)} de {filtradas.length}
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setPagina(paginaAtual - 1)}
+                disabled={paginaAtual <= 1}
+                className="p-1.5 rounded-lg hover:bg-[--p-hover] hover:text-[--p-text-1] disabled:opacity-40 disabled:hover:bg-transparent"
+                aria-label="Página anterior"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="px-2 font-semibold text-[--p-text-2]">{paginaAtual} / {totalPaginas}</span>
+              <button
+                onClick={() => setPagina(paginaAtual + 1)}
+                disabled={paginaAtual >= totalPaginas}
+                className="p-1.5 rounded-lg hover:bg-[--p-hover] hover:text-[--p-text-1] disabled:opacity-40 disabled:hover:bg-transparent"
+                aria-label="Próxima página"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
       )}
