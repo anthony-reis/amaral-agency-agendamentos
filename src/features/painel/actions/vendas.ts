@@ -91,13 +91,26 @@ function padraoDocumento(digitos: string): string {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Qb = any
 
-/** Filtros de período, origem e busca (tudo, menos o status). */
-async function aplicarFiltrosBase(supabase: SupabaseClient, q: Qb, autoescola_id: string, f: FiltrosVendas): Promise<Qb> {
-  q = q.eq('autoescola_id', autoescola_id)
+interface FiltrosPreparados {
+  autoescola_id: string
+  desde: string | null
+  origem: FiltroOrigemVenda
+  /** Condições OR da busca por texto (já resolvidas), ou null sem busca. */
+  condicoesBusca: string | null
+}
 
-  const desde = inicioPeriodoISO(f.periodo)
-  if (desde) q = q.gte('created_at', desde)
-  if (f.origem !== 'todas') q = q.eq('origem', f.origem)
+/**
+ * Resolve o que precisa de consulta (ids dos alunos da busca) ANTES de montar a
+ * query. Não devolve o builder do Supabase: ele é "thenable" e um `await` em
+ * cima dele executaria a consulta na hora.
+ */
+async function prepararFiltros(supabase: SupabaseClient, autoescola_id: string, f: FiltrosVendas): Promise<FiltrosPreparados> {
+  const preparados: FiltrosPreparados = {
+    autoescola_id,
+    desde: inicioPeriodoISO(f.periodo),
+    origem: f.origem,
+    condicoesBusca: null,
+  }
 
   const termo = termoSeguro(f.busca)
   if (termo) {
@@ -114,8 +127,17 @@ async function aplicarFiltrosBase(supabase: SupabaseClient, q: Qb, autoescola_id
 
     const conds = [`produto_snapshot->>nome.ilike.*${termo}*`]
     if (ids.length > 0) conds.push(`student_id.in.(${ids.join(',')})`)
-    q = q.or(conds.join(','))
+    preparados.condicoesBusca = conds.join(',')
   }
+  return preparados
+}
+
+/** Filtros de período, origem e busca (tudo, menos o status). Síncrono: devolve o próprio builder. */
+function aplicarFiltrosBase(q: Qb, p: FiltrosPreparados): Qb {
+  q = q.eq('autoescola_id', p.autoescola_id)
+  if (p.desde) q = q.gte('created_at', p.desde)
+  if (p.origem !== 'todas') q = q.eq('origem', p.origem)
+  if (p.condicoesBusca) q = q.or(p.condicoesBusca)
   return q
 }
 
@@ -152,8 +174,9 @@ export async function listarVendasPaginado(
   const supabase = createServiceClient()
 
   try {
+    const prep = await prepararFiltros(supabase, autoescola_id, f)
     const leves = await buscarTodos<{ status: PedidoLojaStatus; valor_centavos: number }>(async (from, to) => {
-      const q = await aplicarFiltrosBase(supabase, supabase.from('pedidos_loja').select('status, valor_centavos'), autoescola_id, f)
+      const q = aplicarFiltrosBase(supabase.from('pedidos_loja').select('status, valor_centavos'), prep)
       return q.order('created_at', { ascending: false }).order('id').range(from, to)
     })
 
@@ -175,7 +198,7 @@ export async function listarVendasPaginado(
     const pagina = Math.min(f.pagina, totalPaginas)
     const de = (pagina - 1) * VENDAS_POR_PAGINA
 
-    let qPagina = await aplicarFiltrosBase(supabase, supabase.from('pedidos_loja').select(SELECT_VENDA), autoescola_id, f)
+    let qPagina = aplicarFiltrosBase(supabase.from('pedidos_loja').select(SELECT_VENDA), prep)
     qPagina = aplicarStatus(qPagina, f.status)
     const { data, error } = await qPagina
       .order('created_at', { ascending: false })
@@ -218,8 +241,9 @@ export async function exportarVendasCsv(
   const supabase = createServiceClient()
 
   try {
+    const prep = await prepararFiltros(supabase, autoescola_id, f)
     const pedidos = await buscarTodos<Record<string, unknown>>(async (from, to) => {
-      let q = await aplicarFiltrosBase(supabase, supabase.from('pedidos_loja').select(SELECT_VENDA), autoescola_id, f)
+      let q = aplicarFiltrosBase(supabase.from('pedidos_loja').select(SELECT_VENDA), prep)
       q = aplicarStatus(q, f.status)
       return q.order('created_at', { ascending: false }).order('id').range(from, to)
     })
