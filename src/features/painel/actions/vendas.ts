@@ -2,7 +2,8 @@
 
 import { bloqueioFeature } from '@/lib/features.server'
 import { createServiceClient } from '@/lib/supabase/server'
-import { bloqueioReembolso } from '@/lib/permissoes.server'
+import { bloqueioArea, bloqueioReembolso } from '@/lib/permissoes.server'
+import { reconciliarPedidosPendentes, type ResumoReconciliacao } from '@/lib/reconciliarPedidos'
 import { getCurrentUserId, getCurrentUsername, getPainelAutoescolaId } from './authPainel'
 import { criarReembolso } from '@/lib/mercadopago'
 import type { PedidoLoja, PedidoLojaStatus } from '@/lib/loja-types'
@@ -38,6 +39,38 @@ export async function listarVendas(
     aluno: Array.isArray(row.aluno) ? row.aluno[0] ?? null : row.aluno ?? null,
     vendedor: Array.isArray(row.vendedor) ? row.vendedor[0] ?? null : row.vendedor ?? null,
   })) as PedidoComAluno[]
+}
+
+/**
+ * "Verificar pagamentos": consulta o Mercado Pago para os pedidos pendentes da
+ * escola e libera os créditos dos que já foram pagos (ex.: Pix pago no app do
+ * banco sem o webhook ter chegado).
+ */
+export async function verificarPagamentosPendentes(
+  autoescola_id: string
+): Promise<ActionResult<ResumoReconciliacao>> {
+  const bloqueioPermissao = await bloqueioArea('vendas', 'editar')
+  if (bloqueioPermissao) return { success: false, error: bloqueioPermissao }
+  if ((await getPainelAutoescolaId()) !== autoescola_id) return { success: false, error: 'Sessão inválida.' }
+
+  const bloqueio = await bloqueioFeature(autoescola_id, 'vendas')
+  if (bloqueio) return { success: false, error: bloqueio }
+
+  const supabase = createServiceClient()
+  const resumo = await reconciliarPedidosPendentes(supabase, { autoescolaId: autoescola_id })
+
+  if (resumo.aprovados > 0) {
+    await supabase.from('activity_logs_painel').insert({
+      user_id: await getCurrentUserId(),
+      username: await getCurrentUsername(),
+      action_type: 'venda',
+      description: `Verificação de pagamentos: ${resumo.aprovados} pedido(s) aprovado(s) no Mercado Pago tiveram os créditos liberados.`,
+      metadata: { ...resumo },
+      autoescola_id,
+    })
+  }
+
+  return { success: true, data: resumo }
 }
 
 /**

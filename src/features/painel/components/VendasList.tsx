@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { AlertTriangle, CheckCircle2, Loader2, Receipt, RefreshCw, Undo2, X, XCircle } from 'lucide-react'
-import { listarVendas, reembolsarPedido, type PedidoComAluno } from '../actions/vendas'
+import { listarVendas, reembolsarPedido, verificarPagamentosPendentes, type PedidoComAluno } from '../actions/vendas'
 import { formatarPrecoCentavos, type PedidoLojaStatus } from '@/lib/loja-types'
 
 interface Props {
@@ -69,12 +69,33 @@ export function VendasList({ autoescola_id, vendas: initial, podeReembolsar }: P
   const [filtro, setFiltro] = useState<PedidoLojaStatus | 'todos'>('todos')
   const [isPending, startTransition] = useTransition()
   const [modal, setModal] = useState<ModalReembolso | null>(null)
+  const [aviso, setAviso] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
 
   function aplicarFiltro(novo: PedidoLojaStatus | 'todos') {
     setFiltro(novo)
     startTransition(async () => {
       const data = await listarVendas(autoescola_id, { status: novo })
       setVendas(data)
+    })
+  }
+
+  function verificarPagamentos() {
+    setAviso(null)
+    startTransition(async () => {
+      const r = await verificarPagamentosPendentes(autoescola_id)
+      if (!r.success) {
+        setAviso({ tipo: 'erro', texto: r.error })
+        return
+      }
+      const { aprovados, expirados, erros } = r.data
+      setAviso({
+        tipo: erros > 0 ? 'erro' : 'ok',
+        texto: aprovados > 0
+          ? `${aprovados} pagamento(s) confirmado(s) e créditos liberados.`
+          : erros > 0 ? 'Não foi possível consultar o Mercado Pago para alguns pedidos. Tente de novo.'
+          : `Nenhum pagamento novo encontrado${expirados > 0 ? ` (${expirados} pedido(s) abandonado(s) marcado(s) como expirado)` : ''}.`,
+      })
+      setVendas(await listarVendas(autoescola_id, { status: filtro }))
     })
   }
 
@@ -117,14 +138,26 @@ export function VendasList({ autoescola_id, vendas: initial, podeReembolsar }: P
           </button>
         ))}
         <button
+          onClick={verificarPagamentos}
+          disabled={isPending}
+          className="ml-auto text-xs font-semibold px-3 py-1.5 rounded-lg border bg-[--p-bg-card] text-[--p-text-3] border-[--p-border] hover:text-[--p-text-1] transition-colors disabled:opacity-50"
+          title="Consulta o Mercado Pago e libera os créditos de pagamentos já confirmados"
+        >
+          Verificar pagamentos
+        </button>
+        <button
           onClick={() => aplicarFiltro(filtro)}
           disabled={isPending}
-          className="ml-auto p-2 rounded-lg text-[--p-text-3] hover:text-[--p-text-1] hover:bg-[--p-hover] transition-colors"
+          className="p-2 rounded-lg text-[--p-text-3] hover:text-[--p-text-1] hover:bg-[--p-hover] transition-colors"
           title="Atualizar"
         >
           <RefreshCw className={`w-4 h-4 ${isPending ? 'animate-spin' : ''}`} />
         </button>
       </div>
+
+      {aviso && (
+        <p className={`text-sm ${aviso.tipo === 'ok' ? 'text-emerald-500' : 'text-red-500'}`}>{aviso.texto}</p>
+      )}
 
       <p className="text-sm text-[--p-text-3]">
         {vendas.length} venda{vendas.length !== 1 ? 's' : ''}

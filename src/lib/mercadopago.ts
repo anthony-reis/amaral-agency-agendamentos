@@ -107,6 +107,7 @@ export interface MPPayment {
   payment_method_id: string
   payment_type_id: string
   date_approved: string | null
+  date_of_expiration?: string | null
 }
 
 export async function buscarPayment(
@@ -162,7 +163,10 @@ export async function buscarPaymentPorExternalReference(
     throw new Error(`Mercado Pago: erro ao buscar payments por external_reference (${res.status}): ${body}`)
   }
   const data = (await res.json()) as { results?: MPPayment[] }
-  return data.results?.[0] ?? null
+  const results = data.results ?? []
+  // Se o aluno tentou mais de uma vez no mesmo pedido, um pagamento aprovado
+  // vale mais que uma tentativa posterior rejeitada/pendente.
+  return results.find((p) => p.status === 'approved') ?? results[0] ?? null
 }
 
 /**
