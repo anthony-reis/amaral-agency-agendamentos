@@ -2,7 +2,8 @@
 
 import { createServiceClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import { assertPodeEditar } from './authPainel'
+import { normalizarJanela, resumoJanela, validarJanela, type JanelaAgendamento } from '@/lib/janelaAgendamento'
+import { assertPodeEditar, getCurrentUsername } from './authPainel'
 
 export interface InstructorConfig {
   pode_dar_falta: boolean
@@ -87,5 +88,39 @@ export async function salvarReagendamentoMinHoras(
 
   revalidatePath(`/${escola}/painel/regras-reagendamento`)
   revalidatePath(`/${escola}/aluno/minhas-aulas`)
+  return { success: true }
+}
+
+export async function salvarJanelaAgendamento(
+  autoescola_id: string,
+  janela: JanelaAgendamento,
+  escola: string
+): Promise<{ success: boolean; error?: string }> {
+  const guard = await assertPodeEditar('sistema')
+  if (!guard.ok) return { success: false, error: guard.error }
+
+  const limpa = normalizarJanela(janela)
+  if (!limpa) return { success: false, error: 'Configuração inválida.' }
+  const erro = validarJanela(limpa)
+  if (erro) return { success: false, error: erro }
+
+  const supabase = createServiceClient()
+  const { error } = await supabase
+    .from('autoescolas')
+    .update({ janela_agendamento: limpa })
+    .eq('id', autoescola_id)
+  if (error) return { success: false, error: error.message }
+
+  await supabase.from('activity_logs_painel').insert({
+    username: await getCurrentUsername(),
+    action_type: 'travamento',
+    description: limpa.ativo
+      ? `Travamento de agendamento ativado — aluno agenda somente em: ${resumoJanela(limpa).join('; ')}`
+      : 'Travamento de agendamento desativado — aluno pode agendar a qualquer hora',
+    autoescola_id,
+  })
+
+  revalidatePath(`/${escola}/painel/travamentos`)
+  revalidatePath(`/${escola}/aluno/agendar`)
   return { success: true }
 }

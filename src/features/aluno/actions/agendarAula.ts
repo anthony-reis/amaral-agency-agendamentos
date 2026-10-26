@@ -5,6 +5,8 @@ import { revalidatePath } from 'next/cache'
 import { getDisponibilidade } from '@/lib/getDisponibilidade'
 import { liberarReservasVencidas } from '@/lib/reservasPosPacote'
 import { cambioDoAluno, bloqueioCambio } from '@/lib/cambio.server'
+import { bloqueioJanelaAgendamento } from '@/lib/janelaAgendamento.server'
+import { dataBR, registrarAtividadeAluno, registrarHistoricoAgendamento } from '@/lib/atividadeAluno.server'
 
 /**
  * Returns current date string (YYYY-MM-DD) in São Paulo timezone (UTC-3).
@@ -126,13 +128,15 @@ export async function criarAgendamento(data: {
   const supabase = createServiceClient()
 
   // ── Validations ──
+  const foraDoHorario = await bloqueioJanelaAgendamento(data.autoescola_id)
+  if (foraDoHorario) throw new Error(foraDoHorario)
   validateNotInPast(data.date, data.timeSlot)
   await validateOneClassPerDay(supabase, data.autoescola_id, data.studentDocument, data.date)
   const erroCambio = await bloqueioCambio(data.autoescola_id, data.studentId, data.category, data.instructorName)
   if (erroCambio) throw new Error(erroCambio)
   
   // Insert agendamento
-  const { error: insertError } = await supabase
+  const { data: novo, error: insertError } = await supabase
     .from('agendamentos')
     .insert({
       autoescola_id: data.autoescola_id,
@@ -145,11 +149,26 @@ export async function criarAgendamento(data: {
       cpf_cnh: data.studentDocument,
       status: 'scheduled',
       notes: 'Agendado pelo app do aluno'
-    });
+    })
+    .select('id')
+    .single();
 
-  if (insertError) {
-    throw new Error(insertError.message)
+  if (insertError || !novo) {
+    throw new Error(insertError?.message ?? 'Não foi possível agendar a aula.')
   }
+
+  // Rastreio: quando o aluno agendou, o que e com quem (Auditoria + linha do tempo da aula)
+  const aluno = { id: data.studentId, name: data.studentName, document_id: data.studentDocument }
+  const para = { date: data.date, time_slot: data.timeSlot, instrutor: data.instructorName, categoria: data.category?.toUpperCase() ?? null }
+  await registrarHistoricoAgendamento(supabase, {
+    autoescola_id: data.autoescola_id, agendamento_id: novo.id, student_id: aluno.id, student_name: aluno.name,
+    tipo: 'agendado', para, feito_por: aluno.name,
+  })
+  await registrarAtividadeAluno(
+    supabase, data.autoescola_id, aluno, 'agendamento',
+    `Aluno agendou aula pelo app: ${aluno.name} (Doc: ${aluno.document_id}) — ${para.categoria}, ${dataBR(para.date)} às ${para.time_slot}, instrutor ${para.instrutor}`,
+    { agendamento_id: novo.id, ...para }
+  )
 
   // Deduct credit
   const rpcCat = data.category === 'CARRO' ? 'aulas_cat_b' : 'aulas_cat_a'
@@ -187,12 +206,15 @@ export async function reagendarAula(agendamentoId: string, data: {
   studentName: string;
   studentDocument: string;
 }) {
+  const foraDoHorario = await bloqueioJanelaAgendamento(data.autoescola_id)
+  if (foraDoHorario) throw new Error(foraDoHorario)
+
   const supabase = createServiceClient()
 
   // 1. Fetch old agendamento to get existing category + date/time for dynamic rule
   const { data: oldAgendamento, error: fetchError } = await supabase
     .from('agendamentos')
-    .select('instructorCategory, date, time_slot')
+    .select('instructorCategory, date, time_slot, instructor_name')
     .eq('id', agendamentoId)
     .single()
 
@@ -274,6 +296,23 @@ export async function reagendarAula(agendamentoId: string, data: {
   if (updateError) {
     throw new Error(updateError.message)
   }
+
+  // Rastreio: guarda de onde saiu e para onde foi (a linha da aula é sobrescrita)
+  const aluno = { id: data.studentId, name: data.studentName, document_id: data.studentDocument }
+  const de = {
+    date: oldAgendamento.date, time_slot: oldAgendamento.time_slot,
+    instrutor: oldAgendamento.instructor_name ?? null, categoria: oldAgendamento.instructorCategory ?? null,
+  }
+  const para = { date: data.date, time_slot: data.timeSlot, instrutor: data.instructorName, categoria: data.category?.toUpperCase() ?? null }
+  await registrarHistoricoAgendamento(supabase, {
+    autoescola_id: data.autoescola_id, agendamento_id: agendamentoId, student_id: aluno.id, student_name: aluno.name,
+    tipo: 'reagendado', de, para, feito_por: aluno.name,
+  })
+  await registrarAtividadeAluno(
+    supabase, data.autoescola_id, aluno, 'reagendamento',
+    `Aluno remarcou aula pelo app: ${aluno.name} (Doc: ${aluno.document_id}) — de ${dataBR(de.date)} às ${de.time_slot} (${de.instrutor}) para ${dataBR(para.date)} às ${para.time_slot} (${para.instrutor})`,
+    { agendamento_id: agendamentoId, de, para }
+  )
 
   revalidatePath('/', 'layout')
   return { success: true }

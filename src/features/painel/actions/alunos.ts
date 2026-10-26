@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getCurrentUsername, getCurrentUserId, assertPodeEditar } from './authPainel'
 import { creditarPedido } from '@/lib/creditos'
+import { enviarArquivoAnexo, removerArquivoAnexo } from '@/lib/anexosAluno.server'
 import type { Produto, PedidoLoja, ProdutoSnapshot } from '@/lib/loja-types'
 import type { AlunoComCreditos, AlunoCreditos, NovoAlunoInput, ActionResult } from '../types'
 
@@ -113,7 +114,7 @@ export async function criarAluno(
   }
 
   // Criar créditos zerados
-  const { data: creditos } = await supabase
+  const { data: creditosCriados } = await supabase
     .from('student_credits')
     .insert({
       student_id: aluno.id,
@@ -136,7 +137,18 @@ export async function criarAluno(
     autoescola_id: input.autoescola_id,
   })
 
-  let creditosFinal = creditos ?? null
+  // O insert acima pode não devolver a linha (ex.: ela já foi criada por outro
+  // caminho); sem isto o aluno recém-criado chega à tela sem créditos.
+  let creditosFinal = creditosCriados ?? null
+  if (!creditosFinal) {
+    const { data: existentes } = await supabase
+      .from('student_credits')
+      .select('*')
+      .eq('student_id', aluno.id)
+      .eq('autoescola_id', input.autoescola_id)
+      .maybeSingle()
+    creditosFinal = existentes ?? null
+  }
   if (produto) {
     const snapshot: ProdutoSnapshot = {
       nome: quantidade > 1 ? `${produto.nome} x${quantidade}` : produto.nome,
@@ -335,11 +347,15 @@ export async function excluirAluno(
 export async function ajustarCredito(
   student_id: string,
   categoria: 'a' | 'b' | 'c' | 'd' | 'e',
-  delta: 1 | -1,
+  /** Inteiro diferente de zero (positivo adiciona, negativo remove). */
+  delta: number,
   autoescola_id: string
 ): Promise<ActionResult<AlunoCreditos>> {
   const guard = await assertPodeEditar('cadastros')
   if (!guard.ok) return { success: false, error: guard.error }
+  if (!Number.isInteger(delta) || delta === 0 || Math.abs(delta) > 1000) {
+    return { success: false, error: 'Informe uma quantidade inteira maior que 0.' }
+  }
 
   const supabase = createServiceClient()
   const col = `aulas_cat_${categoria}` as const
@@ -371,7 +387,7 @@ export async function ajustarCredito(
   await supabase.from('activity_logs_painel').insert({
     username: userAct,
     action_type: 'creditos',
-    description: `Crédito Cat. ${categoria.toUpperCase()} ${delta > 0 ? 'adicionado' : 'removido'} para aluno (ID: ${student_id}, novo total: ${newVal})`,
+    description: `${Math.abs(delta)} crédito(s) Cat. ${categoria.toUpperCase()} ${delta > 0 ? 'adicionado(s)' : 'removido(s)'} para aluno (ID: ${student_id}, novo total: ${newVal})`,
     autoescola_id,
   })
 
@@ -397,7 +413,9 @@ export async function venderCreditosAluno(
   autoescola_id: string,
   quantidades: QuantidadesPorCategoria,
   valor_centavos: number,
-  payment_method: string
+  payment_method: string,
+  /** FormData com o campo `arquivo` (comprovante de pagamento, opcional). */
+  comprovante?: FormData | null
 ): Promise<ActionResult<AlunoComCreditos>> {
   const guard = await assertPodeEditar('vendas')
   if (!guard.ok) return { success: false, error: guard.error }
@@ -437,6 +455,14 @@ export async function venderCreditosAluno(
   const userAct = await getCurrentUsername()
   const vendedorId = await getCurrentUserId()
 
+  // Comprovante (opcional): sobe antes da venda para abortar se o arquivo for inválido
+  const arquivo = comprovante?.get('arquivo') ?? null
+  let anexo: Awaited<ReturnType<typeof enviarArquivoAnexo>> | null = null
+  if (arquivo instanceof File && arquivo.size > 0) {
+    anexo = await enviarArquivoAnexo(supabase, autoescola_id, student_id, arquivo)
+    if (!anexo.ok) return { success: false, error: anexo.error }
+  }
+
   const { data: pedido, error: pedidoError } = await supabase
     .from('pedidos_loja')
     .insert({
@@ -455,12 +481,33 @@ export async function venderCreditosAluno(
     .select()
     .single()
 
-  if (pedidoError || !pedido) return { success: false, error: 'Erro ao registrar a venda.' }
+  if (pedidoError || !pedido) {
+    if (anexo?.ok) await removerArquivoAnexo(supabase, anexo.anexo.path)
+    return { success: false, error: 'Erro ao registrar a venda.' }
+  }
 
   await creditarPedido(supabase, pedido as PedidoLoja, {
     username: userAct,
     label: `Venda manual (${userAct})`,
   })
+
+  if (anexo?.ok) {
+    await supabase.from('aluno_anexos').insert({
+      autoescola_id,
+      student_id,
+      pedido_id: pedido.id,
+      tipo: 'comprovante',
+      ...anexo.anexo,
+      enviado_por: userAct,
+    })
+    // Cita o pedido pelos 8 primeiros caracteres: é assim que o detalhe da venda acha o log
+    await supabase.from('activity_logs_painel').insert({
+      username: userAct,
+      action_type: 'venda',
+      description: `Comprovante de pagamento anexado (pedido ${pedido.id.slice(0, 8)}): ${anexo.anexo.nome}`,
+      autoescola_id,
+    })
+  }
 
   const { data: creditos } = await supabase
     .from('student_credits')

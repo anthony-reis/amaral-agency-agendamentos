@@ -590,7 +590,7 @@ export function HistoricoList({
                       const StatusIcon = statusCfg.icon;
                       const CategoryIcon = a.instructorCategory === "MOTO" ? Bike : Car;
                       const isConflito = a.cancel_reason?.startsWith("Conflito resolvido");
-                      const clickable = a.status === "completed";
+                      const clickable = true; // qualquer status: o detalhe traz a linha do tempo (agendamento e remarcações)
                       return (
                         <tr
                           key={a.id}
@@ -691,7 +691,7 @@ export function HistoricoList({
         </div>
       )}
 
-      <DetalheAulaModal aula={aulaDetalhe} onClose={() => setAulaDetalhe(null)} />
+      <DetalheAulaModal aula={aulaDetalhe} autoescola_id={autoescola_id} onClose={() => setAulaDetalhe(null)} />
     </div>
   );
 }

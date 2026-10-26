@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { CheckCircle2, Copy, Loader2, RefreshCw, Undo2, X } from 'lucide-react'
+import { CheckCircle2, Copy, Loader2, Paperclip, RefreshCw, Undo2, X } from 'lucide-react'
 import { getDetalheVenda, verificarPedido, type DetalheVenda, type PedidoComAluno } from '../actions/vendas'
 import { CATEGORIAS_CREDITO, formatarPrecoCentavos } from '@/lib/loja-types'
 import { METODO_LABEL, STATUS_BADGE, STATUS_LABEL, formatarDataHoraCompleta } from './vendasUi'
@@ -233,6 +233,24 @@ export function VendaDetalheDrawer({ autoescola_id, pedidoId, podeEditar, podeRe
                       )}
                     </Linha>
                   </Secao>
+
+                  {detalhe && detalhe.comprovantes.length > 0 && (
+                    <Secao titulo="Comprovante de pagamento">
+                      <ul className="space-y-1.5">
+                        {detalhe.comprovantes.map((c) => (
+                          <li key={c.id}>
+                            {c.url ? (
+                              <a href={c.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-[--p-accent] hover:underline break-all">
+                                <Paperclip className="w-4 h-4 shrink-0" /> {c.nome}
+                              </a>
+                            ) : (
+                              <span className="text-[--p-text-3]">{c.nome} (indisponível)</span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </Secao>
+                  )}
 
                   <Secao titulo="Histórico">
                     {detalhe && detalhe.logs.length === 0 ? (

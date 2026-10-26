@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
@@ -12,10 +13,50 @@ import {
   PenLine,
 } from "lucide-react";
 import type { Agendamento } from "../types";
+import { getLinhaDoTempoAula, type EventoAula } from "../actions/atividadeAluno";
 
 interface Props {
   aula: Agendamento | null;
+  autoescola_id: string;
   onClose: () => void;
+}
+
+function LinhaDoTempo({ aulaId, autoescola_id }: { aulaId: string; autoescola_id: string }) {
+  const [eventos, setEventos] = useState<EventoAula[] | null>(null);
+
+  useEffect(() => {
+    let ativo = true;
+    setEventos(null);
+    getLinhaDoTempoAula(autoescola_id, aulaId).then((r) => {
+      if (ativo) setEventos(r.success ? r.data : []);
+    });
+    return () => { ativo = false; };
+  }, [aulaId, autoescola_id]);
+
+  return (
+    <div className="bg-[--p-bg-base] rounded-xl border border-[--p-border] p-4 space-y-3">
+      <p className="text-[10px] font-bold text-[--p-text-3] uppercase tracking-wider">Linha do tempo</p>
+      {!eventos ? (
+        <p className="text-xs text-[--p-text-3]">Carregando…</p>
+      ) : eventos.length === 0 ? (
+        <p className="text-xs text-[--p-text-3]">Sem registros.</p>
+      ) : (
+        <ol className="space-y-3 border-l border-[--p-border] ml-1.5">
+          {eventos.map((e) => (
+            <li key={e.id} className="pl-4 relative">
+              <span className="absolute -left-[5px] top-1.5 w-2.5 h-2.5 rounded-full bg-[#0ea5e9]" />
+              <p className="text-sm font-semibold text-[--p-text-1]">{e.titulo}</p>
+              {e.detalhe && <p className="text-xs text-[--p-text-2]">{e.detalhe}</p>}
+              <p className="text-[11px] text-[--p-text-3]">
+                {new Date(e.quando).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+                {e.autor ? ` · ${e.autor}` : ""}
+              </p>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
 }
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   scheduled: { label: "Agendado", className: "bg-blue-500/10 text-blue-400" },
@@ -31,7 +72,7 @@ const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   absent: { label: "Falta", className: "bg-orange-500/10 text-orange-400" },
 };
 
-export function DetalheAulaModal({ aula, onClose }: Props) {
+export function DetalheAulaModal({ aula, autoescola_id, onClose }: Props) {
   if (!aula) return null;
 
   const statusCfg = STATUS_CONFIG[aula.status] ?? STATUS_CONFIG.scheduled;
@@ -143,6 +184,8 @@ export function DetalheAulaModal({ aula, onClose }: Props) {
                     )}
                   </div>
                 </div>
+
+                <LinhaDoTempo aulaId={aula.id} autoescola_id={autoescola_id} />
 
                 {/* Foto */}
                 <div>

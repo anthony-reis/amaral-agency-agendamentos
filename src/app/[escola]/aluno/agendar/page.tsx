@@ -2,6 +2,8 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createServiceClient } from '@/lib/supabase/server'
 import { AgendamentoFlow } from '@/features/identificacao/components/AgendamentoFlow'
+import { janelaAbertaAgora, MSG_FORA_DO_HORARIO, normalizarJanela } from '@/lib/janelaAgendamento'
+import { CalendarClock } from 'lucide-react'
 
 interface Props {
   params: Promise<{ escola: string }>
@@ -23,7 +25,7 @@ export default async function EscolaAgendarPage({ params, searchParams }: Props)
   const [creditsResult, studentResult, autoescolaResult] = await Promise.all([
     supabase.from('student_credits').select('*').eq('student_id', studentId).single(),
     supabase.from('students').select('phone').eq('id', studentId).single(),
-    supabase.from('autoescolas').select('id, nome, logo_url, reagendamento_min_horas').eq('slug', escola).single(),
+    supabase.from('autoescolas').select('id, nome, logo_url, reagendamento_min_horas, janela_agendamento').eq('slug', escola).single(),
   ])
 
   let rescheduleOldCategory: "CARRO" | "MOTO" | undefined = undefined;
@@ -52,6 +54,20 @@ export default async function EscolaAgendarPage({ params, searchParams }: Props)
 
   if (!creditsResult.data) redirect(`/${escola}/aluno`)
   if (!autoescolaResult.data) redirect('/')
+
+  if (!janelaAbertaAgora(normalizarJanela(autoescolaResult.data.janela_agendamento))) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center p-6">
+        <div className="max-w-sm text-center space-y-3">
+          <div className="w-14 h-14 mx-auto rounded-full bg-amber-500/10 flex items-center justify-center">
+            <CalendarClock className="w-7 h-7 text-amber-500" />
+          </div>
+          <h1 className="text-lg font-bold">Agendamento indisponível</h1>
+          <p className="text-sm opacity-70">{MSG_FORA_DO_HORARIO}</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <AgendamentoFlow

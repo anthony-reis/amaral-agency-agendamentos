@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { motion } from 'framer-motion'
-import { X, Wallet, AlertCircle, Loader2 } from 'lucide-react'
+import { X, Wallet, AlertCircle, Loader2, Paperclip } from 'lucide-react'
 import { venderCreditosAluno, type QuantidadesPorCategoria } from '../actions/alunos'
 import type { AlunoComCreditos } from '../types'
 
@@ -31,6 +31,7 @@ export function VenderCreditosModal({ autoescola_id, aluno, quantidades, onClose
   const [error, setError] = useState('')
   const [preco, setPreco] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('dinheiro')
+  const [comprovante, setComprovante] = useState<File | null>(null)
 
   const resumo = (Object.entries(quantidades) as [string, number][])
     .filter(([, qtd]) => qtd > 0)
@@ -40,8 +41,11 @@ export function VenderCreditosModal({ autoescola_id, aluno, quantidades, onClose
     const valorCentavos = precoParaCentavos(preco)
     if (valorCentavos <= 0) { setError('Informe o valor da venda.'); return }
     setError('')
+    if (comprovante && comprovante.size > 4 * 1024 * 1024) { setError('O comprovante deve ter no máximo 4 MB.'); return }
+    const fd = comprovante ? new FormData() : null
+    if (fd && comprovante) fd.append('arquivo', comprovante)
     startTransition(async () => {
-      const result = await venderCreditosAluno(aluno.id, autoescola_id, quantidades, valorCentavos, paymentMethod)
+      const result = await venderCreditosAluno(aluno.id, autoescola_id, quantidades, valorCentavos, paymentMethod, fd)
       if (!result.success) { setError(result.error); return }
       onSuccess(result.data)
     })
@@ -87,6 +91,25 @@ export function VenderCreditosModal({ autoescola_id, aluno, quantidades, onClose
               >
                 {PAYMENT_METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
               </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-[--p-text-2] mb-1.5">
+                Comprovante de pagamento <span className="text-[--p-text-3] font-normal">(opcional)</span>
+              </label>
+              {comprovante ? (
+                <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-[--p-bg-input] border border-[--p-border] text-sm text-[--p-text-1]">
+                  <Paperclip className="w-4 h-4 text-[--p-text-3] shrink-0" />
+                  <span className="truncate flex-1">{comprovante.name}</span>
+                  <button type="button" onClick={() => setComprovante(null)} className="text-[--p-text-3] hover:text-red-400" aria-label="Remover comprovante">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <label className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl border border-dashed border-[--p-border] text-sm text-[--p-text-3] hover:text-[--p-text-1] hover:bg-[--p-hover] cursor-pointer transition-colors">
+                  <Paperclip className="w-4 h-4" /> Anexar PDF ou imagem (até 4 MB)
+                  <input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" className="sr-only" onChange={(e) => setComprovante(e.target.files?.[0] ?? null)} />
+                </label>
+              )}
             </div>
           </div>
 

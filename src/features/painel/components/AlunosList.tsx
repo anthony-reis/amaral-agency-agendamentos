@@ -1,14 +1,17 @@
 'use client'
 
-import { CAMBIOS, parseCambio } from '@/lib/cambio'
-import { useState, useTransition } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { GraduationCap, Plus, Search, Download, Pencil, Trash2, X, Minus, ArrowUp, ArrowDown, ArrowUpDown, FileCheck, Check, KeyRound } from 'lucide-react'
-import { criarAluno, editarAluno, excluirAluno, ajustarCredito, contarAulasAgendadas, resetarSenhaAluno } from '../actions/alunos'
+import { useCallback, useMemo, useState, useTransition } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, Download, GraduationCap, MessageCircle, Plus, Search } from 'lucide-react'
+import { contarAulasAgendadas, excluirAluno, ajustarCredito } from '../actions/alunos'
 import { canEditPainel, type AlunoComCreditos } from '../types'
-import { formatarPrecoCentavos, type Produto } from '@/lib/loja-types'
+import type { Produto } from '@/lib/loja-types'
 import { AgendarExameModal } from './AgendarExameModal'
 import { VenderCreditosModal } from './VenderCreditosModal'
+import { AlunoDrawer } from './alunos/AlunoDrawer'
+import { ExcluirAlunoModal } from './alunos/ExcluirAlunoModal'
+import { NovoAlunoModal } from './alunos/NovoAlunoModal'
+import { CATS, creditoDaCat, formatDoc, inputCls, linkWhatsapp, totalCreditos, type Cat } from './alunos/utils'
 
 interface Props {
   alunos: AlunoComCreditos[]
@@ -22,36 +25,37 @@ interface Props {
   podeVender?: boolean
   /** Módulo "exames": botão de agendar exame. */
   examesAtivo?: boolean
-  /** Módulo "login_senha_aluno": resetar a senha do aluno no Editar. */
+  /** Módulo "login_senha_aluno": resetar a senha do aluno. */
   loginSenhaAtivo?: boolean
   /** Módulo "separar_cambio": câmbio manual/automático do aluno. */
   cambioAtivo?: boolean
+  /** Módulo "contratos": aba Contrato e selo na tabela. */
+  contratosAtivo?: boolean
+  /** Situação do contrato por aluno (só com o módulo ligado). */
+  contratoStatusInicial?: Record<string, 'pendente' | 'assinado'>
 }
 
-const PAYMENT_METHODS = [
-  { value: 'dinheiro', label: 'Dinheiro' },
-  { value: 'pix', label: 'Pix' },
-  { value: 'cartao', label: 'Cartão' },
-  { value: 'outro', label: 'Outro' },
+type Filtro = 'todos' | 'com' | 'sem'
+type SortCol = 'nome' | 'cadastro' | 'total' | Cat
+
+function CabecalhoOrdenavel({ label, ativo, dir, onClick, centro }: { label: string; ativo: boolean; dir: 'asc' | 'desc'; onClick: () => void; centro?: boolean }) {
+  const Icon = !ativo ? ArrowUpDown : dir === 'asc' ? ArrowUp : ArrowDown
+  return (
+    <button
+      onClick={onClick}
+      className={`inline-flex items-center gap-1 text-xs font-semibold uppercase transition-colors ${centro ? 'mx-auto' : ''} ${ativo ? 'text-[#0ea5e9]' : 'text-[--p-text-3] hover:text-[--p-text-2]'}`}
+    >
+      {label}
+      <Icon className={`w-3 h-3 ${ativo ? '' : 'opacity-40'}`} />
+    </button>
+  )
+}
+
+const FILTROS: { id: Filtro; label: string }[] = [
+  { id: 'todos', label: 'Todos' },
+  { id: 'com', label: 'Com créditos' },
+  { id: 'sem', label: 'Sem créditos' },
 ]
-
-const CATS = ['a', 'b', 'c', 'd', 'e'] as const
-type Cat = typeof CATS[number]
-
-function totalCreditos(a: AlunoComCreditos) {
-  if (!a.creditos) return 0
-  return CATS.reduce((sum, c) => sum + (a.creditos![`aulas_cat_${c}` as keyof typeof a.creditos] as number ?? 0), 0)
-}
-
-function formatDoc(doc: string) {
-  if (doc.length === 11) {
-    return doc.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
-  }
-  return doc
-}
-
-type SortCol = 'a' | 'b' | 'c' | 'd' | 'e' | 'total' | null
-type SortDir = 'asc' | 'desc'
 
 export function AlunosList({
   alunos: initial,
@@ -64,193 +68,120 @@ export function AlunosList({
   examesAtivo = false,
   loginSenhaAtivo = false,
   cambioAtivo = false,
+  contratosAtivo = false,
+  contratoStatusInicial = {},
 }: Props) {
   const canEdit = canEditPainel(userRole)
   const [alunos, setAlunos] = useState<AlunoComCreditos[]>(initial)
-  const [search, setSearch] = useState('')
   const [isPending, startTransition] = useTransition()
-  const [sortCol, setSortCol] = useState<SortCol>(null)
-  const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [contratoStatus, setContratoStatus] = useState(contratoStatusInicial)
 
-  // Modal state
+  const [busca, setBusca] = useState('')
+  const [filtro, setFiltro] = useState<Filtro>('todos')
+  const [sort, setSort] = useState<{ col: SortCol; dir: 'asc' | 'desc' }>({ col: 'nome', dir: 'asc' })
+  const [abaInicial, setAbaInicial] = useState<'creditos' | 'dados'>('creditos')
+
+  const [abertoId, setAbertoId] = useState<string | null>(null)
   const [modalNovo, setModalNovo] = useState(false)
-  const [modalEditar, setModalEditar] = useState<AlunoComCreditos | null>(null)
-  const [formData, setFormData] = useState({ name: '', document_id: '', phone: '', email: '', cambio: '' })
-  const [formError, setFormError] = useState('')
-  const [vendaTipo, setVendaTipo] = useState<'nenhuma' | 'plano' | 'avulsa'>('nenhuma')
-  const [vendaProdutoId, setVendaProdutoId] = useState('')
-  const [vendaQuantidade, setVendaQuantidade] = useState('1')
-  const [vendaPaymentMethod, setVendaPaymentMethod] = useState('dinheiro')
-
-  const planos = produtos.filter((p) => p.tipo === 'pacote' && p.ativo)
-  const avulsas = produtos.filter((p) => p.tipo === 'avulsa' && p.ativo)
   const [modalExcluir, setModalExcluir] = useState<{ aluno: AlunoComCreditos; aulasCount: number } | null>(null)
-  const [isLoadingCount, setIsLoadingCount] = useState(false)
-  const [examModalAluno, setExamModalAluno] = useState<AlunoComCreditos | null>(null)
+  const [carregandoExclusao, setCarregandoExclusao] = useState(false)
+  const [examAlunoId, setExamAlunoId] = useState<string | null>(null)
+  const [vendaAlunoId, setVendaAlunoId] = useState<string | null>(null)
+  // "+" com módulo de vendas fica pendente até registrar a venda (valor + pagamento)
   const [pendingAdd, setPendingAdd] = useState<Record<string, Partial<Record<Cat, number>>>>({})
-  const [vendaModalAluno, setVendaModalAluno] = useState<AlunoComCreditos | null>(null)
-  const [confirmarResetSenha, setConfirmarResetSenha] = useState(false)
-  const [resetSenhaOk, setResetSenhaOk] = useState(false)
 
-  function handleSort(col: SortCol) {
-    if (sortCol === col) {
-      setSortDir((d) => d === 'desc' ? 'asc' : 'desc')
-    } else {
-      setSortCol(col)
-      setSortDir('desc')
-    }
+  function alternarOrdem(col: SortCol) {
+    setSort((s) => s.col === col
+      ? { col, dir: s.dir === 'asc' ? 'desc' : 'asc' }
+      : { col, dir: col === 'nome' ? 'asc' : 'desc' })
   }
 
-  const filtered = alunos
-    .filter((a) => {
-      if (!search) return true
-      const s = search.toLowerCase()
-      const stripped = search.replace(/\D/g, '')
-      return (
-        a.name.toLowerCase().includes(s) ||
-        (stripped.length > 0 && a.document_id.includes(stripped)) ||
-        (a.phone ?? '').includes(search)
-      )
-    })
-    .sort((a, b) => {
-      if (!sortCol) return 0
-      const getVal = (x: AlunoComCreditos) =>
-        sortCol === 'total' ? totalCreditos(x)
-          : x.creditos ? (x.creditos[`aulas_cat_${sortCol}` as keyof typeof x.creditos] as number ?? 0) : 0
-      const diff = getVal(a) - getVal(b)
-      return sortDir === 'desc' ? -diff : diff
-    })
-
-  const totalCreditosGeral = alunos.reduce((sum, a) => sum + totalCreditos(a), 0)
-  const media = alunos.length > 0 ? (totalCreditosGeral / alunos.length).toFixed(1) : '0'
-
-  function openNovo() {
-    setFormData({ name: '', document_id: '', phone: '', email: '', cambio: '' })
-    setFormError('')
-    setVendaTipo('nenhuma')
-    setVendaProdutoId('')
-    setVendaQuantidade('1')
-    setVendaPaymentMethod('dinheiro')
-    setModalNovo(true)
+  function abrirAluno(id: string, aba: 'creditos' | 'dados' = 'dados') {
+    setAbaInicial(aba)
+    setAbertoId(id)
   }
 
-  function openEditar(a: AlunoComCreditos) {
-    setFormData({ name: a.name, document_id: a.document_id, phone: a.phone ?? '', email: a.email ?? '', cambio: a.cambio ?? '' })
-    setFormError('')
-    setConfirmarResetSenha(false)
-    setResetSenhaOk(false)
-    setModalEditar(a)
-  }
+  const podeAdicionar = !vendasAtivo || podeVender
+  const aberto = alunos.find((a) => a.id === abertoId) ?? null
+  const examAluno = alunos.find((a) => a.id === examAlunoId) ?? null
+  const vendaAluno = alunos.find((a) => a.id === vendaAlunoId) ?? null
+  const fecharDrawer = useCallback(() => setAbertoId(null), [])
 
-  function handleResetarSenha() {
-    if (!modalEditar) return
-    const id = modalEditar.id
-    setFormError('')
+  const resumo = useMemo(() => {
+    const total = alunos.reduce((s, a) => s + totalCreditos(a), 0)
+    const sem = alunos.filter((a) => totalCreditos(a) === 0).length
+    return { total, sem }
+  }, [alunos])
+
+  const filtrados = useMemo(() => {
+    const s = busca.trim().toLowerCase()
+    const digitos = busca.replace(/\D/g, '')
+    return alunos
+      .filter((a) => {
+        if (filtro === 'com' && totalCreditos(a) === 0) return false
+        if (filtro === 'sem' && totalCreditos(a) > 0) return false
+        if (!s) return true
+        return (
+          a.name.toLowerCase().includes(s) ||
+          (digitos.length > 0 && (a.document_id.includes(digitos) || (a.phone ?? '').replace(/\D/g, '').includes(digitos))) ||
+          (a.email ?? '').toLowerCase().includes(s)
+        )
+      })
+      .sort((a, b) => {
+        const valor = (x: AlunoComCreditos) =>
+          sort.col === 'total' ? totalCreditos(x) : sort.col === 'cadastro' ? x.created_at : sort.col === 'nome' ? x.name : creditoDaCat(x, sort.col)
+        const va = valor(a), vb = valor(b)
+        const diff = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb), 'pt-BR')
+        return sort.dir === 'asc' ? diff : -diff
+      })
+  }, [alunos, busca, filtro, sort])
+
+  const atualizarAluno = useCallback((id: string, patch: Partial<AlunoComCreditos>) => {
+    setAlunos((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch } : a)))
+  }, [])
+
+  // ── Créditos ───────────────────────────────────────────────────────────────
+  function handleAjustar(aluno: AlunoComCreditos, cat: Cat, delta: number) {
     startTransition(async () => {
-      const result = await resetarSenhaAluno(id, autoescola_id)
-      setConfirmarResetSenha(false)
-      if (!result.success) { setFormError(result.error); return }
-      setResetSenhaOk(true)
-      setAlunos((prev) => prev.map((a) => (a.id === id ? { ...a, tem_senha: false } : a)))
-      setModalEditar((m) => (m ? { ...m, tem_senha: false } : m))
+      const result = await ajustarCredito(aluno.id, cat, delta, autoescola_id)
+      if (result.success) atualizarAluno(aluno.id, { creditos: result.data })
     })
   }
 
-  function handleCriar(e: React.FormEvent) {
-    e.preventDefault()
-    setFormError('')
-    const venda = vendaTipo !== 'nenhuma' && vendaProdutoId
-      ? {
-          produto_id: vendaProdutoId,
-          quantidade: vendaTipo === 'avulsa' ? Math.max(1, Number(vendaQuantidade) || 1) : 1,
-          payment_method: vendaPaymentMethod,
-        }
-      : undefined
-    startTransition(async () => {
-      const result = await criarAluno({ ...formData, autoescola_id }, venda)
-      if (!result.success) { setFormError(result.error); return }
-      setAlunos((prev) => [result.data, ...prev])
-      setModalNovo(false)
+  // Variação em edição por categoria (+4 / -4). Nada é salvo até confirmar.
+  // Não deixa o saldo ficar negativo; 0, vazio ou inválido limpa.
+  function handleDefinir(aluno: AlunoComCreditos, cat: Cat, qtd: number) {
+    const n = Number.isFinite(qtd) ? Math.trunc(qtd) : 0
+    const valido = Math.min(1000, Math.max(-creditoDaCat(aluno, cat), n))
+    setPendingAdd((prev) => {
+      const next = { ...prev[aluno.id] }
+      if (valido !== 0) next[cat] = valido
+      else delete next[cat]
+      const { [aluno.id]: _, ...resto } = prev
+      return Object.keys(next).length ? { ...resto, [aluno.id]: next } : resto
     })
   }
 
-  function handleEditar(e: React.FormEvent) {
-    e.preventDefault()
-    if (!modalEditar) return
-    setFormError('')
+  // Remoções são correção e salvam direto. Adições com o módulo de vendas
+  // seguem para o registro da venda (valor, pagamento, comprovante).
+  function confirmarPendente(aluno: AlunoComCreditos) {
+    const faltam: Partial<Record<Cat, number>> = { ...pendingAdd[aluno.id] }
     startTransition(async () => {
-      const result = await editarAluno(modalEditar.id, {
-        name: formData.name,
-        phone: formData.phone,
-        email: formData.email,
-        ...(cambioAtivo && { cambio: formData.cambio }),
-      }, autoescola_id)
-      if (!result.success) { setFormError(result.error); return }
-      setAlunos((prev) => prev.map((a) =>
-        a.id === modalEditar.id
-          ? { ...a, name: formData.name, phone: formData.phone || null, email: formData.email || null, ...(cambioAtivo && { cambio: parseCambio(formData.cambio) }) }
-          : a
-      ))
-      setModalEditar(null)
-    })
-  }
-
-  async function handleAbrirExcluir(aluno: AlunoComCreditos) {
-    setIsLoadingCount(true)
-    const count = await contarAulasAgendadas(aluno.id, autoescola_id)
-    setIsLoadingCount(false)
-    setModalExcluir({ aluno, aulasCount: count })
-  }
-
-  function handleConfirmarExcluir() {
-    if (!modalExcluir) return
-    const id = modalExcluir.aluno.id
-    setModalExcluir(null)
-    startTransition(async () => {
-      const result = await excluirAluno(id, autoescola_id)
-      if (result.success) setAlunos((prev) => prev.filter((a) => a.id !== id))
-    })
-  }
-
-  function handleAjustar(alunoId: string, studentCreditId: string, cat: Cat, delta: 1 | -1) {
-    startTransition(async () => {
-      const result = await ajustarCredito(alunoId, cat, delta, autoescola_id)
-      if (result.success) {
-        setAlunos((prev) => prev.map((a) =>
-          a.id === alunoId ? { ...a, creditos: result.data } : a
-        ))
+      for (const cat of CATS) {
+        const n = faltam[cat] ?? 0
+        if (n === 0 || (n > 0 && vendasAtivo)) continue
+        const result = await ajustarCredito(aluno.id, cat, n, autoescola_id)
+        if (!result.success) { setPendingAdd((prev) => ({ ...prev, [aluno.id]: faltam })); return }
+        atualizarAluno(aluno.id, { creditos: result.data })
+        delete faltam[cat]
+      }
+      if (Object.keys(faltam).length > 0) {
+        setPendingAdd((prev) => ({ ...prev, [aluno.id]: faltam }))
+        setVendaAlunoId(aluno.id)
+      } else {
+        cancelarPendente(aluno.id)
       }
     })
-  }
-
-  // Adicionar crédito é sempre uma venda — fica pendente na tela até "Salvar
-  // alterações" registrar o valor e a forma de pagamento. Remover crédito
-  // continua salvando na hora (correção/estorno, não é venda nova).
-  function handleMais(alunoId: string, cat: Cat) {
-    if (!vendasAtivo) {
-      // Sem o módulo de vendas, "+" ajusta o crédito na hora (fluxo original).
-      const aluno = alunos.find((a) => a.id === alunoId)
-      if (aluno?.creditos) handleAjustar(alunoId, aluno.creditos.id, cat, 1)
-      return
-    }
-    setPendingAdd((prev) => ({
-      ...prev,
-      [alunoId]: { ...prev[alunoId], [cat]: (prev[alunoId]?.[cat] ?? 0) + 1 },
-    }))
-  }
-
-  function handleMenos(aluno: AlunoComCreditos, cat: Cat) {
-    const pendente = pendingAdd[aluno.id]?.[cat] ?? 0
-    if (pendente > 0) {
-      // Desfaz um clique de "+" ainda não salvo, sem chamar o servidor.
-      setPendingAdd((prev) => {
-        const next = { ...prev[aluno.id], [cat]: pendente - 1 }
-        if (next[cat] === 0) delete next[cat]
-        return { ...prev, [aluno.id]: next }
-      })
-      return
-    }
-    if (aluno.creditos) handleAjustar(aluno.id, aluno.creditos.id, cat, -1)
   }
 
   function cancelarPendente(alunoId: string) {
@@ -261,26 +192,41 @@ export function AlunosList({
     })
   }
 
-  function handleExportCSV() {
-    const header = 'Nome,CPF/CNH,Telefone,Email,Cat.A,Cat.B,Cat.C,Cat.D,Cat.E,Total,Cadastro'
-    const rows = alunos.map((a) => {
-      const c = a.creditos
-      return [
-        a.name,
-        formatDoc(a.document_id),
-        a.phone ?? '',
-        a.email ?? '',
-        c?.aulas_cat_a ?? 0,
-        c?.aulas_cat_b ?? 0,
-        c?.aulas_cat_c ?? 0,
-        c?.aulas_cat_d ?? 0,
-        c?.aulas_cat_e ?? 0,
-        totalCreditos(a),
-        new Date(a.created_at).toLocaleDateString('pt-BR'),
-      ].join(',')
+  // ── Exclusão ───────────────────────────────────────────────────────────────
+  async function abrirExcluir(aluno: AlunoComCreditos) {
+    setCarregandoExclusao(true)
+    const count = await contarAulasAgendadas(aluno.id, autoescola_id)
+    setCarregandoExclusao(false)
+    setModalExcluir({ aluno, aulasCount: count })
+  }
+
+  function confirmarExcluir() {
+    if (!modalExcluir) return
+    const id = modalExcluir.aluno.id
+    startTransition(async () => {
+      const result = await excluirAluno(id, autoescola_id)
+      if (result.success) {
+        setAlunos((prev) => prev.filter((a) => a.id !== id))
+        cancelarPendente(id)
+        setAbertoId((atual) => (atual === id ? null : atual))
+      }
+      setModalExcluir(null)
     })
-    const csv = [header, ...rows].join('\n')
-    const blob = new Blob([csv], { type: 'text/csv' })
+  }
+
+  // ── CSV (respeita busca/filtro atuais) ─────────────────────────────────────
+  function exportarCSV() {
+    const header = 'Nome,CPF/CNH,Telefone,Email,Cat.A,Cat.B,Cat.C,Cat.D,Cat.E,Total,Cadastro'
+    const rows = filtrados.map((a) => [
+      a.name,
+      formatDoc(a.document_id),
+      a.phone ?? '',
+      a.email ?? '',
+      ...CATS.map((c) => creditoDaCat(a, c)),
+      totalCreditos(a),
+      new Date(a.created_at).toLocaleDateString('pt-BR'),
+    ].join(','))
+    const blob = new Blob([[header, ...rows].join('\n')], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
@@ -289,483 +235,262 @@ export function AlunosList({
     URL.revokeObjectURL(url)
   }
 
-  const inputCls = 'w-full px-3 py-2 rounded-xl bg-[--p-bg-input] border border-[--p-border] text-sm text-[--p-text-1] placeholder:text-[--p-text-3] focus:outline-none focus:ring-2 focus:ring-[#0ea5e9]/30'
-
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <GraduationCap className="w-5 h-5 text-[#0ea5e9]" />
-        <div>
-          <h1 className="text-xl font-bold text-[--p-text-1]">Gestão de Alunos</h1>
-          <p className="text-sm text-[--p-text-3]">Cadastro e controle de créditos</p>
+      {/* Cabeçalho */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <GraduationCap className="w-5 h-5 text-[#0ea5e9]" />
+          <div>
+            <h1 className="text-xl font-bold text-[--p-text-1]">Alunos</h1>
+            <p className="text-sm text-[--p-text-3]">Cadastro, créditos e acesso dos alunos</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={exportarCSV}
+            className="flex items-center gap-2 px-3.5 py-2 text-sm font-medium text-[--p-text-2] border border-[--p-border] rounded-xl hover:bg-[--p-hover] transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            <span className="hidden sm:inline">Exportar</span>
+          </button>
+          {canEdit && (
+            <button
+              onClick={() => setModalNovo(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-[#0ea5e9] text-white text-sm font-semibold rounded-xl hover:bg-[#0284c7] transition-colors shadow-sm"
+            >
+              <Plus className="w-4 h-4" />
+              Novo aluno
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      {/* Resumo */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { label: 'Total Alunos', value: alunos.length, color: 'text-[#0ea5e9]', bg: 'bg-[#0ea5e9]/10' },
-          { label: 'Total Créditos', value: totalCreditosGeral, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-          { label: 'Média por Aluno', value: media, color: 'text-purple-400', bg: 'bg-purple-500/10' },
+          { label: 'Alunos', value: alunos.length, cor: 'text-[#0ea5e9]', bg: 'bg-[#0ea5e9]/10' },
+          { label: 'Créditos no total', value: resumo.total, cor: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+          { label: 'Média por aluno', value: alunos.length ? (resumo.total / alunos.length).toFixed(1) : '0', cor: 'text-purple-500', bg: 'bg-purple-500/10' },
+          { label: 'Sem créditos', value: resumo.sem, cor: 'text-amber-500', bg: 'bg-amber-500/10' },
         ].map((s) => (
-          <div key={s.label} className={`rounded-2xl p-4 ${s.bg} border border-[--p-border]`}>
+          <div key={s.label} className={`rounded-2xl p-4 border border-[--p-border] ${s.bg}`}>
             <p className="text-xs text-[--p-text-3] mb-1">{s.label}</p>
-            <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
+            <p className={`text-2xl font-bold ${s.cor}`}>{s.value}</p>
           </div>
         ))}
       </div>
 
-      {/* Toolbar */}
+      {/* Busca, filtros e ordenação */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[200px]">
+        <div className="relative flex-1 min-w-[220px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[--p-text-3]" />
           <input
             type="text"
-            placeholder="Buscar por nome ou CPF…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por nome, CPF, telefone ou e-mail…"
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
             className={`${inputCls} pl-9`}
           />
         </div>
-        <button
-          onClick={handleExportCSV}
-          className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-[--p-text-2] border border-[--p-border] rounded-xl hover:bg-[--p-hover] transition-colors"
-        >
-          <Download className="w-4 h-4" />
-          Exportar
-        </button>
-        {canEdit && (
-          <button
-            onClick={openNovo}
-            className="flex items-center gap-2 px-4 py-2.5 bg-[#0ea5e9] text-white text-sm font-semibold rounded-xl hover:bg-[#0284c7] transition-colors shadow-sm"
-          >
-            <Plus className="w-4 h-4" />
-            Novo Aluno
-          </button>
-        )}
+        <div className="flex p-1 rounded-xl bg-[--p-bg-input] border border-[--p-border]">
+          {FILTROS.map((f) => (
+            <button
+              key={f.id}
+              onClick={() => setFiltro(f.id)}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                filtro === f.id ? 'bg-[--p-bg-card] text-[--p-text-1] shadow-sm' : 'text-[--p-text-3] hover:text-[--p-text-2]'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Table */}
-      {filtered.length === 0 ? (
+      {/* Tabela */}
+      {filtrados.length === 0 ? (
         <div className="text-center py-16 bg-[--p-bg-card] rounded-2xl border border-[--p-border]">
           <GraduationCap className="w-10 h-10 text-[--p-text-3] mx-auto mb-3" />
           <p className="text-[--p-text-2] font-medium">Nenhum aluno encontrado</p>
+          {(busca || filtro !== 'todos') && (
+            <button onClick={() => { setBusca(''); setFiltro('todos') }} className="mt-2 text-sm text-[#0ea5e9] hover:underline">
+              Limpar filtros
+            </button>
+          )}
         </div>
       ) : (
-        <div className="bg-[--p-bg-card] rounded-2xl border border-[--p-border] overflow-x-auto">
-          <table className="w-full text-sm min-w-[900px]">
-            <thead className="sticky top-0 z-10 bg-[--p-bg-card]">
-              <tr className="border-b border-[--p-border]">
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-[--p-text-3] uppercase">Nome</th>
-                <th className="text-left px-4 py-3.5 text-xs font-semibold text-[--p-text-3] uppercase">CPF/CNH</th>
-                <th className="text-left px-4 py-3.5 text-xs font-semibold text-[--p-text-3] uppercase">Telefone</th>
-                {CATS.map((c) => {
-                  const active = sortCol === c
-                  return (
-                    <th key={c} className="text-center px-2 py-3.5">
-                      <button
-                        onClick={() => handleSort(c)}
-                        className={`flex items-center gap-1 mx-auto text-xs font-semibold uppercase transition-colors ${active ? 'text-[#0ea5e9]' : 'text-[--p-text-3] hover:text-[--p-text-2]'}`}
-                      >
-                        Cat. {c.toUpperCase()}
-                        {active ? (sortDir === 'desc' ? <ArrowDown className="w-3 h-3" /> : <ArrowUp className="w-3 h-3" />) : <ArrowUpDown className="w-3 h-3 opacity-40" />}
-                      </button>
-                    </th>
-                  )
-                })}
-                <th className="text-center px-3 py-3.5">
-                  <button
-                    onClick={() => handleSort('total')}
-                    className={`flex items-center gap-1 mx-auto text-xs font-semibold uppercase transition-colors ${sortCol === 'total' ? 'text-[#0ea5e9]' : 'text-[--p-text-3] hover:text-[--p-text-2]'}`}
-                  >
-                    Total
-                    {sortCol === 'total' ? (sortDir === 'desc' ? <ArrowDown className="w-3 h-3" /> : <ArrowUp className="w-3 h-3" />) : <ArrowUpDown className="w-3 h-3 opacity-40" />}
-                  </button>
+        <div className="bg-[--p-bg-card] rounded-2xl border border-[--p-border] overflow-auto max-h-[calc(100vh-22rem)] min-h-[320px]">
+          <table className="w-full text-sm min-w-[960px] border-separate border-spacing-0">
+            <thead className="sticky top-0 z-10">
+              <tr>
+                {([
+                  { col: 'nome', label: 'Nome', align: 'text-left px-4' },
+                ] as { col: SortCol; label: string; align: string }[]).map((h) => (
+                  <th key={h.col} className={`${h.align} py-3 bg-[--p-bg-card] border-b border-[--p-border]`}>
+                    <CabecalhoOrdenavel label={h.label} ativo={sort.col === h.col} dir={sort.dir} onClick={() => alternarOrdem(h.col)} />
+                  </th>
+                ))}
+                <th className="text-left px-4 py-3 bg-[--p-bg-card] border-b border-[--p-border] text-xs font-semibold uppercase text-[--p-text-3]">CPF/CNH</th>
+                <th className="text-left px-4 py-3 bg-[--p-bg-card] border-b border-[--p-border] text-xs font-semibold uppercase text-[--p-text-3]">Telefone</th>
+                {CATS.map((c) => (
+                  <th key={c} className="px-2 py-3 bg-[--p-bg-card] border-b border-[--p-border] text-center">
+                    <CabecalhoOrdenavel centro label={`Cat. ${c.toUpperCase()}`} ativo={sort.col === c} dir={sort.dir} onClick={() => alternarOrdem(c)} />
+                  </th>
+                ))}
+                <th className="px-3 py-3 bg-[--p-bg-card] border-b border-[--p-border] text-center">
+                  <CabecalhoOrdenavel centro label="Total" ativo={sort.col === 'total'} dir={sort.dir} onClick={() => alternarOrdem('total')} />
                 </th>
-                <th className="px-4 py-3.5 w-20" />
+                <th className="px-3 py-3 bg-[--p-bg-card] border-b border-[--p-border] text-left">
+                  <CabecalhoOrdenavel label="Cadastro" ativo={sort.col === 'cadastro'} dir={sort.dir} onClick={() => alternarOrdem('cadastro')} />
+                </th>
+                <th className="px-3 py-3 bg-[--p-bg-card] border-b border-[--p-border] w-28" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-[--p-border]">
-              {filtered.map((a) => (
-                <motion.tr
-                  key={a.id}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="hover:bg-[--p-hover] transition-colors"
-                >
-                  <td className="px-5 py-3.5">
-                    <div>
-                      <p className="font-semibold text-[--p-text-1] truncate max-w-[180px]">{a.name}</p>
-                      <p className="text-xs text-[--p-text-3]">{new Date(a.created_at).toLocaleDateString('pt-BR')}</p>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3.5 font-mono text-xs text-[--p-text-2]">{formatDoc(a.document_id)}</td>
-                  <td className="px-4 py-3.5 text-[--p-text-2]">
-                    {a.phone ? (
-                      <div className="flex items-center gap-2">
-                        <span>{a.phone}</span>
-                        <a
-                          href={`https://wa.me/55${a.phone.replace(/\D/g, '')}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          title="Abrir no WhatsApp"
-                          className="shrink-0 text-emerald-500 hover:text-emerald-400 transition-colors"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-                          </svg>
-                        </a>
-                      </div>
-                    ) : '—'}
-                  </td>
-                  {CATS.map((c) => {
-                    const val = a.creditos ? (a.creditos[`aulas_cat_${c}` as keyof typeof a.creditos] as number ?? 0) : 0
-                    const pendente = pendingAdd[a.id]?.[c] ?? 0
-                    return (
-                      <td key={c} className="px-2 py-3.5 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          {canEdit && (
-                            <button
-                              onClick={() => handleMenos(a, c)}
-                              disabled={isPending || !a.creditos || (val === 0 && pendente === 0)}
-                              className="w-5 h-5 flex items-center justify-center rounded text-red-400 hover:bg-red-500/10 disabled:opacity-30 transition-colors"
-                            >
-                              <Minus className="w-3 h-3" />
-                            </button>
-                          )}
-                          <span className={`text-center font-semibold text-sm ${val > 0 ? 'text-[--p-text-1]' : 'text-[--p-text-3]'}`}>
-                            {val}
-                            {pendente > 0 && <span className="text-emerald-500">+{pendente}</span>}
+            <tbody>
+              {filtrados.map((a, i) => {
+                const pendAluno = pendingAdd[a.id] ?? {}
+                const temPend = Object.values(pendAluno).some((n) => (n ?? 0) !== 0)
+                const temVendaPend = vendasAtivo && Object.values(pendAluno).some((n) => (n ?? 0) > 0)
+                const linha = 'border-b border-[--p-border]'
+                return (
+                  <tr key={a.id} onClick={() => abrirAluno(a.id, 'creditos')} className={`group cursor-pointer ${i % 2 ? 'bg-[--p-bg-input]/40' : ''} hover:bg-[--p-hover] transition-colors`}>
+                    <td className={`${linha} px-4 py-2.5`}>
+                      <button className="text-left font-semibold text-[--p-text-1] hover:text-[#0ea5e9] truncate max-w-[220px] block transition-colors">
+                        {a.name}
+                      </button>
+                      {contratosAtivo && contratoStatus[a.id] && (
+                        <span className={`mt-0.5 inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                          contratoStatus[a.id] === 'assinado' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'
+                        }`}>
+                          {contratoStatus[a.id] === 'assinado' ? 'Contrato assinado' : 'Contrato pendente'}
+                        </span>
+                      )}
+                    </td>
+                    <td className={`${linha} px-4 py-2.5 font-mono text-xs text-[--p-text-2] whitespace-nowrap`}>{formatDoc(a.document_id)}</td>
+                    <td className={`${linha} px-4 py-2.5 text-[--p-text-2] whitespace-nowrap`}>
+                      {a.phone ? (
+                        <span className="inline-flex items-center gap-2">
+                          {a.phone}
+                          <a onClick={(e) => e.stopPropagation()} href={linkWhatsapp(a.phone)} target="_blank" rel="noopener noreferrer" title="Abrir no WhatsApp" className="text-emerald-500 hover:text-emerald-400">
+                            <MessageCircle className="w-4 h-4" />
+                          </a>
+                        </span>
+                      ) : <span className="text-[--p-text-3]">—</span>}
+                    </td>
+                    {CATS.map((c) => {
+                      const val = creditoDaCat(a, c)
+                      const pend = pendAluno[c] ?? 0
+                      return (
+                        <td key={c} className={`${linha} px-2 py-2.5 text-center`}>
+                          <span className={`font-semibold tabular-nums ${val > 0 ? 'text-[--p-text-1]' : 'text-[--p-text-3]'}`}>
+                            {val}{pend !== 0 && <span className={pend > 0 ? 'text-emerald-500' : 'text-red-400'}>{pend > 0 ? `+${pend}` : pend}</span>}
                           </span>
-                          {canEdit && (!vendasAtivo || podeVender) && (
-                            <button
-                              onClick={() => handleMais(a.id, c)}
-                              disabled={isPending || !a.creditos}
-                              className="w-5 h-5 flex items-center justify-center rounded text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-30 transition-colors"
-                            >
-                              <Plus className="w-3 h-3" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    )
-                  })}
-                  <td className="px-3 py-3.5 text-center">
-                    <span className="font-bold text-[#0ea5e9]">{totalCreditos(a)}</span>
-                  </td>
-                  <td className="px-4 py-3.5">
-                    {canEdit && (
-                      <div className="flex items-center gap-1 justify-end">
-                        {pendingAdd[a.id] && Object.keys(pendingAdd[a.id]).length > 0 && (
-                          <>
-                            <button
-                              onClick={() => setVendaModalAluno(a)}
-                              title="Salvar alterações (registrar venda)"
-                              className="p-1.5 rounded-lg text-emerald-500 hover:bg-emerald-500/10 transition-colors"
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => cancelarPendente(a.id)}
-                              title="Cancelar alterações"
-                              className="p-1.5 rounded-lg text-[--p-text-3] hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          </>
-                        )}
-                        {examesAtivo && (
-                          <button
-                            onClick={() => setExamModalAluno(a)}
-                            className="p-1.5 rounded-lg text-[--p-text-3] hover:text-amber-500 hover:bg-amber-500/10 transition-colors"
-                            title="Agendar exame"
-                          >
-                            <FileCheck className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                        <button
-                          onClick={() => openEditar(a)}
-                          className="p-1.5 rounded-lg text-[--p-text-3] hover:text-[#0ea5e9] hover:bg-[#0ea5e9]/10 transition-colors"
-                          title="Editar"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => handleAbrirExcluir(a)}
-                          disabled={isPending || isLoadingCount}
-                          className="p-1.5 rounded-lg text-[--p-text-3] hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-30"
-                          title="Excluir"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                </motion.tr>
-              ))}
+                        </td>
+                      )
+                    })}
+                    <td className={`${linha} px-3 py-2.5 text-center font-bold tabular-nums text-[#0ea5e9]`}>{totalCreditos(a)}</td>
+                    <td className={`${linha} px-3 py-2.5 text-xs text-[--p-text-3] whitespace-nowrap`}>{new Date(a.created_at).toLocaleDateString('pt-BR')}</td>
+                    <td className={`${linha} px-3 py-2.5 text-right`}>
+                      <button
+                        onClick={() => abrirAluno(a.id, 'creditos')}
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors ${
+                          temPend ? 'bg-emerald-500/15 text-emerald-500 hover:bg-emerald-500/25' : 'text-[--p-text-2] hover:text-[#0ea5e9] hover:bg-[#0ea5e9]/10'
+                        }`}
+                      >
+                        {temPend ? (temVendaPend ? 'Registrar venda' : 'Salvar') : 'Abrir'} <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
       )}
+      <p className="text-xs text-[--p-text-3]">{filtrados.length} de {alunos.length} alunos · clique numa linha para abrir o painel do aluno</p>
 
-      {/* Modal Novo / Editar */}
+      {/* Painel do aluno */}
+      <AlunoDrawer
+        aluno={aberto}
+        abaInicial={abaInicial}
+        autoescola_id={autoescola_id}
+        canEdit={canEdit}
+        podeAdicionar={podeAdicionar}
+        vendasAtivo={vendasAtivo}
+        examesAtivo={examesAtivo}
+        loginSenhaAtivo={loginSenhaAtivo}
+        cambioAtivo={cambioAtivo}
+        contratosAtivo={contratosAtivo}
+        escola={escola}
+        onContratoStatus={(st) => aberto && setContratoStatus((prev) => {
+          const { [aberto.id]: _, ...resto } = prev
+          return st ? { ...resto, [aberto.id]: st } : resto
+        })}
+        pendente={aberto ? pendingAdd[aberto.id] ?? {} : {}}
+        ocupado={isPending || carregandoExclusao}
+        onFechar={fecharDrawer}
+        onDefinir={(c, n) => aberto && handleDefinir(aberto, c, n)}
+        onDescartarPendente={() => aberto && cancelarPendente(aberto.id)}
+        onConfirmarPendente={() => aberto && confirmarPendente(aberto)}
+        onAgendarExame={() => aberto && setExamAlunoId(aberto.id)}
+        onExcluir={() => aberto && abrirExcluir(aberto)}
+        onAtualizado={(patch) => aberto && atualizarAluno(aberto.id, patch)}
+      />
+
+      {/* Modais */}
       <AnimatePresence>
-        {(modalNovo || modalEditar) && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/60 z-40"
-              onClick={() => { setModalNovo(false); setModalEditar(null) }}
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-              className="fixed inset-0 flex items-center justify-center z-50 p-4"
-            >
-              <form
-                onSubmit={modalEditar ? handleEditar : handleCriar}
-                className="bg-[--p-bg-card] rounded-2xl border border-[--p-border] p-6 w-full max-w-md shadow-2xl space-y-4"
-              >
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-[--p-text-1]">
-                    {modalEditar ? 'Editar Aluno' : 'Novo Aluno'}
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={() => { setModalNovo(false); setModalEditar(null) }}
-                    className="p-1.5 rounded-lg text-[--p-text-3] hover:text-[--p-text-1] hover:bg-[--p-hover]"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-medium text-[--p-text-2] mb-1">Nome completo *</label>
-                    <input required value={formData.name} onChange={(e) => setFormData((p) => ({ ...p, name: e.target.value }))} className={inputCls} placeholder="Nome do aluno" />
-                  </div>
-                  {!modalEditar && (
-                    <div>
-                      <label className="block text-xs font-medium text-[--p-text-2] mb-1">CPF/CNH *</label>
-                      <input required value={formData.document_id} onChange={(e) => setFormData((p) => ({ ...p, document_id: e.target.value }))} className={inputCls} placeholder="Somente números" />
-                    </div>
-                  )}
-                  <div>
-                    <label className="block text-xs font-medium text-[--p-text-2] mb-1">Telefone</label>
-                    <input value={formData.phone} onChange={(e) => setFormData((p) => ({ ...p, phone: e.target.value }))} className={inputCls} placeholder="(38) 99999-0000" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-[--p-text-2] mb-1">E-mail</label>
-                    <input type="email" value={formData.email} onChange={(e) => setFormData((p) => ({ ...p, email: e.target.value }))} className={inputCls} placeholder="email@exemplo.com" />
-                  </div>
-
-                  {cambioAtivo && (
-                    <div>
-                      <label className="block text-xs font-medium text-[--p-text-2] mb-1">Câmbio do carro</label>
-                      <select value={formData.cambio} onChange={(e) => setFormData((p) => ({ ...p, cambio: e.target.value }))} className={inputCls}>
-                        <option value="">Sem restrição (vê todos os instrutores)</option>
-                        {CAMBIOS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-                      </select>
-                    </div>
-                  )}
-
-                  {!modalEditar && (planos.length > 0 || avulsas.length > 0) && (
-                    <div className="pt-2 border-t border-[--p-border] space-y-3">
-                      <label className="block text-xs font-medium text-[--p-text-2]">Venda (opcional)</label>
-                      <select
-                        value={vendaTipo}
-                        onChange={(e) => { setVendaTipo(e.target.value as typeof vendaTipo); setVendaProdutoId('') }}
-                        className={inputCls}
-                      >
-                        <option value="nenhuma">Sem venda</option>
-                        {planos.length > 0 && <option value="plano">Plano</option>}
-                        {avulsas.length > 0 && <option value="avulsa">Aulas avulsas</option>}
-                      </select>
-
-                      {vendaTipo === 'plano' && (
-                        <select value={vendaProdutoId} onChange={(e) => setVendaProdutoId(e.target.value)} className={inputCls} required>
-                          <option value="">Selecione o plano…</option>
-                          {planos.map((p) => (
-                            <option key={p.id} value={p.id}>{p.nome} — {formatarPrecoCentavos(p.preco_centavos)}</option>
-                          ))}
-                        </select>
-                      )}
-
-                      {vendaTipo === 'avulsa' && (
-                        <div className="flex gap-2">
-                          <select value={vendaProdutoId} onChange={(e) => setVendaProdutoId(e.target.value)} className={`${inputCls} flex-1`} required>
-                            <option value="">Selecione a aula avulsa…</option>
-                            {avulsas.map((p) => (
-                              <option key={p.id} value={p.id}>{p.nome} — {formatarPrecoCentavos(p.preco_centavos)}</option>
-                            ))}
-                          </select>
-                          <input
-                            type="number"
-                            min={1}
-                            value={vendaQuantidade}
-                            onChange={(e) => setVendaQuantidade(e.target.value)}
-                            className={`${inputCls} w-20`}
-                            title="Quantidade"
-                          />
-                        </div>
-                      )}
-
-                      {vendaTipo !== 'nenhuma' && (
-                        <select value={vendaPaymentMethod} onChange={(e) => setVendaPaymentMethod(e.target.value)} className={inputCls}>
-                          {PAYMENT_METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-                        </select>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {modalEditar && loginSenhaAtivo && (
-                  <div className="pt-3 border-t border-[--p-border] space-y-2">
-                    <div className="flex items-center gap-2">
-                      <KeyRound className="w-3.5 h-3.5 text-[--p-text-3]" />
-                      <span className="text-xs font-medium text-[--p-text-2]">Senha do app do aluno</span>
-                    </div>
-                    {resetSenhaOk ? (
-                      <p className="text-xs text-emerald-500">
-                        Senha resetada. No próximo acesso, o aluno informa o CPF e cria uma nova senha.
-                      </p>
-                    ) : !modalEditar.tem_senha ? (
-                      <p className="text-xs text-[--p-text-3]">
-                        O aluno ainda não criou senha — ele cria no próximo acesso, após o CPF.
-                      </p>
-                    ) : confirmarResetSenha ? (
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-xs text-[--p-text-2]">Apagar a senha atual do aluno?</span>
-                        <button type="button" onClick={handleResetarSenha} disabled={isPending} className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50">
-                          {isPending ? 'Resetando…' : 'Sim, resetar'}
-                        </button>
-                        <button type="button" onClick={() => setConfirmarResetSenha(false)} className="px-3 py-1.5 text-xs text-[--p-text-2] hover:text-[--p-text-1]">
-                          Cancelar
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="text-xs text-[--p-text-3]">Esqueceu a senha? Resete e ele cria uma nova no próximo acesso.</p>
-                        <button type="button" onClick={() => setConfirmarResetSenha(true)} className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-amber-500/40 text-amber-500 hover:bg-amber-500/10">
-                          Resetar senha
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {formError && <p className="text-sm text-red-400">{formError}</p>}
-
-                <div className="flex gap-2 justify-end pt-2">
-                  <button type="button" onClick={() => { setModalNovo(false); setModalEditar(null) }} className="px-4 py-2 text-sm text-[--p-text-2] hover:text-[--p-text-1]">
-                    Cancelar
-                  </button>
-                  <button type="submit" disabled={isPending} className="px-4 py-2 bg-[#0ea5e9] text-white text-sm font-semibold rounded-xl hover:bg-[#0284c7] disabled:opacity-50">
-                    {isPending ? 'Salvando…' : (modalEditar ? 'Salvar' : 'Criar')}
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
-      {/* Modal de confirmação de exclusão */}
-      <AnimatePresence>
-        {modalExcluir && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/70 z-40"
-              onClick={() => setModalExcluir(null)}
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 8 }}
-              transition={{ duration: 0.15 }}
-              className="fixed inset-0 flex items-center justify-center z-50 p-4"
-            >
-              <div className="bg-[--p-bg-card] rounded-2xl border border-[--p-border] p-6 w-full max-w-sm shadow-2xl">
-                <div className="flex items-start gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center shrink-0">
-                    <Trash2 className="w-5 h-5 text-red-400" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-[--p-text-1] text-base">Excluir Aluno</h3>
-                    <p className="text-xs text-[--p-text-3] mt-0.5">
-                      Esta ação não pode ser desfeita.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="bg-[--p-bg-base] rounded-xl border border-[--p-border] p-3 mb-4">
-                  <p className="font-semibold text-[--p-text-1] text-sm uppercase">{modalExcluir.aluno.name}</p>
-                  <p className="text-xs text-[--p-text-3] mt-0.5">CPF/CNH: {formatDoc(modalExcluir.aluno.document_id)}</p>
-                </div>
-
-                {modalExcluir.aulasCount > 0 && (
-                  <div className="flex items-start gap-2 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2.5 mb-4">
-                    <span className="text-amber-400 text-base shrink-0">⚠</span>
-                    <p className="text-xs text-amber-300">
-                      Este aluno possui{' '}
-                      <span className="font-bold">{modalExcluir.aulasCount} {modalExcluir.aulasCount === 1 ? 'aula agendada' : 'aulas agendadas'}</span>{' '}
-                      que também {modalExcluir.aulasCount === 1 ? 'será excluída' : 'serão excluídas'}, liberando os horários.
-                    </p>
-                  </div>
-                )}
-
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setModalExcluir(null)}
-                    disabled={isPending}
-                    className="flex-1 py-2.5 text-sm font-semibold rounded-xl border border-[--p-border] text-[--p-text-2] hover:bg-[--p-hover] disabled:opacity-50 transition-colors"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={handleConfirmarExcluir}
-                    disabled={isPending}
-                    className="flex-1 py-2.5 text-sm font-bold rounded-xl bg-red-500 hover:bg-red-400 text-white disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
-                  >
-                    {isPending ? (
-                      <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                    ) : (
-                      'Excluir'
-                    )}
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
-      {/* Modal: Agendar exame */}
-      <AnimatePresence>
-        {examModalAluno && (
-          <AgendarExameModal
+        {modalNovo && (
+          <NovoAlunoModal
             autoescola_id={autoescola_id}
-            escola={escola}
-            studentId={examModalAluno.id}
-            studentName={examModalAluno.name}
-            documentId={examModalAluno.document_id}
-            onClose={() => setExamModalAluno(null)}
+            produtos={produtos}
+            cambioAtivo={cambioAtivo}
+            onClose={() => setModalNovo(false)}
+            onCriado={(novo) => {
+              setAlunos((prev) => [novo, ...prev])
+              setModalNovo(false)
+              abrirAluno(novo.id, 'creditos')
+            }}
           />
         )}
       </AnimatePresence>
 
-      {/* Modal: Registrar venda (salvar créditos adicionados pendentes) */}
       <AnimatePresence>
-        {vendaModalAluno && pendingAdd[vendaModalAluno.id] && (
+        {modalExcluir && (
+          <ExcluirAlunoModal
+            aluno={modalExcluir.aluno}
+            aulasCount={modalExcluir.aulasCount}
+            isPending={isPending}
+            onCancelar={() => setModalExcluir(null)}
+            onConfirmar={confirmarExcluir}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {examAluno && (
+          <AgendarExameModal
+            autoescola_id={autoescola_id}
+            escola={escola}
+            studentId={examAluno.id}
+            studentName={examAluno.name}
+            documentId={examAluno.document_id}
+            onClose={() => setExamAlunoId(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {vendaAluno && pendingAdd[vendaAluno.id] && (
           <VenderCreditosModal
             autoescola_id={autoescola_id}
-            aluno={vendaModalAluno}
-            quantidades={pendingAdd[vendaModalAluno.id]!}
-            onClose={() => setVendaModalAluno(null)}
+            aluno={vendaAluno}
+            quantidades={pendingAdd[vendaAluno.id]!}
+            onClose={() => setVendaAlunoId(null)}
             onSuccess={(atualizado) => {
               setAlunos((prev) => prev.map((a) => (a.id === atualizado.id ? atualizado : a)))
               cancelarPendente(atualizado.id)
-              setVendaModalAluno(null)
+              setVendaAlunoId(null)
             }}
           />
         )}

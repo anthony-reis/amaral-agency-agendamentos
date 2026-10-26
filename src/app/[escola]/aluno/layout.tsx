@@ -71,6 +71,19 @@ export default async function AlunoLayout({ children, params }: Props) {
 
   const features = await getAutoescolaFeatures(autoescola.id)
   const lojaAtiva = isIdentified ? await lojaVisivelParaAluno(autoescola.id) : false
+  let contratoPendente = false
+  if (isIdentified && features.contratos) {
+    const studentId = cookieStore.get('student_id')?.value
+    if (studentId) {
+      const { count } = await createServiceClient()
+        .from('contratos_aluno')
+        .select('id', { count: 'exact', head: true })
+        .eq('autoescola_id', autoescola.id)
+        .eq('student_id', studentId)
+        .eq('status', 'pendente')
+      contratoPendente = (count ?? 0) > 0
+    }
+  }
 
   return (
     <div className={`min-h-screen bg-[--p-bg-base] ${isIdentified ? 'flex flex-col lg:flex-row' : 'flex flex-col'}`}>
@@ -81,6 +94,8 @@ export default async function AlunoLayout({ children, params }: Props) {
         studentName={studentName}
         isIdentified={isIdentified}
         solicitacoesAtivo={features.solicitacoes}
+        contratosAtivo={features.contratos}
+        contratoPendente={contratoPendente}
         dashboardAtivo={features.dashboard_aluno}
         lojaAtiva={lojaAtiva}
         onLogout={handleLogout}

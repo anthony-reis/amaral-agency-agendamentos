@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { CalendarDays, BookOpen, LogOut, Car, Menu, X, ChevronRight, Megaphone, ClipboardList, ShoppingBag, LayoutDashboard } from 'lucide-react'
+import { CalendarDays, BookOpen, LogOut, Car, Menu, X, ChevronRight, Megaphone, ClipboardList, ShoppingBag, LayoutDashboard, FileSignature } from 'lucide-react'
 import { ThemeToggle } from '@/components/ThemeToggle'
 
 interface Props {
@@ -14,6 +14,9 @@ interface Props {
   studentName: string
   isIdentified: boolean
   solicitacoesAtivo: boolean
+  contratosAtivo?: boolean
+  /** Há contrato esperando a assinatura do aluno. */
+  contratoPendente?: boolean
   /** Módulo "dashboard_aluno": item "Início". Desligado, a marca leva para Agendar. */
   dashboardAtivo?: boolean
   lojaAtiva?: boolean
@@ -42,6 +45,8 @@ export function AlunoSidebar({
   studentName,
   isIdentified,
   solicitacoesAtivo,
+  contratosAtivo = false,
+  contratoPendente = false,
   dashboardAtivo = false,
   lojaAtiva = false,
   onLogout,
@@ -54,6 +59,7 @@ export function AlunoSidebar({
   const aulasLink = `/${escola}/aluno/minhas-aulas`
   const comunicadosLink = `/${escola}/aluno/comunicados`
   const solicitacoesLink = `/${escola}/aluno/solicitacoes`
+  const contratoLink = `/${escola}/aluno/contrato`
   const lojaLink = `/${escola}/aluno/loja`
 
   // ─── Not identified: minimal sticky header only ───────────────────────────
@@ -179,6 +185,24 @@ export function AlunoSidebar({
             <ClipboardList className="w-4 h-4 shrink-0" />
             Solicitações
             {(pathname === solicitacoesLink || pathname.startsWith(solicitacoesLink + '/')) && (
+              <ChevronRight className="w-3 h-3 ml-auto opacity-60" />
+            )}
+          </Link>
+        )}
+        {contratosAtivo && (
+          <Link
+            href={contratoLink}
+            onClick={() => setMobileOpen(false)}
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+              pathname === contratoLink || pathname.startsWith(contratoLink + '/')
+                ? 'bg-[--p-accent]/10 text-[--p-accent]'
+                : 'text-[--p-text-3] hover:text-[--p-text-1] hover:bg-[--p-hover]'
+            }`}
+          >
+            <FileSignature className="w-4 h-4 shrink-0" />
+            Contrato
+            {contratoPendente && <span className="ml-auto w-2 h-2 rounded-full bg-amber-500" aria-label="Contrato aguardando assinatura" />}
+            {!contratoPendente && (pathname === contratoLink || pathname.startsWith(contratoLink + '/')) && (
               <ChevronRight className="w-3 h-3 ml-auto opacity-60" />
             )}
           </Link>

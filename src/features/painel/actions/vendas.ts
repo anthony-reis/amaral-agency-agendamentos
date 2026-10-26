@@ -6,6 +6,7 @@ import { bloqueioArea, bloqueioReembolso } from '@/lib/permissoes.server'
 import { reconciliarPedidosPendentes, type ResumoReconciliacao } from '@/lib/reconciliarPedidos'
 import { getCurrentUserId, getCurrentUsername, getPainelAutoescolaId } from './authPainel'
 import { criarReembolso } from '@/lib/mercadopago'
+import { urlAssinadaAnexo } from '@/lib/anexosAluno.server'
 import type { PedidoLoja, PedidoLojaStatus } from '@/lib/loja-types'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { buscarTodos } from '@/lib/buscarTodos'
@@ -41,6 +42,7 @@ export interface DetalheVenda {
   pedido: PedidoComAluno
   alunoContato: { email: string | null; phone: string | null } | null
   logs: Array<{ created_at: string; username: string | null; description: string }>
+  comprovantes: Array<{ id: string; nome: string; mime: string; url: string | null }>
 }
 
 const SELECT_VENDA = '*, aluno:students(name, document_id), vendedor:users_painel(full_name, username)'
@@ -302,7 +304,7 @@ export async function getDetalheVenda(autoescola_id: string, pedido_id: string):
   if (!data) return { success: false, error: 'Venda não encontrada.' }
   const pedido = achatar(data)
 
-  const [{ data: contato }, { data: logs }] = await Promise.all([
+  const [{ data: contato }, { data: logs }, { data: anexos }] = await Promise.all([
     pedido.student_id
       ? supabase.from('students').select('email, phone').eq('id', pedido.student_id).eq('autoescola_id', autoescola_id).maybeSingle()
       : Promise.resolve({ data: null }),
@@ -314,9 +316,19 @@ export async function getDetalheVenda(autoescola_id: string, pedido_id: string):
       .ilike('description', `%pedido ${pedido.id.slice(0, 8)}%`)
       .order('created_at', { ascending: false })
       .limit(10),
+    supabase
+      .from('aluno_anexos')
+      .select('id, nome, mime, path')
+      .eq('autoescola_id', autoescola_id)
+      .eq('pedido_id', pedido.id)
+      .order('created_at', { ascending: true }),
   ])
 
-  return { success: true, data: { pedido, alunoContato: contato ?? null, logs: logs ?? [] } }
+  const comprovantes = await Promise.all(
+    (anexos ?? []).map(async ({ path, ...resto }) => ({ ...resto, url: await urlAssinadaAnexo(supabase, path) }))
+  )
+
+  return { success: true, data: { pedido, alunoContato: contato ?? null, logs: logs ?? [], comprovantes } }
 }
 
 /** Consulta o Mercado Pago para UM pedido pendente e libera os créditos se já foi pago. */

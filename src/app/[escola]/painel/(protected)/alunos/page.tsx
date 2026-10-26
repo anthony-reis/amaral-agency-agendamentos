@@ -5,6 +5,7 @@ import { permite } from '@/lib/permissoes'
 import { listarAlunos } from '@/features/painel/actions/alunos'
 import { listarProdutos } from '@/features/painel/actions/catalogo'
 import { getAutoescolaFeatures } from '@/lib/features.server'
+import { statusContratosPorAluno } from '@/features/painel/actions/contratos'
 import { AlunosList } from '@/features/painel/components/AlunosList'
 
 interface Props {
@@ -20,9 +21,10 @@ export default async function AlunosPage({ params }: Props) {
   const podeVender = permite(acesso.permissoes.vendas, 'editar')
 
   const features = await getAutoescolaFeatures(session.autoescola_id)
-  const [alunos, produtos] = await Promise.all([
+  const [alunos, produtos, contratoStatus] = await Promise.all([
     listarAlunos(session.autoescola_id),
     podeVender ? listarProdutos(session.autoescola_id) : Promise.resolve([]),
+    features.contratos ? statusContratosPorAluno(session.autoescola_id) : Promise.resolve({}),
   ])
 
   return (
@@ -37,6 +39,8 @@ export default async function AlunosPage({ params }: Props) {
       examesAtivo={permite(acesso.permissoes.exames, 'editar')}
       loginSenhaAtivo={features.login_senha_aluno}
       cambioAtivo={features.separar_cambio}
+      contratosAtivo={features.contratos}
+      contratoStatusInicial={contratoStatus}
     />
   )
 }

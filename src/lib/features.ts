@@ -36,6 +36,11 @@ export const FEATURES = {
     descricao:
       'Instrutores de carro e alunos ganham um câmbio (manual ou automático); o aluno só agenda com instrutor do mesmo câmbio. Sem câmbio definido = sem restrição.',
   },
+  contratos: {
+    label: 'Contrato digital',
+    descricao:
+      'Modelo de contrato de prestação de serviço, envio ao aluno para assinar pelo app (assinatura + selfie) e anexo do contrato assinado no papel.',
+  },
   login_senha_aluno: {
     label: 'Login do aluno com senha',
     descricao:
