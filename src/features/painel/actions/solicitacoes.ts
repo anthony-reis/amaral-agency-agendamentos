@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createServiceClient } from '@/lib/supabase/server'
 import { urlsEvidencias } from '@/lib/evidenciasSolicitacao'
+import { listarArquivosComUrl, registrarArquivoSolicitacao } from '@/lib/arquivosSolicitacao.server'
 import { bloqueioArea } from '@/lib/permissoes.server'
 import { getCurrentUsername, getCurrentUserId, assertPodeEditar, getPainelAutoescolaId } from './authPainel'
 import { contarAulasConcluidasPorCategoria } from './exameElegibilidade'
@@ -14,8 +15,10 @@ import type {
   SolicitacaoComAluno,
   SolicitacaoDetalhe,
   SolicitacaoEvento,
+  SolicitacaoStatus,
   SolicitacoesFiltro,
 } from '../types'
+import { STATUS_EM_ANDAMENTO } from '../types'
 
 interface StudentRow {
   id: string
@@ -82,23 +85,35 @@ export async function listarSolicitacoes(
 
 export async function contarNaoVisualizadas(
   autoescola_id: string
-): Promise<{ total: number; exame: number; legislacao: number; ids: string[] }> {
+): Promise<{
+  total: number
+  exame: number
+  legislacao: number
+  psicotecnico: number
+  comprovantes: number
+  ids: string[]
+}> {
   const supabase = createServiceClient()
   const { data } = await supabase
     .from('solicitacoes')
-    .select('id, tipo')
+    .select('id, tipo, status')
     .eq('autoescola_id', autoescola_id)
     .is('visualizado_em', null)
 
   const rows = data ?? []
+  // Comprovante enviado volta a ficar "não visualizado" para avisar a autoescola;
+  // conta à parte para o aviso não dizer "novo exame solicitado".
+  const novas = rows.filter((r) => r.status !== 'comprovante_enviado')
   return {
     total: rows.length,
-    exame: rows.filter((r) => r.tipo === 'exame').length,
-    legislacao: rows.filter((r) => r.tipo === 'legislacao').length,
-    ids: rows.map((r) => r.id),
+    exame: novas.filter((r) => r.tipo === 'exame').length,
+    legislacao: novas.filter((r) => r.tipo === 'legislacao').length,
+    psicotecnico: novas.filter((r) => r.tipo === 'psicotecnico').length,
+    comprovantes: rows.length - novas.length,
+    // Comprovante usa id próprio: o aviso reaparece mesmo se o modal da solicitação já foi dispensado.
+    ids: rows.map((r) => (r.status === 'comprovante_enviado' ? `${r.id}:comprovante` : r.id)),
   }
 }
-
 
 async function contarAulasConcluidas(autoescola_id: string, document_id: string): Promise<number> {
   const supabase = createServiceClient()
@@ -155,13 +170,14 @@ export async function getSolicitacao(
     .eq('solicitacao_id', id)
     .order('created_at', { ascending: true })
 
-  const [aulasConcluidas, credito, aulasConcluidasCategoria, evidencias] = await Promise.all([
+  const [aulasConcluidas, credito, aulasConcluidasCategoria, evidencias, arquivos] = await Promise.all([
     contarAulasConcluidas(autoescola_id, student?.document_id ?? ''),
     getSituacaoCreditos(row.student_id),
     row.tipo === 'exame' && row.categoria
       ? contarAulasConcluidasPorCategoria(autoescola_id, student?.document_id ?? '', row.categoria)
       : Promise.resolve(null),
     urlsEvidencias(supabase, row.foto_path ?? null, row.assinatura_path ?? null),
+    listarArquivosComUrl(supabase, id, autoescola_id),
   ])
 
   return {
@@ -176,6 +192,7 @@ export async function getSolicitacao(
     totalCreditos: credito.total,
     fotoUrl: evidencias.fotoUrl,
     assinaturaUrl: evidencias.assinaturaUrl,
+    arquivos,
   }
 }
 
@@ -282,7 +299,7 @@ export async function agendarSolicitacao(
     .eq('autoescola_id', autoescola_id)
     .single()
 
-  if (!atual || !['pendente', 'em_analise'].includes(atual.status)) {
+  if (!atual || !STATUS_EM_ANDAMENTO.includes(atual.status as SolicitacaoStatus)) {
     return { success: false, error: 'Essa solicitação não pode mais ser agendada.' }
   }
 
@@ -350,7 +367,7 @@ export async function recusarSolicitacao(
     .eq('autoescola_id', autoescola_id)
     .single()
 
-  if (!atual || !['pendente', 'em_analise'].includes(atual.status)) {
+  if (!atual || !STATUS_EM_ANDAMENTO.includes(atual.status as SolicitacaoStatus)) {
     return { success: false, error: 'Essa solicitação não pode mais ser recusada.' }
   }
 
@@ -379,6 +396,81 @@ export async function recusarSolicitacao(
     username,
     action_type: 'solicitacao',
     description: `Solicitação (ID: ${id}) recusada`,
+    autoescola_id,
+  })
+
+  revalidatePath(`/${escola}/painel/solicitacoes`)
+  revalidatePath(`/${escola}/aluno/solicitacoes`)
+  return { success: true, data: undefined }
+}
+
+/**
+ * Autoescola anexa o boleto e devolve ao aluno: a solicitação passa a
+ * "aguardando_pagamento". Pode anexar mais de um boleto enquanto aguarda.
+ * Recebe FormData: id, autoescola_id, escola, mensagem (opcional) e "arquivo".
+ */
+export async function enviarBoleto(formData: FormData): Promise<ActionResult> {
+  const guard = await assertPodeEditar('solicitacoes')
+  if (!guard.ok) return { success: false, error: guard.error }
+
+  const campo = (k: string) => {
+    const v = formData.get(k)
+    return typeof v === 'string' && v.trim() !== '' ? v.trim() : null
+  }
+  const id = campo('id')
+  const autoescola_id = campo('autoescola_id')
+  const escola = campo('escola') ?? ''
+  const mensagem = campo('mensagem')
+  if (!id || !autoescola_id) return { success: false, error: 'Solicitação inválida.' }
+  if ((await getPainelAutoescolaId()) !== autoescola_id) return { success: false, error: 'Sem permissão.' }
+
+  const supabase = createServiceClient()
+  const [username, adminId] = await Promise.all([getCurrentUsername(), getCurrentUserId()])
+
+  const { data: atual } = await supabase
+    .from('solicitacoes')
+    .select('status, student_id')
+    .eq('id', id)
+    .eq('autoescola_id', autoescola_id)
+    .single()
+
+  if (!atual || !['pendente', 'em_analise', 'aguardando_pagamento'].includes(atual.status)) {
+    return { success: false, error: 'Não é possível enviar boleto nessa etapa da solicitação.' }
+  }
+
+  const up = await registrarArquivoSolicitacao(supabase, {
+    solicitacao_id: id,
+    autoescola_id,
+    student_id: atual.student_id,
+    tipo: 'boleto',
+    arquivo: formData.get('arquivo'),
+    autor_tipo: 'painel',
+    autor_nome: username,
+  })
+  if (!up.ok) return { success: false, error: up.error }
+
+  const { error } = await supabase
+    .from('solicitacoes')
+    .update({
+      status: 'aguardando_pagamento',
+      admin_responsavel_id: adminId,
+      ...(mensagem ? { mensagem_admin: mensagem } : {}),
+    })
+    .eq('id', id)
+    .eq('autoescola_id', autoescola_id)
+  if (error) return { success: false, error: 'Erro ao enviar o boleto ao aluno.' }
+
+  await supabase.from('solicitacoes_eventos').insert({
+    solicitacao_id: id,
+    tipo_evento: 'boleto_enviado',
+    autor_tipo: 'painel',
+    autor_nome: username,
+    dados: { arquivo: up.nome, mensagem },
+  })
+  await supabase.from('activity_logs_painel').insert({
+    username,
+    action_type: 'solicitacao',
+    description: `Boleto enviado ao aluno na solicitação (ID: ${id})`,
     autoescola_id,
   })
 

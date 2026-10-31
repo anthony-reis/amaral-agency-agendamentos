@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useAvisoRealtime } from '@/lib/useAvisoRealtime'
 import { ChevronLeft, ChevronRight, Calendar, Phone, MessageCircle, User, Plus, X, AlertTriangle } from 'lucide-react'
 import {
   getCalendarioData,
@@ -486,11 +487,13 @@ function DayPanel({
   date,
   canEdit,
   examesAtivo,
+  refreshKey,
 }: {
   autoescola_id: string
   date: string
   canEdit: boolean
   examesAtivo: boolean
+  refreshKey: number
 }) {
   const [instrutores, setInstrutores] = useState<InstrutorDia[] | null>(null)
   const [selectedInstrutor, setSelectedInstrutor] = useState<string | null>(null)
@@ -530,6 +533,13 @@ function DayPanel({
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date])
+
+  // Realtime: recarrega os horários do instrutor aberto sem piscar a tela.
+  useEffect(() => {
+    if (refreshKey === 0 || !selectedInstrutor) return
+    getSlotsDoDia(autoescola_id, date, selectedInstrutor, instructorCategory).then(setSlots)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey])
 
   async function loadInstrutor(name: string, category: string) {
     setSelectedInstrutor(name)
@@ -740,6 +750,14 @@ export function Calendario({ autoescola_id, initialData, initialYear, initialMon
   const [isPending, startTransition] = useTransition()
   const [selectedDate, setSelectedDate] = useState(todayStr())
 
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  // Atualiza o mês e o dia aberto quando alguém agenda/cancela (Realtime).
+  useAvisoRealtime(autoescola_id, 'agendamentos', async () => {
+    setDias(await getCalendarioData(autoescola_id, year, month))
+    setRefreshKey((k) => k + 1)
+  })
+
   const capacidade = Math.max(1, ...dias.map(d => d.total))
 
   function navigate(delta: number) {
@@ -870,7 +888,7 @@ export function Calendario({ autoescola_id, initialData, initialYear, initialMon
           exit={{ opacity: 0, y: -8 }}
           transition={{ duration: 0.15 }}
         >
-          <DayPanel autoescola_id={autoescola_id} date={selectedDate} canEdit={canEdit} examesAtivo={examesAtivo} />
+          <DayPanel autoescola_id={autoescola_id} date={selectedDate} canEdit={canEdit} examesAtivo={examesAtivo} refreshKey={refreshKey} />
         </motion.div>
       </AnimatePresence>
     </div>

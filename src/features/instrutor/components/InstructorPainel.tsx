@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useAvisoRealtime } from '@/lib/useAvisoRealtime'
 import { Clock, CheckCircle2, UserX, CalendarDays, ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import { InstructorAulaCard } from './InstructorAulaCard'
 import { getMinhasAulasHoje, getMapaSemanal } from '../actions/minhasAulas'
@@ -51,6 +52,16 @@ export function InstructorPainel({
   const [weekStart, setWeekStart] = useState(initialWeekStart)
   const [mapaOpen, setMapaOpen] = useState(true)
   const [isPending, startTransition] = useTransition()
+
+  // Atualiza o dia e o mapa da semana quando há mudança nos agendamentos (Realtime).
+  useAvisoRealtime(autoescola_id, 'agendamentos', async () => {
+    const [novasAulas, novoMapa] = await Promise.all([
+      getMinhasAulasHoje(instructorName, autoescola_id, selectedDate),
+      getMapaSemanal(instructorName, autoescola_id, weekStart),
+    ])
+    setAulas(novasAulas)
+    setMapa(novoMapa)
+  })
 
   const handleSelectDay = useCallback((date: string) => {
     setSelectedDate(date)

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAvisoRealtime } from "@/lib/useAvisoRealtime";
 import {
   LayoutDashboard,
   Users,
@@ -34,6 +35,7 @@ import {
   Inbox,
   FileCheck,
   BookOpenCheck,
+  Stethoscope,
   ShoppingCart,
   Package,
   Receipt,
@@ -47,7 +49,7 @@ import type { FeatureKey } from "@/lib/features";
 import { permite, type Area, type Permissoes } from "@/lib/permissoes";
 
 const MODAL_SEEN_KEY = "amaralpro-solicitacoes-modal-seen";
-const POLL_INTERVAL_MS = 30_000;
+const POLL_INTERVAL_MS = 600_000;
 
 interface NavItem {
   label: string;
@@ -288,8 +290,10 @@ export function PainelNav({
     total: number;
     exame: number;
     legislacao: number;
+    psicotecnico: number;
+    comprovantes: number;
     ids: string[];
-  }>({ total: 0, exame: 0, legislacao: 0, ids: [] });
+  }>({ total: 0, exame: 0, legislacao: 0, psicotecnico: 0, comprovantes: 0, ids: [] });
   const [modalIds, setModalIds] = useState<string[]>([]);
   const fetchingRef = useRef(false);
 
@@ -309,6 +313,19 @@ export function PainelNav({
       fetchingRef.current = false;
     }
   }, [autoescolaId, solicitacoesAtivo]);
+
+  // Aviso instantâneo via Realtime; o intervalo abaixo é só rede de segurança
+  // caso a conexão do canal caia.
+  useAvisoRealtime(
+    autoescolaId,
+    "solicitacoes",
+    () => {
+      checarSolicitacoes();
+      // Lista e drawer abertos recarregam sozinhos (mudança feita pelo aluno).
+      window.dispatchEvent(new CustomEvent("solicitacoes:remoto"));
+    },
+    solicitacoesAtivo
+  );
 
   useEffect(() => {
     if (!solicitacoesAtivo) return;
@@ -706,6 +723,24 @@ export function PainelNav({
                       Novo curso de legislação solicitado
                       {naoVisualizadas.legislacao > 1
                         ? ` (${naoVisualizadas.legislacao})`
+                        : ""}
+                    </p>
+                  )}
+                  {naoVisualizadas.psicotecnico > 0 && (
+                    <p className="flex items-center justify-center gap-2 text-sm text-[--p-text-2]">
+                      <Stethoscope className="w-4 h-4 text-[#0ea5e9]" />
+                      Novo exame psicotécnico solicitado
+                      {naoVisualizadas.psicotecnico > 1
+                        ? ` (${naoVisualizadas.psicotecnico})`
+                        : ""}
+                    </p>
+                  )}
+                  {naoVisualizadas.comprovantes > 0 && (
+                    <p className="flex items-center justify-center gap-2 text-sm text-[--p-text-2]">
+                      <Receipt className="w-4 h-4 text-[#0ea5e9]" />
+                      Comprovante de pagamento recebido
+                      {naoVisualizadas.comprovantes > 1
+                        ? ` (${naoVisualizadas.comprovantes})`
                         : ""}
                     </p>
                   )}

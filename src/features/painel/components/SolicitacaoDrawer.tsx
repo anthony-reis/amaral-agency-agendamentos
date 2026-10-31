@@ -19,6 +19,11 @@ import {
   ArrowRight,
   Camera,
   PenLine,
+  Stethoscope,
+  Paperclip,
+  Receipt,
+  FileText,
+  Loader2,
 } from 'lucide-react'
 import {
   getSolicitacao,
@@ -26,7 +31,9 @@ import {
   iniciarAnalise,
   agendarSolicitacao,
   recusarSolicitacao,
+  enviarBoleto,
 } from '@/features/painel/actions/solicitacoes'
+import { STATUS_EM_ANDAMENTO } from '@/features/painel/types'
 import type { SolicitacaoDetalhe, SolicitacaoTipo } from '@/features/painel/types'
 
 interface Props {
@@ -42,6 +49,7 @@ interface Props {
 const TIPO_LABEL: Record<SolicitacaoTipo, { label: string; icon: React.ReactNode }> = {
   exame: { label: 'Agendamento de exame', icon: <FileCheck className="w-4 h-4" /> },
   legislacao: { label: 'Curso de legislação', icon: <BookOpenCheck className="w-4 h-4" /> },
+  psicotecnico: { label: 'Exame psicotécnico', icon: <Stethoscope className="w-4 h-4" /> },
 }
 
 const EVENTO_LABEL: Record<string, string> = {
@@ -52,6 +60,8 @@ const EVENTO_LABEL: Record<string, string> = {
   recusada: 'Recusada',
   cancelada: 'Cancelada pelo aluno',
   mensagem: 'Mensagem enviada',
+  boleto_enviado: 'Boleto enviado ao aluno',
+  comprovante_enviado: 'Comprovante enviado pelo aluno',
 }
 
 function fmtDataHora(iso: string) {
@@ -70,6 +80,9 @@ export function SolicitacaoDrawer({ solicitacaoId, autoescolaId, escola, onClose
   const [showRecusar, setShowRecusar] = useState(false)
   const [showAgendar, setShowAgendar] = useState(false)
   const [dadosAtendimento, setDadosAtendimento] = useState({ data: '', horario: '', local: '', observacoes: '' })
+  const [arquivoBoleto, setArquivoBoleto] = useState<File | null>(null)
+  const [mensagemBoleto, setMensagemBoleto] = useState('')
+  const [boletoInputKey, setBoletoInputKey] = useState(0)
 
   useEffect(() => {
     let ativo = true
@@ -89,6 +102,15 @@ export function SolicitacaoDrawer({ solicitacaoId, autoescolaId, escola, onClose
       ativo = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [solicitacaoId, autoescolaId])
+
+  // Mudança feita por outra pessoa (ex.: aluno enviou comprovante): recarrega o detalhe aberto.
+  useEffect(() => {
+    function onRemoto() {
+      getSolicitacao(solicitacaoId, autoescolaId).then((d) => d && setDetalhe(d))
+    }
+    window.addEventListener('solicitacoes:remoto', onRemoto)
+    return () => window.removeEventListener('solicitacoes:remoto', onRemoto)
   }, [solicitacaoId, autoescolaId])
 
   function handleIniciarAnalise() {
@@ -137,6 +159,27 @@ export function SolicitacaoDrawer({ solicitacaoId, autoescolaId, escola, onClose
     })
   }
 
+  function handleEnviarBoleto() {
+    if (!arquivoBoleto) return
+    setError('')
+    const formData = new FormData()
+    formData.append('id', solicitacaoId)
+    formData.append('autoescola_id', autoescolaId)
+    formData.append('escola', escola)
+    formData.append('mensagem', mensagemBoleto)
+    formData.append('arquivo', arquivoBoleto)
+    startTransition(async () => {
+      const result = await enviarBoleto(formData)
+      if (!result.success) { setError(result.error); return }
+      const atualizado = await getSolicitacao(solicitacaoId, autoescolaId)
+      setDetalhe(atualizado)
+      setArquivoBoleto(null)
+      setMensagemBoleto('')
+      setBoletoInputKey((k) => k + 1)
+      onChanged()
+    })
+  }
+
   function irParaMutirao() {
     if (!detalhe?.categoria) return
     const params = new URLSearchParams({ categoria: detalhe.categoria })
@@ -145,7 +188,9 @@ export function SolicitacaoDrawer({ solicitacaoId, autoescolaId, escola, onClose
     router.push(`/${escola}/painel/datas-exame?${params}`)
   }
 
-  const podeAgir = podeEditar && detalhe && ['pendente', 'em_analise'].includes(detalhe.status)
+  const podeAgir = podeEditar && detalhe && STATUS_EM_ANDAMENTO.includes(detalhe.status)
+  const podeEnviarBoleto =
+    podeEditar && detalhe && ['pendente', 'em_analise', 'aguardando_pagamento'].includes(detalhe.status)
   const whatsappHref = detalhe?.student_phone
     ? `https://wa.me/55${detalhe.student_phone.replace(/\D/g, '')}`
     : null
@@ -317,6 +362,81 @@ export function SolicitacaoDrawer({ solicitacaoId, autoescolaId, escola, onClose
                   <XCircle className="w-3.5 h-3.5" /> Recusada
                 </p>
                 <p className="text-sm text-[--p-text-1]">{detalhe.motivo_recusa}</p>
+              </div>
+            )}
+
+            {/* Boleto e comprovante */}
+            {(detalhe.arquivos.length > 0 || podeEnviarBoleto) && (
+              <div className="space-y-3">
+                <p className="text-xs font-semibold text-[--p-text-3] uppercase tracking-wider flex items-center gap-1.5">
+                  <Paperclip className="w-3.5 h-3.5" /> Boleto e comprovante
+                </p>
+
+                {detalhe.status === 'aguardando_pagamento' && (
+                  <p className="text-xs text-orange-500 bg-orange-500/5 border border-orange-500/20 rounded-xl p-3">
+                    Boleto enviado. Aguardando o aluno pagar e enviar o comprovante.
+                  </p>
+                )}
+                {detalhe.status === 'comprovante_enviado' && (
+                  <p className="text-xs text-purple-500 bg-purple-500/5 border border-purple-500/20 rounded-xl p-3">
+                    O aluno enviou o comprovante. Confira abaixo e conclua a solicitação.
+                  </p>
+                )}
+
+                {detalhe.arquivos.length > 0 && (
+                  <div className="space-y-2">
+                    {detalhe.arquivos.map((a) => (
+                      <a
+                        key={a.id}
+                        href={a.url ?? undefined}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2.5 bg-[--p-bg-input] rounded-xl p-3 hover:bg-[--p-hover] transition-colors"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-[--p-accent]/10 text-[--p-accent] flex items-center justify-center shrink-0">
+                          {a.tipo === 'boleto' ? <FileText className="w-4 h-4" /> : <Receipt className="w-4 h-4" />}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-[--p-text-1] truncate">{a.nome}</p>
+                          <p className="text-xs text-[--p-text-3]">
+                            {a.tipo === 'boleto' ? 'Boleto' : 'Comprovante'} · {a.autor_nome} · {fmtDataHora(a.created_at)}
+                          </p>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                )}
+
+                {podeEnviarBoleto && (
+                  <div className="bg-[--p-bg-input] rounded-xl p-3 space-y-2">
+                    <p className="text-xs font-semibold text-[--p-text-2]">
+                      {detalhe.status === 'aguardando_pagamento' ? 'Enviar outro boleto' : 'Enviar boleto ao aluno'}
+                    </p>
+                    <input
+                      key={boletoInputKey}
+                      type="file"
+                      accept="application/pdf,image/jpeg,image/png,image/webp"
+                      onChange={(e) => setArquivoBoleto(e.target.files?.[0] ?? null)}
+                      className="block w-full text-xs text-[--p-text-2] file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-[--p-accent]/10 file:text-[--p-accent] file:font-semibold"
+                    />
+                    <p className="text-[11px] text-[--p-text-3]">PDF, JPG, PNG ou WebP, até 4 MB.</p>
+                    <textarea
+                      value={mensagemBoleto}
+                      onChange={(e) => setMensagemBoleto(e.target.value)}
+                      rows={2}
+                      placeholder="Mensagem para o aluno (opcional). Ex: vence dia 10."
+                      className="w-full px-2.5 py-2 rounded-lg bg-[--p-bg-base] border border-[--p-border] text-sm text-[--p-text-1] placeholder:text-[--p-text-3] resize-none"
+                    />
+                    <button
+                      onClick={handleEnviarBoleto}
+                      disabled={isPending || !arquivoBoleto}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-orange-500/10 text-orange-500 text-sm font-semibold hover:bg-orange-500/20 disabled:opacity-50 transition-colors"
+                    >
+                      {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                      Enviar boleto ao aluno
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 

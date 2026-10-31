@@ -5,6 +5,7 @@ import { cookies } from 'next/headers'
 import { createServiceClient } from '@/lib/supabase/server'
 import { bloqueioFeature } from '@/lib/features.server'
 import { enviarEvidencias, lerImagemDeArquivo, removerEvidencias } from '@/lib/evidenciasSolicitacao'
+import { listarArquivosComUrl, registrarArquivoSolicitacao } from '@/lib/arquivosSolicitacao.server'
 import { listarDatasExame } from '@/features/painel/actions/datasExame'
 import { contarAulasConcluidasPorCategoria, listarCategoriasElegiveisExame as listarCategoriasElegiveisExameCompartilhado } from '@/features/painel/actions/exameElegibilidade'
 import { AULAS_MINIMAS_PARA_EXAME } from '@/lib/examConstants'
@@ -12,6 +13,7 @@ import type {
   ActionResult,
   NovaSolicitacaoInput,
   Solicitacao,
+  SolicitacaoArquivo,
 } from '@/features/painel/types'
 import type { CategoriaElegivelExame } from '@/features/painel/actions/exameElegibilidade'
 
@@ -20,6 +22,7 @@ export type { CategoriaElegivelExame }
 const TIPO_LABEL: Record<string, string> = {
   exame: 'Solicitação de agendamento de exame',
   legislacao: 'Solicitação de curso de legislação',
+  psicotecnico: 'Solicitação de exame psicotécnico',
 }
 
 export async function listarCategoriasElegiveisExame(
@@ -66,7 +69,7 @@ export async function criarSolicitacao(formData: FormData): Promise<ActionResult
   }
   const escola = campo('escola') ?? ''
   const tipoRaw = campo('tipo')
-  if (tipoRaw !== 'exame' && tipoRaw !== 'legislacao') return { success: false, error: 'Tipo de solicitação inválido.' }
+  if (tipoRaw !== 'exame' && tipoRaw !== 'legislacao' && tipoRaw !== 'psicotecnico') return { success: false, error: 'Tipo de solicitação inválido.' }
   const input: NovaSolicitacaoInput = {
     autoescola_id: campo('autoescola_id') ?? '',
     student_id: campo('student_id') ?? '',
@@ -178,7 +181,7 @@ export async function cancelarSolicitacao(
     .single()
 
   if (!atual) return { success: false, error: 'Solicitação não encontrada.' }
-  if (!['pendente', 'em_analise'].includes(atual.status)) {
+  if (!['pendente', 'em_analise', 'aguardando_pagamento'].includes(atual.status)) {
     return { success: false, error: 'Essa solicitação já foi respondida e não pode mais ser cancelada.' }
   }
 
@@ -216,4 +219,91 @@ export async function contarSolicitacoesAtualizadas(
     .gt('updated_at', sinceIso)
 
   return count ?? 0
+}
+
+/** Boletos e comprovantes da solicitação (só do próprio aluno). */
+export async function listarArquivosDaSolicitacao(
+  solicitacao_id: string,
+  student_id: string
+): Promise<SolicitacaoArquivo[]> {
+  const cookieStore = await cookies()
+  if (cookieStore.get('student_id')?.value !== student_id) return []
+
+  const supabase = createServiceClient()
+  const { data: sol } = await supabase
+    .from('solicitacoes')
+    .select('autoescola_id')
+    .eq('id', solicitacao_id)
+    .eq('student_id', student_id)
+    .maybeSingle()
+  if (!sol) return []
+
+  return listarArquivosComUrl(supabase, solicitacao_id, sol.autoescola_id)
+}
+
+/**
+ * Aluno devolve o comprovante de pagamento do boleto: a solicitação passa a
+ * "comprovante_enviado" e volta a aparecer como não visualizada para a autoescola.
+ * Recebe FormData: solicitacao_id, student_id, student_name, escola e "arquivo".
+ */
+export async function enviarComprovante(formData: FormData): Promise<ActionResult> {
+  const campo = (k: string) => {
+    const v = formData.get(k)
+    return typeof v === 'string' && v !== '' ? v : null
+  }
+  const solicitacao_id = campo('solicitacao_id')
+  const student_id = campo('student_id')
+  const student_name = campo('student_name') ?? ''
+  const escola = campo('escola') ?? ''
+  if (!solicitacao_id || !student_id) return { success: false, error: 'Solicitação inválida.' }
+
+  const cookieStore = await cookies()
+  if (cookieStore.get('student_id')?.value !== student_id) {
+    return { success: false, error: 'Sessão expirada. Identifique-se novamente.' }
+  }
+
+  const supabase = createServiceClient()
+  const { data: atual } = await supabase
+    .from('solicitacoes')
+    .select('status, autoescola_id')
+    .eq('id', solicitacao_id)
+    .eq('student_id', student_id)
+    .maybeSingle()
+
+  if (!atual) return { success: false, error: 'Solicitação não encontrada.' }
+  if (atual.status !== 'aguardando_pagamento') {
+    return { success: false, error: 'Essa solicitação não está aguardando comprovante de pagamento.' }
+  }
+
+  const bloqueio = await bloqueioFeature(atual.autoescola_id, 'solicitacoes')
+  if (bloqueio) return { success: false, error: bloqueio }
+
+  const up = await registrarArquivoSolicitacao(supabase, {
+    solicitacao_id,
+    autoescola_id: atual.autoescola_id,
+    student_id,
+    tipo: 'comprovante',
+    arquivo: formData.get('arquivo'),
+    autor_tipo: 'aluno',
+    autor_nome: student_name,
+  })
+  if (!up.ok) return { success: false, error: up.error }
+
+  const { error } = await supabase
+    .from('solicitacoes')
+    .update({ status: 'comprovante_enviado', visualizado_em: null })
+    .eq('id', solicitacao_id)
+    .eq('student_id', student_id)
+  if (error) return { success: false, error: 'Erro ao enviar o comprovante.' }
+
+  await supabase.from('solicitacoes_eventos').insert({
+    solicitacao_id,
+    tipo_evento: 'comprovante_enviado',
+    autor_tipo: 'aluno',
+    autor_nome: student_name,
+    dados: { arquivo: up.nome },
+  })
+
+  revalidatePath(`/${escola}/aluno/solicitacoes`)
+  return { success: true, data: undefined }
 }

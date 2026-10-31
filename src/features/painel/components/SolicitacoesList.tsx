@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { AnimatePresence } from 'framer-motion'
 import { ClipboardList, History, Search, MessageCircle, FileCheck, BookOpenCheck, Download, Camera } from 'lucide-react'
@@ -22,6 +22,8 @@ const STATUS_OPCOES: { value: SolicitacaoStatus | 'TODOS'; label: string }[] = [
   { value: 'TODOS', label: 'Todos os status' },
   { value: 'pendente', label: 'Pendente' },
   { value: 'em_analise', label: 'Em análise' },
+  { value: 'aguardando_pagamento', label: 'Aguardando pagamento' },
+  { value: 'comprovante_enviado', label: 'Comprovante enviado' },
   { value: 'agendado', label: 'Agendado' },
   { value: 'recusado', label: 'Recusado' },
   { value: 'cancelado', label: 'Cancelado' },
@@ -30,6 +32,8 @@ const STATUS_OPCOES: { value: SolicitacaoStatus | 'TODOS'; label: string }[] = [
 const STATUS_BADGE: Record<SolicitacaoStatus, string> = {
   pendente: 'bg-amber-500/10 text-amber-500',
   em_analise: 'bg-blue-500/10 text-blue-500',
+  aguardando_pagamento: 'bg-orange-500/10 text-orange-500',
+  comprovante_enviado: 'bg-purple-500/10 text-purple-500',
   agendado: 'bg-emerald-500/10 text-emerald-500',
   recusado: 'bg-red-500/10 text-red-500',
   cancelado: 'bg-[--p-bg-input] text-[--p-text-3]',
@@ -38,6 +42,8 @@ const STATUS_BADGE: Record<SolicitacaoStatus, string> = {
 const STATUS_LABEL: Record<SolicitacaoStatus, string> = {
   pendente: 'Pendente',
   em_analise: 'Em análise',
+  aguardando_pagamento: 'Aguardando pagamento',
+  comprovante_enviado: 'Comprovante enviado',
   agendado: 'Agendado',
   recusado: 'Recusado',
   cancelado: 'Cancelado',
@@ -46,6 +52,7 @@ const STATUS_LABEL: Record<SolicitacaoStatus, string> = {
 const TIPO_LABEL: Record<SolicitacaoTipo, string> = {
   exame: 'Exame',
   legislacao: 'Legislação',
+  psicotecnico: 'Psicotécnico',
 }
 
 function fmtData(iso: string) {
@@ -112,6 +119,19 @@ export function SolicitacoesList({ escola, autoescolaId, solicitacoesIniciais, m
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Mudança feita por outra pessoa (ex.: aluno enviou comprovante): recarrega a lista.
+  const filtrosRef = useRef(filtros)
+  useEffect(() => {
+    filtrosRef.current = filtros
+  }, [filtros])
+  useEffect(() => {
+    function onRemoto() {
+      listarSolicitacoes(autoescolaId, filtrosRef.current).then(setItens)
+    }
+    window.addEventListener('solicitacoes:remoto', onRemoto)
+    return () => window.removeEventListener('solicitacoes:remoto', onRemoto)
+  }, [autoescolaId])
+
   function onDrawerChanged() {
     // Reaplica o filtro atual pra refletir visualizado_em/status atualizados na lista
     // e avisa o watcher global (badge do menu) para recarregar imediatamente.
@@ -155,6 +175,7 @@ export function SolicitacoesList({ escola, autoescolaId, solicitacoesIniciais, m
             <option value="TODOS">Todos os tipos</option>
             <option value="exame">Exame</option>
             <option value="legislacao">Legislação</option>
+            <option value="psicotecnico">Psicotécnico</option>
           </select>
         </div>
         <div>

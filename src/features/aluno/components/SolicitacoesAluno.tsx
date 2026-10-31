@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useAvisoRealtime } from '@/lib/useAvisoRealtime'
 import {
   ClipboardList,
   Plus,
@@ -20,6 +21,10 @@ import {
   PenLine,
   Trash2,
   Loader2,
+  Stethoscope,
+  Receipt,
+  FileText,
+  Upload,
 } from 'lucide-react'
 import { SignatureFullscreen } from '@/features/shared/components/SignatureFullscreen'
 import { compressImage } from '@/lib/compressImage'
@@ -30,9 +35,12 @@ import {
   contarSolicitacoesAtualizadas,
   listarCategoriasElegiveisExame,
   listarDatasExameParaSolicitacao,
+  listarArquivosDaSolicitacao,
+  enviarComprovante,
   type CategoriaElegivelExame,
 } from '@/features/aluno/actions/solicitacoes'
-import type { Solicitacao, SolicitacaoTipo, SolicitacaoStatus } from '@/features/painel/types'
+import { STATUS_EM_ANDAMENTO } from '@/features/painel/types'
+import type { Solicitacao, SolicitacaoArquivo, SolicitacaoTipo, SolicitacaoStatus } from '@/features/painel/types'
 
 interface Props {
   escola: string
@@ -53,6 +61,11 @@ const TIPO_INFO: Record<SolicitacaoTipo, { label: string; icon: React.ReactNode;
     icon: <BookOpenCheck className="w-5 h-5" />,
     descricao: 'Peça para a autoescola agendar seu curso teórico de legislação.',
   },
+  psicotecnico: {
+    label: 'Exame psicotécnico',
+    icon: <Stethoscope className="w-5 h-5" />,
+    descricao: 'Peça para a autoescola providenciar seu exame psicotécnico.',
+  },
 }
 
 const STATUS_INFO: Record<SolicitacaoStatus, { label: string; className: string; icon: React.ReactNode }> = {
@@ -65,6 +78,16 @@ const STATUS_INFO: Record<SolicitacaoStatus, { label: string; className: string;
     label: 'Em análise',
     className: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
     icon: <Search className="w-3.5 h-3.5" />,
+  },
+  aguardando_pagamento: {
+    label: 'Aguardando pagamento',
+    className: 'bg-orange-500/10 text-orange-500 border-orange-500/20',
+    icon: <Receipt className="w-3.5 h-3.5" />,
+  },
+  comprovante_enviado: {
+    label: 'Comprovante enviado',
+    className: 'bg-purple-500/10 text-purple-500 border-purple-500/20',
+    icon: <FileCheck className="w-3.5 h-3.5" />,
   },
   agendado: {
     label: 'Agendado',
@@ -83,7 +106,7 @@ const STATUS_INFO: Record<SolicitacaoStatus, { label: string; className: string;
   },
 }
 
-const POLL_INTERVAL_MS = 25_000
+const POLL_INTERVAL_MS = 600_000
 
 function fmtData(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -91,6 +114,120 @@ function fmtData(iso: string) {
 
 function fmtDataHora(iso: string) {
   return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+}
+
+/**
+ * Boleto da autoescola + envio do comprovante de pagamento pelo aluno.
+ * Os arquivos vêm por URL assinada; recarrega quando a solicitação é atualizada.
+ */
+function ArquivosSolicitacao({
+  solicitacao,
+  escola,
+  studentId,
+  studentName,
+  onEnviado,
+}: {
+  solicitacao: Solicitacao
+  escola: string
+  studentId: string
+  studentName: string
+  onEnviado: () => Promise<void>
+}) {
+  const [arquivos, setArquivos] = useState<SolicitacaoArquivo[] | null>(null)
+  const [arquivo, setArquivo] = useState<File | null>(null)
+  const [erro, setErro] = useState('')
+  const [enviando, startEnvio] = useTransition()
+
+  useEffect(() => {
+    let ativo = true
+    listarArquivosDaSolicitacao(solicitacao.id, studentId).then((lista) => {
+      if (ativo) setArquivos(lista)
+    })
+    return () => {
+      ativo = false
+    }
+  }, [solicitacao.id, solicitacao.updated_at, studentId])
+
+  function enviar() {
+    if (!arquivo) return
+    setErro('')
+    const formData = new FormData()
+    formData.append('solicitacao_id', solicitacao.id)
+    formData.append('student_id', studentId)
+    formData.append('student_name', studentName)
+    formData.append('escola', escola)
+    formData.append('arquivo', arquivo)
+    startEnvio(async () => {
+      const result = await enviarComprovante(formData)
+      if (!result.success) {
+        setErro(result.error)
+        return
+      }
+      setArquivo(null)
+      await onEnviado()
+    })
+  }
+
+  const aguardando = solicitacao.status === 'aguardando_pagamento'
+
+  return (
+    <div className="mt-3 space-y-2">
+      {aguardando && (
+        <p className="text-xs text-orange-500 bg-orange-500/5 border border-orange-500/20 rounded-xl p-3">
+          A autoescola enviou o boleto. Pague e envie o comprovante abaixo.
+        </p>
+      )}
+      {!aguardando && (
+        <p className="text-xs text-purple-500 bg-purple-500/5 border border-purple-500/20 rounded-xl p-3">
+          Comprovante enviado. A autoescola vai conferir e dar andamento.
+        </p>
+      )}
+
+      {arquivos === null ? (
+        <p className="text-xs text-[--p-text-3]">Carregando arquivos...</p>
+      ) : (
+        arquivos.map((a) => (
+          <a
+            key={a.id}
+            href={a.url ?? undefined}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2.5 bg-[--p-bg-input] rounded-xl p-3 hover:bg-[--p-hover] transition-colors"
+          >
+            <div className="w-8 h-8 rounded-lg bg-[--p-accent]/10 text-[--p-accent] flex items-center justify-center shrink-0">
+              {a.tipo === 'boleto' ? <FileText className="w-4 h-4" /> : <Receipt className="w-4 h-4" />}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-[--p-text-1] truncate">{a.nome}</p>
+              <p className="text-xs text-[--p-text-3]">{a.tipo === 'boleto' ? 'Boleto da autoescola' : 'Seu comprovante'}</p>
+            </div>
+          </a>
+        ))
+      )}
+
+      {aguardando && (
+        <div className="bg-[--p-bg-input] rounded-xl p-3 space-y-2">
+          <p className="text-xs font-semibold text-[--p-text-2]">Enviar comprovante de pagamento</p>
+          <input
+            type="file"
+            accept="application/pdf,image/jpeg,image/png,image/webp"
+            onChange={(e) => setArquivo(e.target.files?.[0] ?? null)}
+            className="block w-full text-xs text-[--p-text-2] file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-[--p-accent]/10 file:text-[--p-accent] file:font-semibold"
+          />
+          <p className="text-[11px] text-[--p-text-3]">PDF, JPG, PNG ou WebP, até 4 MB.</p>
+          {erro && <p className="text-xs text-red-400">{erro}</p>}
+          <button
+            onClick={enviar}
+            disabled={enviando || !arquivo}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-[--p-accent] text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition-opacity"
+          >
+            {enviando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+            Enviar comprovante
+          </button>
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function SolicitacoesAluno({
@@ -166,6 +303,9 @@ export function SolicitacoesAluno({
     }
   }, [autoescolaId, studentId])
 
+  // Aviso instantâneo via Realtime; o polling abaixo é só rede de segurança.
+  useAvisoRealtime(autoescolaId, 'solicitacoes', checarAtualizacoes)
+
   // Polling: só enquanto a aba está visível. Pausa em background, retoma no
   // foco/volta de visibilidade. Um único interval por vez (sem sobreposição
   // de requisições concorrentes via fetchingRef), limpo no unmount.
@@ -203,12 +343,12 @@ export function SolicitacoesAluno({
   }, [checarAtualizacoes])
 
   const ativasPorTipo = new Set(
-    solicitacoes.filter((s) => ['pendente', 'em_analise', 'agendado'].includes(s.status)).map((s) => s.tipo)
+    solicitacoes.filter((s) => [...STATUS_EM_ANDAMENTO, 'agendado'].includes(s.status)).map((s) => s.tipo)
   )
   // Exame é segregado por categoria — uma categoria já solicitada não bloqueia as outras.
   const categoriasExameJaSolicitadas = new Set(
     solicitacoes
-      .filter((s) => s.tipo === 'exame' && ['pendente', 'em_analise', 'agendado'].includes(s.status) && s.categoria)
+      .filter((s) => s.tipo === 'exame' && [...STATUS_EM_ANDAMENTO, 'agendado'].includes(s.status) && s.categoria)
       .map((s) => s.categoria as string)
   )
 
@@ -357,7 +497,7 @@ export function SolicitacoesAluno({
             {solicitacoes.map((s) => {
               const tipo = TIPO_INFO[s.tipo]
               const status = STATUS_INFO[s.status]
-              const podeCancel = ['pendente', 'em_analise'].includes(s.status)
+              const podeCancel = ['pendente', 'em_analise', 'aguardando_pagamento'].includes(s.status)
               return (
                 <div key={s.id} className="bg-[--p-bg-card] border border-[--p-border] rounded-2xl p-5">
                   <div className="flex items-start gap-3">
@@ -398,7 +538,7 @@ export function SolicitacoesAluno({
                         <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3 mt-2 space-y-1.5">
                           <div className="flex items-center gap-2 text-sm text-[--p-text-1] font-medium">
                             <CalendarDays className="w-4 h-4 text-emerald-500 shrink-0" />
-                            {fmtData(s.dados_atendimento.data)} às {s.dados_atendimento.horario}
+                            {fmtData(s.dados_atendimento.data + 'T12:00:00')} às {s.dados_atendimento.horario}
                           </div>
                           {s.dados_atendimento.local && (
                             <div className="flex items-center gap-2 text-sm text-[--p-text-2]">
@@ -424,6 +564,16 @@ export function SolicitacoesAluno({
                           <p className="text-xs text-[--p-text-3] mb-0.5">Mensagem da autoescola</p>
                           <p className="text-sm text-[--p-text-1]">{s.mensagem_admin}</p>
                         </div>
+                      )}
+
+                      {(s.status === 'aguardando_pagamento' || s.status === 'comprovante_enviado') && (
+                        <ArquivosSolicitacao
+                          solicitacao={s}
+                          escola={escola}
+                          studentId={studentId}
+                          studentName={studentName}
+                          onEnviado={recarregar}
+                        />
                       )}
 
                       {podeCancel && (
@@ -473,7 +623,7 @@ export function SolicitacoesAluno({
                     const info = TIPO_INFO[tipo]
                     // Exame é segregado por categoria (decidido na próxima etapa) — só
                     // legislação (categoria única) bloqueia aqui.
-                    const bloqueado = tipo === 'legislacao' && ativasPorTipo.has(tipo)
+                    const bloqueado = (tipo === 'legislacao' || tipo === 'psicotecnico') && ativasPorTipo.has(tipo)
                     return (
                       <button
                         key={tipo}

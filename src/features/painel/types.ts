@@ -279,9 +279,39 @@ export interface ComunicadoComLidos extends Comunicado {
 
 // ─── Solicitações ─────────────────────────────────────────────────────────────
 
-export type SolicitacaoTipo = 'exame' | 'legislacao'
+export type SolicitacaoTipo = 'exame' | 'legislacao' | 'psicotecnico'
 
-export type SolicitacaoStatus = 'pendente' | 'em_analise' | 'agendado' | 'recusado' | 'cancelado'
+export type SolicitacaoStatus =
+  | 'pendente'
+  | 'em_analise'
+  | 'aguardando_pagamento'
+  | 'comprovante_enviado'
+  | 'agendado'
+  | 'recusado'
+  | 'cancelado'
+
+/** Status em que a solicitação ainda está em andamento (a autoescola ou o aluno precisa agir). */
+export const STATUS_EM_ANDAMENTO: SolicitacaoStatus[] = [
+  'pendente',
+  'em_analise',
+  'aguardando_pagamento',
+  'comprovante_enviado',
+]
+
+export type SolicitacaoArquivoTipo = 'boleto' | 'comprovante'
+
+export interface SolicitacaoArquivo {
+  id: string
+  tipo: SolicitacaoArquivoTipo
+  nome: string
+  mime: string
+  tamanho: number
+  autor_tipo: 'aluno' | 'painel'
+  autor_nome: string
+  created_at: string
+  /** URL assinada (temporária); null se não foi possível gerar. */
+  url: string | null
+}
 
 export interface DadosAtendimento {
   data: string // YYYY-MM-DD
@@ -321,6 +351,7 @@ export interface SolicitacaoComAluno extends Solicitacao {
 
 export type SolicitacaoEventoTipo =
   | 'criada' | 'visualizada' | 'em_analise' | 'agendada' | 'recusada' | 'cancelada' | 'mensagem'
+  | 'boleto_enviado' | 'comprovante_enviado'
 
 export interface SolicitacaoEvento {
   id: string
@@ -343,6 +374,8 @@ export interface SolicitacaoDetalhe extends SolicitacaoComAluno {
   /** URLs assinadas (temporárias) das evidências; null se não houver. */
   fotoUrl: string | null
   assinaturaUrl: string | null
+  /** Boletos (autoescola) e comprovantes (aluno) trocados nesta solicitação. */
+  arquivos: SolicitacaoArquivo[]
 }
 
 export type NovaSolicitacaoInput = {
