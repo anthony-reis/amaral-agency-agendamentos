@@ -6,6 +6,7 @@ import { getDisponibilidade } from '@/lib/getDisponibilidade'
 import { liberarReservasVencidas } from '@/lib/reservasPosPacote'
 import { cambioDoAluno, bloqueioCambio } from '@/lib/cambio.server'
 import { bloqueioJanelaAgendamento } from '@/lib/janelaAgendamento.server'
+import { bloqueioInstrutorVinculado, instrutorVinculadoDoAluno } from '@/lib/instrutorVinculado.server'
 import { dataBR, registrarAtividadeAluno, registrarHistoricoAgendamento } from '@/lib/atividadeAluno.server'
 
 /**
@@ -74,7 +75,10 @@ export async function fetchDisponibilidade(
 ) {
   await liberarReservasVencidas(autoescolaId)
   const cambio = await cambioDoAluno(autoescolaId, studentId, category)
-  return getDisponibilidade(autoescolaId, date, category, cambio)
+  const disponiveis = await getDisponibilidade(autoescolaId, date, category, cambio)
+  // Aluno vinculado a um instrutor (opção da autoescola) só vê os horários dele.
+  const vinculado = await instrutorVinculadoDoAluno(autoescolaId, studentId)
+  return vinculado ? disponiveis.filter((i) => i.nome === vinculado.name) : disponiveis
 }
 
 /**
@@ -134,7 +138,9 @@ export async function criarAgendamento(data: {
   await validateOneClassPerDay(supabase, data.autoescola_id, data.studentDocument, data.date)
   const erroCambio = await bloqueioCambio(data.autoescola_id, data.studentId, data.category, data.instructorName)
   if (erroCambio) throw new Error(erroCambio)
-  
+  const erroVinculo = await bloqueioInstrutorVinculado(data.autoescola_id, data.studentId, data.instructorName)
+  if (erroVinculo) throw new Error(erroVinculo)
+
   // Insert agendamento
   const { data: novo, error: insertError } = await supabase
     .from('agendamentos')
@@ -249,6 +255,8 @@ export async function reagendarAula(agendamentoId: string, data: {
 
   const erroCambio = await bloqueioCambio(data.autoescola_id, data.studentId, data.category, data.instructorName)
   if (erroCambio) throw new Error(erroCambio)
+  const erroVinculo = await bloqueioInstrutorVinculado(data.autoescola_id, data.studentId, data.instructorName)
+  if (erroVinculo) throw new Error(erroVinculo)
 
   // 2. Adjust credits if category changed
   if (oldCategory !== data.category) {

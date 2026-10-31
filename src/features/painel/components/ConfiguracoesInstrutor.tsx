@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { UserCog, Phone, XCircle, RotateCcw, CheckCircle2, Gauge, Smartphone, DollarSign } from 'lucide-react'
-import { salvarInstructorConfig } from '@/features/painel/actions/configuracoes'
+import { UserCog, Phone, XCircle, RotateCcw, CheckCircle2, Gauge, Smartphone, DollarSign, CalendarClock, UserCheck } from 'lucide-react'
+import { salvarInstructorConfig, salvarVincularAlunoInstrutor } from '@/features/painel/actions/configuracoes'
 import type { InstructorConfig } from '@/features/painel/actions/configuracoes'
 import { canEditPainel } from '@/features/painel/types'
 
@@ -10,6 +10,8 @@ interface Props {
   autoescola_id: string
   escola: string
   initialConfig: InstructorConfig
+  /** Opção "vincular aluno ao instrutor" (aluno só agenda com o próprio instrutor). */
+  initialVincularAluno: boolean
   /** Módulo "financeiro": opção de exibir hora/aula ao instrutor. */
   mostrarHoraAulaOpcao?: boolean
   userRole: string
@@ -40,6 +42,12 @@ const ACOES: Opcao[] = [
     label: 'Desmarcar Aula',
     descricao: 'Permite ao instrutor cancelar e devolver crédito ao aluno',
     icon: <RotateCcw className="w-4 h-4 text-orange-400" />,
+  },
+  {
+    key: 'pode_antecipar',
+    label: 'Antecipar Aula',
+    descricao: 'Permite ao instrutor antecipar uma aula do dia para um horário vago antes dela, liberando o horário antigo',
+    icon: <CalendarClock className="w-4 h-4 text-sky-400" />,
   },
   {
     key: 'registrar_km',
@@ -105,13 +113,15 @@ function ToggleRow({
   )
 }
 
-export function ConfiguracoesInstrutor({ autoescola_id, escola, initialConfig, mostrarHoraAulaOpcao = false, userRole }: Props) {
+export function ConfiguracoesInstrutor({ autoescola_id, escola, initialConfig, initialVincularAluno, mostrarHoraAulaOpcao = false, userRole }: Props) {
   const canEdit = canEditPainel(userRole)
   const visibilidade = mostrarHoraAulaOpcao
     ? VISIBILIDADE
     : VISIBILIDADE.filter((o) => o.key !== 'mostrar_hora_aula')
 
   const [config, setConfig] = useState<InstructorConfig>(initialConfig)
+  const [vincularAluno, setVincularAluno] = useState(initialVincularAluno)
+  const [vincularSalvo, setVincularSalvo] = useState(initialVincularAluno)
   const [isPending, startTransition] = useTransition()
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -129,9 +139,17 @@ export function ConfiguracoesInstrutor({ autoescola_id, escola, initialConfig, m
       const result = await salvarInstructorConfig(autoescola_id, config, escola)
       if (!result.success) {
         setError(result.error ?? 'Erro ao salvar configurações.')
-      } else {
-        setSaved(true)
+        return
       }
+      if (vincularAluno !== vincularSalvo) {
+        const r2 = await salvarVincularAlunoInstrutor(autoescola_id, vincularAluno, escola)
+        if (!r2.success) {
+          setError(r2.error ?? 'Erro ao salvar configurações.')
+          return
+        }
+        setVincularSalvo(vincularAluno)
+      }
+      setSaved(true)
     })
   }
 
@@ -165,6 +183,36 @@ export function ConfiguracoesInstrutor({ autoescola_id, escola, initialConfig, m
             />
           ))}
         </div>
+      </div>
+
+      {/* Agendamento do aluno */}
+      <div>
+        <p className="text-xs font-semibold text-[--p-text-3] uppercase tracking-wider mb-3">
+          Agendamento do aluno
+        </p>
+        <div className="bg-[--p-bg-card] border border-[--p-border] rounded-2xl divide-y divide-[--p-border]">
+          <ToggleRow
+            opcao={{
+              key: 'pode_antecipar',
+              label: 'Vincular aluno ao instrutor',
+              descricao:
+                'O aluno com instrutor responsável (definido no cadastro dele) só vê e agenda horários desse instrutor, inclusive ao remarcar',
+              icon: <UserCheck className="w-4 h-4 text-teal-400" />,
+            }}
+            checked={vincularAluno}
+            disabled={isPending || !canEdit}
+            onToggle={() => {
+              setVincularAluno((v) => !v)
+              setSaved(false)
+            }}
+          />
+        </div>
+        {vincularAluno && (
+          <p className="text-xs text-[--p-text-3] mt-2">
+            Defina o instrutor de cada aluno em Alunos → abrir o aluno → Dados. Aluno sem instrutor
+            responsável continua agendando com qualquer instrutor.
+          </p>
+        )}
       </div>
 
       {/* Visibilidade */}
@@ -227,6 +275,10 @@ export function ConfiguracoesInstrutor({ autoescola_id, escola, initialConfig, m
           <div className="flex items-center gap-2 text-xs text-[--p-text-2]">
             <span className={`w-2 h-2 rounded-full ${config.pode_desmarcar ? 'bg-emerald-400' : 'bg-[--p-border]'}`} />
             Botão &quot;Desmarcar&quot;: {config.pode_desmarcar ? 'visível' : 'oculto'}
+          </div>
+          <div className="flex items-center gap-2 text-xs text-[--p-text-2]">
+            <span className={`w-2 h-2 rounded-full ${config.pode_antecipar ? 'bg-emerald-400' : 'bg-[--p-border]'}`} />
+            Botão &quot;Antecipar&quot;: {config.pode_antecipar ? 'visível' : 'oculto'}
           </div>
           <div className="flex items-center gap-2 text-xs text-[--p-text-2]">
             <span className={`w-2 h-2 rounded-full ${config.registrar_km ? 'bg-violet-400' : 'bg-[--p-border]'}`} />

@@ -317,7 +317,7 @@ export function PainelNav({
   // Aviso instantâneo via Realtime; o intervalo abaixo é só rede de segurança
   // caso a conexão do canal caia.
   useAvisoRealtime(
-    autoescolaId,
+    `autoescola:${autoescolaId}`,
     "solicitacoes",
     () => {
       checarSolicitacoes();

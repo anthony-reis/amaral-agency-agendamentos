@@ -6,6 +6,7 @@ import { ComunicadosModalWrapper } from '@/features/aluno/components/Comunicados
 import { buscarComunicadosNaoLidos } from '@/features/aluno/actions/comunicados'
 import { lojaVisivelParaAluno } from '@/lib/loja'
 import { getAutoescolaFeatures } from '@/lib/features.server'
+import { AulasAoVivo } from '@/features/aluno/components/AulasAoVivo'
 import { TermosAceiteGate } from '@/features/aluno/components/TermosAceiteGate'
 import { getTermosPendentesAluno } from '@/lib/termos.server'
 import type { Comunicado } from '@/features/painel/types'
@@ -103,6 +104,7 @@ export default async function AlunoLayout({ children, params }: Props) {
       <main className="flex-1 min-w-0">
         {children}
       </main>
+      {isIdentified && studentId && <AulasAoVivo studentId={studentId} />}
       {isIdentified && unreadComunicados.length > 0 && (
         <ComunicadosModalWrapper
           comunicados={unreadComunicados}

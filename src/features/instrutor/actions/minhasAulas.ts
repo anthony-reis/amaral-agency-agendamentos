@@ -6,6 +6,10 @@ import type { ActionResult } from '@/features/painel/types'
 import { cancelarAgendamentoComOpcoes } from '@/features/painel/actions/agendamentos'
 import { autoescolaTemFeature } from '@/lib/features.server'
 import { buscarExamesBancaAgendados } from '@/lib/exameBanca'
+import { getDisponibilidade } from '@/lib/getDisponibilidade'
+import { dataBR, registrarHistoricoAgendamento } from '@/lib/atividadeAluno.server'
+import { getInstructorConfig } from '@/features/painel/actions/configuracoes'
+import { getInstructorSession } from './authInstrutor'
 import type { ExameBancaAgendado } from '@/lib/exameBancaTypes'
 
 export interface AulaInstrutor {
@@ -408,6 +412,139 @@ export async function atualizarStatusAula(
     action_type: 'agendamento',
     description: `Instrutor ${instructor_name} ${actionLabels[status] ?? 'atualizou'} (agendamento ${agendamento_id})`,
     autoescola_id,
+  })
+
+  revalidatePath('/', 'layout')
+  return { success: true, data: undefined }
+}
+
+// ─── Antecipar aula ──────────────────────────────────────────────────────────
+// Opção da autoescola (aba Sistema → Ações do instrutor). O instrutor move uma
+// aula do próprio dia para um horário vago ANTES dela na própria agenda; o
+// horário antigo volta a ficar livre porque a disponibilidade é calculada a
+// partir dos agendamentos.
+
+function hojeBRT(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
+}
+
+type ValidacaoAntecipacao =
+  | { ok: false; error: string }
+  | {
+      ok: true
+      instructorName: string
+      autoescola_id: string
+      ag: {
+        id: string
+        date: string
+        time_slot: string
+        student_name: string | null
+        student_document: string | null
+        cpf_cnh: string | null
+        instructorCategory: string | null
+      }
+      horarios: string[]
+    }
+
+async function validarAntecipacao(escola: string, agendamentoId: string): Promise<ValidacaoAntecipacao> {
+  const session = await getInstructorSession(escola)
+  if (!session) return { ok: false, error: 'Sessão expirada. Entre novamente.' }
+
+  const config = await getInstructorConfig(session.autoescola_id)
+  if (!config.pode_antecipar) return { ok: false, error: 'A antecipação de aulas não está habilitada.' }
+
+  const supabase = createServiceClient()
+  const { data: ag } = await supabase
+    .from('agendamentos')
+    .select('id, date, time_slot, status, tipo, student_name, student_document, cpf_cnh, instructorCategory')
+    .eq('id', agendamentoId)
+    .eq('autoescola_id', session.autoescola_id)
+    .eq('instructor_name', session.name)
+    .maybeSingle()
+
+  if (!ag) return { ok: false, error: 'Aula não encontrada na sua agenda.' }
+  if (!['scheduled', 'confirmed'].includes(ag.status)) return { ok: false, error: 'Só é possível antecipar aulas pendentes ou confirmadas.' }
+  if (ag.tipo === 'banca') return { ok: false, error: 'Exame de banca não pode ser antecipado.' }
+
+  const hoje = hojeBRT()
+  if (ag.date < hoje) return { ok: false, error: 'Essa aula já passou.' }
+
+  const categoria = (ag.instructorCategory ?? 'CARRO').toUpperCase()
+  const disponiveis = await getDisponibilidade(session.autoescola_id, ag.date, categoria)
+  const meus = disponiveis.find((i) => i.nome === session.name)
+
+  const horarios = (meus?.horarios ?? [])
+    .filter((h) => h < ag.time_slot)
+    .filter((h) => ag.date > hoje || new Date(`${ag.date}T${h}:00-03:00`).getTime() > Date.now())
+    .sort()
+
+  return { ok: true, instructorName: session.name, autoescola_id: session.autoescola_id, ag, horarios }
+}
+
+/** Horários vagos do instrutor, no mesmo dia e antes da aula, para onde ela pode ser antecipada. */
+export async function listarHorariosParaAntecipar(
+  escola: string,
+  agendamentoId: string
+): Promise<ActionResult<string[]>> {
+  const v = await validarAntecipacao(escola, agendamentoId)
+  if (!v.ok) return { success: false, error: v.error }
+  return { success: true, data: v.horarios }
+}
+
+export async function anteciparAula(
+  escola: string,
+  agendamentoId: string,
+  novoHorario: string
+): Promise<ActionResult> {
+  const v = await validarAntecipacao(escola, agendamentoId)
+  if (!v.ok) return { success: false, error: v.error }
+  if (!v.horarios.includes(novoHorario)) {
+    return { success: false, error: 'Esse horário não está mais disponível. Atualize e escolha outro.' }
+  }
+
+  const supabase = createServiceClient()
+  const { error } = await supabase
+    .from('agendamentos')
+    .update({ time_slot: novoHorario })
+    .eq('id', agendamentoId)
+    .eq('autoescola_id', v.autoescola_id)
+    .eq('instructor_name', v.instructorName)
+    .in('status', ['scheduled', 'confirmed'])
+  if (error) return { success: false, error: 'Erro ao antecipar a aula.' }
+
+  const doc = v.ag.cpf_cnh ?? v.ag.student_document
+  const { data: aluno } = doc
+    ? await supabase.from('students').select('id').eq('autoescola_id', v.autoescola_id).eq('document_id', doc).maybeSingle()
+    : { data: null }
+
+  const categoria = v.ag.instructorCategory?.toUpperCase() ?? null
+  // Linha do tempo da aula (precisa do aluno cadastrado; sem ele fica só a Auditoria).
+  if (aluno) {
+    await registrarHistoricoAgendamento(supabase, {
+      autoescola_id: v.autoescola_id,
+      agendamento_id: agendamentoId,
+      student_id: aluno.id,
+      student_name: v.ag.student_name ?? '',
+      tipo: 'reagendado',
+      origem: 'painel',
+      de: { date: v.ag.date, time_slot: v.ag.time_slot, instrutor: v.instructorName, categoria },
+      para: { date: v.ag.date, time_slot: novoHorario, instrutor: v.instructorName, categoria },
+      feito_por: `Instrutor ${v.instructorName} (antecipou)`,
+    })
+  }
+  await supabase.from('activity_logs_painel').insert({
+    username: v.instructorName,
+    action_type: 'reagendamento',
+    description: `Instrutor ${v.instructorName} antecipou a aula de ${v.ag.student_name ?? 'aluno'} em ${dataBR(v.ag.date)}: das ${v.ag.time_slot} para ${novoHorario}`,
+    autoescola_id: v.autoescola_id,
+    metadata: {
+      ...(aluno ? { student_id: aluno.id } : {}),
+      agendamento_id: agendamentoId,
+      date: v.ag.date,
+      de_time_slot: v.ag.time_slot,
+      para_time_slot: novoHorario,
+      origem: 'instrutor',
+    },
   })
 
   revalidatePath('/', 'layout')

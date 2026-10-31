@@ -203,13 +203,27 @@ export async function criarAluno(
 
 export async function editarAluno(
   id: string,
-  input: Partial<{ name: string; phone: string; email: string; cambio: string }>,
+  input: Partial<{ name: string; phone: string; email: string; cambio: string; instrutor_id: string }>,
   autoescola_id: string
 ): Promise<ActionResult<void>> {
   const guard = await assertPodeEditar('cadastros')
   if (!guard.ok) return { success: false, error: guard.error }
 
   const supabase = createServiceClient()
+
+  // Instrutor responsável: '' desvincula; senão precisa ser desta autoescola.
+  let instrutorNome: string | null = null
+  if (input.instrutor_id) {
+    const { data: instrutor } = await supabase
+      .from('instructors')
+      .select('name')
+      .eq('id', input.instrutor_id)
+      .eq('autoescola_id', autoescola_id)
+      .maybeSingle()
+    if (!instrutor) return { success: false, error: 'Instrutor não encontrado.' }
+    instrutorNome = instrutor.name
+  }
+
   const { error } = await supabase
     .from('students')
     .update({
@@ -217,6 +231,7 @@ export async function editarAluno(
       ...(input.phone !== undefined && { phone: input.phone.trim() || null }),
       ...(input.email !== undefined && { email: input.email.trim() || null }),
       ...(input.cambio !== undefined && { cambio: parseCambio(input.cambio) }),
+      ...(input.instrutor_id !== undefined && { instrutor_id: input.instrutor_id || null }),
     })
     .eq('id', id)
     .eq('autoescola_id', autoescola_id)
@@ -227,7 +242,8 @@ export async function editarAluno(
   await supabase.from('activity_logs_painel').insert({
     username: userAct,
     action_type: 'aluno',
-    description: `Aluno editado (ID: ${id})${input.cambio !== undefined ? ` — câmbio: ${parseCambio(input.cambio) ?? 'livre'}` : ''}`,
+    metadata: { student_id: id },
+    description: `Aluno editado (ID: ${id})${input.cambio !== undefined ? ` — câmbio: ${parseCambio(input.cambio) ?? 'livre'}` : ''}${input.instrutor_id !== undefined ? ` — instrutor responsável: ${instrutorNome ?? 'nenhum'}` : ''}`,
     autoescola_id,
   })
 

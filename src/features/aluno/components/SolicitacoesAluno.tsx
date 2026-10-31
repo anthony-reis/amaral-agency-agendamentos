@@ -304,7 +304,7 @@ export function SolicitacoesAluno({
   }, [autoescolaId, studentId])
 
   // Aviso instantâneo via Realtime; o polling abaixo é só rede de segurança.
-  useAvisoRealtime(autoescolaId, 'solicitacoes', checarAtualizacoes)
+  useAvisoRealtime(`aluno:${studentId}`, 'solicitacoes', checarAtualizacoes)
 
   // Polling: só enquanto a aba está visível. Pausa em background, retoma no
   // foco/volta de visibilidade. Um único interval por vez (sem sobreposição

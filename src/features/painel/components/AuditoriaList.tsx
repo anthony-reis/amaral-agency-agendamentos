@@ -22,6 +22,7 @@ const ACTION_LABELS: Record<string, { label: string; cls: string }> = {
   cancelamento: { label: 'Cancelamento', cls: 'bg-rose-100 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400' },
   reembolso:    { label: 'Reembolso', cls: 'bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400' },
   venda:        { label: 'Venda', cls: 'bg-sky-100 text-sky-700 dark:bg-sky-500/10 dark:text-sky-300' },
+  configuracao: { label: 'Configuração', cls: 'bg-purple-100 text-purple-700 dark:bg-purple-500/10 dark:text-purple-300' },
   travamento:   { label: 'Travamento', cls: 'bg-orange-100 text-orange-700 dark:bg-orange-500/10 dark:text-orange-300' },
   reagendamento: { label: 'Remarcação', cls: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-500/10 dark:text-cyan-300' },
   aluno_acesso: { label: 'Acesso do aluno', cls: 'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300' },
@@ -240,7 +241,7 @@ export function AuditoriaList({ autoescola_id, initialData, initialStats, initia
             <label className="block text-xs text-[--p-text-3] mb-1">Tipo de Ação</label>
             <select value={filters.action_type} onChange={(e) => setFilters((p) => ({ ...p, action_type: e.target.value }))} className={inputCls}>
               <option value="TODAS">TODAS</option>
-              {['login', 'logout', 'agendamento', 'credito', 'aluno', 'bloqueio', 'usuario', 'cancelamento', 'cancelamento_massa', 'reagendamento', 'aluno_acesso', 'venda', 'contrato', 'travamento', 'reembolso', 'termos'].map((t) => (
+              {['login', 'logout', 'agendamento', 'credito', 'aluno', 'bloqueio', 'usuario', 'cancelamento', 'cancelamento_massa', 'reagendamento', 'aluno_acesso', 'venda', 'contrato', 'travamento', 'configuracao', 'reembolso', 'termos'].map((t) => (
                 <option key={t} value={t}>{ACTION_LABELS[t]?.label ?? t}</option>
               ))}
             </select>

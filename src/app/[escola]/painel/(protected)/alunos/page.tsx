@@ -6,6 +6,8 @@ import { listarAlunos } from '@/features/painel/actions/alunos'
 import { listarProdutos } from '@/features/painel/actions/catalogo'
 import { getAutoescolaFeatures } from '@/lib/features.server'
 import { statusContratosPorAluno } from '@/features/painel/actions/contratos'
+import { getVincularAlunoInstrutor } from '@/features/painel/actions/configuracoes'
+import { listarInstrutores } from '@/features/painel/actions/instrutores'
 import { AlunosList } from '@/features/painel/components/AlunosList'
 
 interface Props {
@@ -21,10 +23,12 @@ export default async function AlunosPage({ params }: Props) {
   const podeVender = permite(acesso.permissoes.vendas, 'editar')
 
   const features = await getAutoescolaFeatures(session.autoescola_id)
-  const [alunos, produtos, contratoStatus] = await Promise.all([
+  const vinculoAtivo = await getVincularAlunoInstrutor(session.autoescola_id)
+  const [alunos, produtos, contratoStatus, instrutores] = await Promise.all([
     listarAlunos(session.autoescola_id),
     podeVender ? listarProdutos(session.autoescola_id) : Promise.resolve([]),
     features.contratos ? statusContratosPorAluno(session.autoescola_id) : Promise.resolve({}),
+    vinculoAtivo ? listarInstrutores(session.autoescola_id) : Promise.resolve(null),
   ])
 
   return (
@@ -39,6 +43,7 @@ export default async function AlunosPage({ params }: Props) {
       examesAtivo={permite(acesso.permissoes.exames, 'editar')}
       loginSenhaAtivo={features.login_senha_aluno}
       cambioAtivo={features.separar_cambio}
+      instrutoresVinculo={instrutores ? instrutores.map((i) => ({ id: i.id, name: i.name })) : null}
       contratosAtivo={features.contratos}
       contratoStatusInicial={contratoStatus}
     />

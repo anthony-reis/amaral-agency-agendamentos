@@ -32,6 +32,8 @@ interface Props {
   /** Situação do contrato mudou (selo na tabela). */
   onContratoStatus: (status: 'pendente' | 'assinado' | null) => void
   cambioAtivo: boolean
+  /** Opção "vincular aluno ao instrutor" ligada: instrutores para escolher. null = opção desligada. */
+  instrutoresVinculo: { id: string; name: string }[] | null
   pendente: Partial<Record<Cat, number>>
   ocupado: boolean
   onFechar: () => void
@@ -174,10 +176,10 @@ function AbaCreditos({ aluno, canEdit, podeAdicionar, vendasAtivo, pendente, ocu
 
 // ─── Aba: Dados ──────────────────────────────────────────────────────────────
 
-function AbaDados({ aluno, autoescola_id, canEdit, cambioAtivo, onAtualizado }:
-  Pick<Props, 'autoescola_id' | 'canEdit' | 'cambioAtivo' | 'onAtualizado'> & { aluno: AlunoComCreditos }) {
+function AbaDados({ aluno, autoescola_id, canEdit, cambioAtivo, instrutoresVinculo, onAtualizado }:
+  Pick<Props, 'autoescola_id' | 'canEdit' | 'cambioAtivo' | 'instrutoresVinculo' | 'onAtualizado'> & { aluno: AlunoComCreditos }) {
   const [isPending, startTransition] = useTransition()
-  const [form, setForm] = useState({ name: aluno.name, phone: aluno.phone ?? '', email: aluno.email ?? '', cambio: aluno.cambio ?? '' })
+  const [form, setForm] = useState({ name: aluno.name, phone: aluno.phone ?? '', email: aluno.email ?? '', cambio: aluno.cambio ?? '', instrutor_id: aluno.instrutor_id ?? '' })
   const [erro, setErro] = useState('')
   const [salvo, setSalvo] = useState(false)
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -186,7 +188,8 @@ function AbaDados({ aluno, autoescola_id, canEdit, cambioAtivo, onAtualizado }:
   }
   const alterado =
     form.name !== aluno.name || form.phone !== (aluno.phone ?? '') || form.email !== (aluno.email ?? '') ||
-    (cambioAtivo && form.cambio !== (aluno.cambio ?? ''))
+    (cambioAtivo && form.cambio !== (aluno.cambio ?? '')) ||
+    (!!instrutoresVinculo && form.instrutor_id !== (aluno.instrutor_id ?? ''))
 
   function salvar(e: React.FormEvent) {
     e.preventDefault()
@@ -197,6 +200,7 @@ function AbaDados({ aluno, autoescola_id, canEdit, cambioAtivo, onAtualizado }:
         phone: form.phone,
         email: form.email,
         ...(cambioAtivo && { cambio: form.cambio }),
+        ...(instrutoresVinculo && { instrutor_id: form.instrutor_id }),
       }, autoescola_id)
       if (!result.success) { setErro(result.error); return }
       onAtualizado({
@@ -204,6 +208,7 @@ function AbaDados({ aluno, autoescola_id, canEdit, cambioAtivo, onAtualizado }:
         phone: form.phone || null,
         email: form.email || null,
         ...(cambioAtivo && { cambio: parseCambio(form.cambio) }),
+        ...(instrutoresVinculo && { instrutor_id: form.instrutor_id || null }),
       })
       setSalvo(true)
     })
@@ -231,6 +236,17 @@ function AbaDados({ aluno, autoescola_id, canEdit, cambioAtivo, onAtualizado }:
             <option value="">Sem restrição (vê todos os instrutores)</option>
             {CAMBIOS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
           </select>
+        </Campo>
+      )}
+      {instrutoresVinculo && (
+        <Campo rotulo="Instrutor responsável">
+          <select value={form.instrutor_id} onChange={set('instrutor_id')} disabled={!canEdit} className={inputCls}>
+            <option value="">Sem vínculo (agenda com qualquer instrutor)</option>
+            {instrutoresVinculo.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
+          </select>
+          <p className="text-xs text-[--p-text-3] mt-1">
+            Com vínculo, o aluno só agenda e remarca com este instrutor.
+          </p>
         </Campo>
       )}
       <p className="text-xs text-[--p-text-3]">

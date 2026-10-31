@@ -54,7 +54,7 @@ export function InstructorPainel({
   const [isPending, startTransition] = useTransition()
 
   // Atualiza o dia e o mapa da semana quando há mudança nos agendamentos (Realtime).
-  useAvisoRealtime(autoescola_id, 'agendamentos', async () => {
+  useAvisoRealtime(`autoescola:${autoescola_id}`, 'agendamentos', async () => {
     const [novasAulas, novoMapa] = await Promise.all([
       getMinhasAulasHoje(instructorName, autoescola_id, selectedDate),
       getMapaSemanal(instructorName, autoescola_id, weekStart),

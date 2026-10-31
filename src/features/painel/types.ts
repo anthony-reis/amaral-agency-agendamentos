@@ -183,6 +183,8 @@ export interface Aluno {
   name: string
   /** Câmbio do carro (módulo separar_cambio). null = vê qualquer instrutor. */
   cambio: 'MANUAL' | 'AUTOMATICO' | null
+  /** Instrutor responsável (opção "vincular aluno ao instrutor"). null = sem vínculo. */
+  instrutor_id: string | null
   email: string | null
   phone: string | null
   document_id: string

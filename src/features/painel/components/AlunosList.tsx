@@ -29,6 +29,8 @@ interface Props {
   loginSenhaAtivo?: boolean
   /** Módulo "separar_cambio": câmbio manual/automático do aluno. */
   cambioAtivo?: boolean
+  /** Opção "vincular aluno ao instrutor" (aba Sistema): instrutores para escolher; null = desligada. */
+  instrutoresVinculo?: { id: string; name: string }[] | null
   /** Módulo "contratos": aba Contrato e selo na tabela. */
   contratosAtivo?: boolean
   /** Situação do contrato por aluno (só com o módulo ligado). */
@@ -68,6 +70,7 @@ export function AlunosList({
   examesAtivo = false,
   loginSenhaAtivo = false,
   cambioAtivo = false,
+  instrutoresVinculo = null,
   contratosAtivo = false,
   contratoStatusInicial = {},
 }: Props) {
@@ -421,6 +424,7 @@ export function AlunosList({
         examesAtivo={examesAtivo}
         loginSenhaAtivo={loginSenhaAtivo}
         cambioAtivo={cambioAtivo}
+        instrutoresVinculo={instrutoresVinculo}
         contratosAtivo={contratosAtivo}
         escola={escola}
         onContratoStatus={(st) => aberto && setContratoStatus((prev) => {

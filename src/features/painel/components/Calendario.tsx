@@ -753,7 +753,7 @@ export function Calendario({ autoescola_id, initialData, initialYear, initialMon
   const [refreshKey, setRefreshKey] = useState(0)
 
   // Atualiza o mês e o dia aberto quando alguém agenda/cancela (Realtime).
-  useAvisoRealtime(autoescola_id, 'agendamentos', async () => {
+  useAvisoRealtime(`autoescola:${autoescola_id}`, 'agendamentos', async () => {
     setDias(await getCalendarioData(autoescola_id, year, month))
     setRefreshKey((k) => k + 1)
   })

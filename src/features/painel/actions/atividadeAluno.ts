@@ -56,7 +56,11 @@ export async function getLinhaDoTempoAula(autoescola_id: string, agendamento_id:
     eventos.push({
       id: h.id,
       quando: h.created_at,
-      titulo: h.tipo === 'agendado' ? 'Aula agendada pelo aluno' : 'Aula remarcada pelo aluno',
+      titulo: h.tipo === 'agendado'
+        ? 'Aula agendada pelo aluno'
+        : h.origem === 'painel' && /antecipou/i.test(h.feito_por ?? '')
+          ? 'Aula antecipada pelo instrutor'
+          : 'Aula remarcada pelo aluno',
       detalhe: h.tipo === 'agendado'
         ? `${dataBR(h.para_date)} às ${h.para_time_slot} · ${h.para_instrutor ?? '—'} (${h.para_categoria ?? '—'})`
         : `de ${dataBR(h.de_date)} às ${h.de_time_slot} (${h.de_instrutor ?? '—'}) para ${dataBR(h.para_date)} às ${h.para_time_slot} (${h.para_instrutor ?? '—'})`,
