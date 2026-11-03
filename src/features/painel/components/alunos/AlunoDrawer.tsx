@@ -2,11 +2,13 @@
 
 import { useEffect, useState, useTransition } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { Activity, CalendarClock, FileSignature, LogIn, Send, FileText, Loader2, Paperclip, ScrollText, Upload, Check, CreditCard, FileCheck, IdCard, KeyRound, Minus, Plus, Trash2, MessageCircle, X } from 'lucide-react'
+import { AlertTriangle, UserCheck, Activity, CalendarClock, FileSignature, LogIn, Send, FileText, Loader2, Paperclip, ScrollText, Upload, Check, CreditCard, FileCheck, IdCard, KeyRound, Minus, Plus, Trash2, MessageCircle, X } from 'lucide-react'
 import { CAMBIOS, parseCambio } from '@/lib/cambio'
 import { formatarPrecoCentavos, type PedidoLojaStatus } from '@/lib/loja-types'
 import { METODO_LABEL, STATUS_BADGE, STATUS_LABEL, formatarDataHoraCompleta } from '../vendasUi'
 import { editarAluno, resetarSenhaAluno } from '../../actions/alunos'
+import { getAulasFuturasAluno } from '../../actions/vinculoInstrutor'
+import { agruparPorInstrutor, rotuloAulas, vinculoImpossivel, type AulaFutura } from '@/lib/vinculoInstrutor'
 import { listarAtividadeAluno, type EventoAluno } from '../../actions/atividadeAluno'
 import { anexarContratoAssinado, cancelarContrato, enviarContratoAluno, listarContratosAluno, type ContratosDoAluno } from '../../actions/contratos'
 import { STATUS_CONTRATO_LABEL } from '@/lib/contratos'
@@ -34,6 +36,8 @@ interface Props {
   cambioAtivo: boolean
   /** Opção "vincular aluno ao instrutor" ligada: instrutores para escolher. null = opção desligada. */
   instrutoresVinculo: { id: string; name: string }[] | null
+  /** Aulas futuras do aluno por instrutor (cabeçalho do painel). */
+  resumoAulas?: { instrutor: string; qtd: number }[]
   pendente: Partial<Record<Cat, number>>
   ocupado: boolean
   onFechar: () => void
@@ -174,6 +178,99 @@ function AbaCreditos({ aluno, canEdit, podeAdicionar, vendasAtivo, pendente, ocu
   )
 }
 
+// ─── Instrutor responsável (vínculo) ─────────────────────────────────────────
+
+function dataCurta(date: string) {
+  const texto = new Date(`${date}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' })
+  return texto.charAt(0).toUpperCase() + texto.slice(1)
+}
+
+function BlocoInstrutor({ valor, onChange, instrutores, canEdit, aluno, autoescola_id }: {
+  valor: string
+  onChange: (id: string) => void
+  instrutores: { id: string; name: string }[]
+  canEdit: boolean
+  aluno: AlunoComCreditos
+  autoescola_id: string
+}) {
+  const [aulas, setAulas] = useState<AulaFutura[] | null>(null)
+
+  useEffect(() => {
+    let ativo = true
+    setAulas(null)
+    getAulasFuturasAluno(autoescola_id, aluno.id).then((r) => { if (ativo) setAulas(r.success ? r.data : []) })
+    return () => { ativo = false }
+  }, [autoescola_id, aluno.id])
+
+  const grupos = agruparPorInstrutor(aulas ?? [])
+  const bloqueado = vinculoImpossivel(grupos)
+  const vinculado = instrutores.find((i) => i.id === aluno.instrutor_id)
+  const comVinculado = vinculado ? grupos.find((g) => g.instrutor === vinculado.name)?.aulas.length ?? 0 : 0
+  const outrosInstrutores = vinculado ? grupos.filter((g) => g.instrutor !== vinculado.name) : []
+  // Sem vínculo e com aulas em mais de um instrutor: não dá para vincular.
+  // Já vinculado nessa situação: só permite desvincular.
+  const opcoes = bloqueado && vinculado ? instrutores.filter((i) => i.id === vinculado.id) : instrutores
+  const desabilitado = !canEdit || (bloqueado && !vinculado)
+
+  return (
+    <section className="rounded-xl border border-[--p-border] bg-[--p-bg-input] p-3 space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-xs font-medium text-[--p-text-2]">Instrutor responsável</span>
+        {vinculado && aulas && (
+          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-500">
+            <UserCheck className="w-3 h-3" /> {vinculado.name} · {rotuloAulas(comVinculado)} agendada{comVinculado === 1 ? '' : 's'}
+          </span>
+        )}
+      </div>
+
+      <select value={valor} onChange={(e) => onChange(e.target.value)} disabled={desabilitado} className={`${inputCls} disabled:opacity-60`}>
+        <option value="">Sem vínculo (agenda com qualquer instrutor)</option>
+        {opcoes.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
+      </select>
+
+      {!aulas ? (
+        <p className="text-xs text-[--p-text-3]">Carregando aulas agendadas…</p>
+      ) : bloqueado ? (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 space-y-2">
+          <p className="text-xs font-semibold text-amber-500 flex items-start gap-1.5">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
+            {vinculado
+              ? `Este aluno tem aulas agendadas com ${grupos.length} instrutores diferentes. Só é possível remover o vínculo.`
+              : `Não é possível vincular: o aluno tem aulas agendadas com ${grupos.length} instrutores diferentes.`}
+          </p>
+          <ul className="space-y-1.5">
+            {grupos.map((g) => (
+              <li key={g.instrutor} className="text-xs">
+                <p className="font-semibold text-[--p-text-1]">{g.instrutor} <span className="font-normal text-[--p-text-3]">· {rotuloAulas(g.aulas.length)}</span></p>
+                <ul className="ml-3 text-[--p-text-2]">
+                  {g.aulas.map((a) => (
+                    <li key={a.id}>{dataCurta(a.date)} às {a.time_slot}{a.instructorCategory ? ` · ${a.instructorCategory}` : ''}</li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ul>
+          <p className="text-[11px] text-[--p-text-3]">Remarque ou cancele as aulas até restar um só instrutor para poder vincular.</p>
+        </div>
+      ) : (
+        <>
+          {grupos.length === 1 && (
+            <p className="text-xs text-[--p-text-2]">Aulas agendadas com <b>{grupos[0].instrutor}</b>: {grupos[0].aulas.length}.</p>
+          )}
+          {grupos.length === 0 && <p className="text-xs text-[--p-text-3]">Nenhuma aula agendada.</p>}
+          {outrosInstrutores.length > 0 && (
+            <p className="text-xs text-amber-500 flex items-start gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
+              As aulas já agendadas são com {outrosInstrutores[0].instrutor} ({outrosInstrutores[0].aulas.length}), não com o instrutor vinculado.
+            </p>
+          )}
+        </>
+      )}
+      <p className="text-xs text-[--p-text-3]">Com vínculo, o aluno só agenda e remarca com este instrutor.</p>
+    </section>
+  )
+}
+
 // ─── Aba: Dados ──────────────────────────────────────────────────────────────
 
 function AbaDados({ aluno, autoescola_id, canEdit, cambioAtivo, instrutoresVinculo, onAtualizado }:
@@ -239,15 +336,14 @@ function AbaDados({ aluno, autoescola_id, canEdit, cambioAtivo, instrutoresVincu
         </Campo>
       )}
       {instrutoresVinculo && (
-        <Campo rotulo="Instrutor responsável">
-          <select value={form.instrutor_id} onChange={set('instrutor_id')} disabled={!canEdit} className={inputCls}>
-            <option value="">Sem vínculo (agenda com qualquer instrutor)</option>
-            {instrutoresVinculo.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
-          </select>
-          <p className="text-xs text-[--p-text-3] mt-1">
-            Com vínculo, o aluno só agenda e remarca com este instrutor.
-          </p>
-        </Campo>
+        <BlocoInstrutor
+          valor={form.instrutor_id}
+          onChange={(id) => { setSalvo(false); setForm((p) => ({ ...p, instrutor_id: id })) }}
+          instrutores={instrutoresVinculo}
+          canEdit={canEdit}
+          aluno={aluno}
+          autoescola_id={autoescola_id}
+        />
       )}
       <p className="text-xs text-[--p-text-3]">
         Cadastrado em {new Date(aluno.created_at).toLocaleDateString('pt-BR')}
@@ -704,6 +800,8 @@ function AbaAcesso({ aluno, autoescola_id, canEdit, onAtualizado }:
 
 export function AlunoDrawer(props: Props) {
   const { aluno, abaInicial = 'creditos', canEdit, examesAtivo, loginSenhaAtivo, contratosAtivo, onFechar } = props
+  const instrutorVinculadoNome = props.instrutoresVinculo?.find((i) => i.id === aluno?.instrutor_id)?.name ?? null
+  const aulasComVinculado = props.resumoAulas?.find((r) => r.instrutor === instrutorVinculadoNome)?.qtd ?? 0
   const reduzir = useReducedMotion()
   const [aba, setAba] = useState<AbaId>('creditos')
 
@@ -756,6 +854,11 @@ export function AlunoDrawer(props: Props) {
                 <div className="min-w-0 flex-1">
                   <h3 className="font-bold text-[--p-text-1] truncate">{aluno.name}</h3>
                   <p className="text-xs text-[--p-text-3] font-mono">{formatDoc(aluno.document_id)}</p>
+                  {instrutorVinculadoNome && (
+                    <p className="text-xs text-violet-500 font-medium mt-0.5 flex items-center gap-1">
+                      <UserCheck className="w-3 h-3" /> Instrutor: {instrutorVinculadoNome} · {rotuloAulas(aulasComVinculado)}
+                    </p>
+                  )}
                 </div>
                 <button onClick={onFechar} className="p-1 text-[--p-text-3] hover:text-[--p-text-1]" aria-label="Fechar">
                   <X className="w-5 h-5" />

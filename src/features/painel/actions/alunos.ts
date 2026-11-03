@@ -8,6 +8,8 @@ import { getCurrentUsername, getCurrentUserId, assertPodeEditar } from './authPa
 import { creditarPedido } from '@/lib/creditos'
 import { enviarArquivoAnexo, removerArquivoAnexo } from '@/lib/anexosAluno.server'
 import type { Produto, PedidoLoja, ProdutoSnapshot } from '@/lib/loja-types'
+import { aulasFuturasDoAluno } from '@/lib/aulasFuturas.server'
+import { agruparPorInstrutor, mensagemVinculoImpossivel, vinculoImpossivel } from '@/lib/vinculoInstrutor'
 import type { AlunoComCreditos, AlunoCreditos, NovoAlunoInput, ActionResult } from '../types'
 
 export interface VendaNoCadastroInput {
@@ -222,6 +224,19 @@ export async function editarAluno(
       .maybeSingle()
     if (!instrutor) return { success: false, error: 'Instrutor não encontrado.' }
     instrutorNome = instrutor.name
+
+    // Aluno com aulas agendadas com mais de um instrutor não pode ser vinculado.
+    const { data: atual } = await supabase
+      .from('students')
+      .select('instrutor_id, document_id')
+      .eq('id', id)
+      .eq('autoescola_id', autoescola_id)
+      .maybeSingle()
+    if (!atual) return { success: false, error: 'Aluno não encontrado.' }
+    if (atual.instrutor_id !== input.instrutor_id) {
+      const grupos = agruparPorInstrutor(await aulasFuturasDoAluno(supabase, autoescola_id, atual.document_id))
+      if (vinculoImpossivel(grupos)) return { success: false, error: mensagemVinculoImpossivel(grupos) }
+    }
   }
 
   const { error } = await supabase

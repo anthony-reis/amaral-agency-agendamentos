@@ -8,6 +8,9 @@ import { getAutoescolaFeatures } from '@/lib/features.server'
 import { statusContratosPorAluno } from '@/features/painel/actions/contratos'
 import { getVincularAlunoInstrutor } from '@/features/painel/actions/configuracoes'
 import { listarInstrutores } from '@/features/painel/actions/instrutores'
+import { createServiceClient } from '@/lib/supabase/server'
+import { aulasFuturasPorDocumento } from '@/lib/aulasFuturas.server'
+import { agruparPorInstrutor } from '@/lib/vinculoInstrutor'
 import { AlunosList } from '@/features/painel/components/AlunosList'
 
 interface Props {
@@ -31,6 +34,16 @@ export default async function AlunosPage({ params }: Props) {
     vinculoAtivo ? listarInstrutores(session.autoescola_id) : Promise.resolve(null),
   ])
 
+  // Aulas futuras por aluno e instrutor (selo na tabela e cabeçalho do painel)
+  const aulasFuturasPorAluno: Record<string, { instrutor: string; qtd: number }[]> = {}
+  if (vinculoAtivo) {
+    const porDoc = await aulasFuturasPorDocumento(createServiceClient(), session.autoescola_id)
+    for (const a of alunos) {
+      const grupos = agruparPorInstrutor(porDoc.get(a.document_id) ?? [])
+      if (grupos.length) aulasFuturasPorAluno[a.id] = grupos.map((g) => ({ instrutor: g.instrutor, qtd: g.aulas.length }))
+    }
+  }
+
   return (
     <AlunosList
       alunos={alunos}
@@ -43,6 +56,7 @@ export default async function AlunosPage({ params }: Props) {
       examesAtivo={permite(acesso.permissoes.exames, 'editar')}
       loginSenhaAtivo={features.login_senha_aluno}
       cambioAtivo={features.separar_cambio}
+      aulasFuturasPorAluno={aulasFuturasPorAluno}
       instrutoresVinculo={instrutores ? instrutores.map((i) => ({ id: i.id, name: i.name })) : null}
       contratosAtivo={features.contratos}
       contratoStatusInicial={contratoStatus}

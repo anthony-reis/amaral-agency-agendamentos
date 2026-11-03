@@ -11,6 +11,7 @@ import { VenderCreditosModal } from './VenderCreditosModal'
 import { AlunoDrawer } from './alunos/AlunoDrawer'
 import { ExcluirAlunoModal } from './alunos/ExcluirAlunoModal'
 import { NovoAlunoModal } from './alunos/NovoAlunoModal'
+import { rotuloAulas } from '@/lib/vinculoInstrutor'
 import { CATS, creditoDaCat, formatDoc, inputCls, linkWhatsapp, totalCreditos, type Cat } from './alunos/utils'
 
 interface Props {
@@ -31,6 +32,8 @@ interface Props {
   cambioAtivo?: boolean
   /** Opção "vincular aluno ao instrutor" (aba Sistema): instrutores para escolher; null = desligada. */
   instrutoresVinculo?: { id: string; name: string }[] | null
+  /** Aulas futuras por aluno e instrutor (só com o vínculo ligado). */
+  aulasFuturasPorAluno?: Record<string, { instrutor: string; qtd: number }[]>
   /** Módulo "contratos": aba Contrato e selo na tabela. */
   contratosAtivo?: boolean
   /** Situação do contrato por aluno (só com o módulo ligado). */
@@ -71,6 +74,7 @@ export function AlunosList({
   loginSenhaAtivo = false,
   cambioAtivo = false,
   instrutoresVinculo = null,
+  aulasFuturasPorAluno = {},
   contratosAtivo = false,
   contratoStatusInicial = {},
 }: Props) {
@@ -362,6 +366,22 @@ export function AlunosList({
                       <button className="text-left font-semibold text-[--p-text-1] hover:text-[#0ea5e9] truncate max-w-[220px] block transition-colors">
                         {a.name}
                       </button>
+                      {instrutoresVinculo && (() => {
+                        const resumo = aulasFuturasPorAluno[a.id] ?? []
+                        const nome = instrutoresVinculo.find((i) => i.id === a.instrutor_id)?.name
+                        if (nome) {
+                          return (
+                            <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-500/10 text-violet-500">
+                              {nome} · {rotuloAulas(resumo.find((r) => r.instrutor === nome)?.qtd ?? 0)}
+                            </span>
+                          )
+                        }
+                        return resumo.length > 1 ? (
+                          <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-500" title={resumo.map((r) => `${r.instrutor}: ${r.qtd}`).join(' · ')}>
+                            Aulas com {resumo.length} instrutores
+                          </span>
+                        ) : null
+                      })()}
                       {contratosAtivo && contratoStatus[a.id] && (
                         <span className={`mt-0.5 inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
                           contratoStatus[a.id] === 'assinado' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'
@@ -425,6 +445,7 @@ export function AlunosList({
         loginSenhaAtivo={loginSenhaAtivo}
         cambioAtivo={cambioAtivo}
         instrutoresVinculo={instrutoresVinculo}
+        resumoAulas={aberto ? aulasFuturasPorAluno[aberto.id] : undefined}
         contratosAtivo={contratosAtivo}
         escola={escola}
         onContratoStatus={(st) => aberto && setContratoStatus((prev) => {
