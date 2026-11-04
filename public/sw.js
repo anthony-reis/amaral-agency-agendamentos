@@ -2,14 +2,20 @@
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()))
 
-const EMOJI = { aula_cancelada: '❌', aula_remarcada: '🔄', aula_agendada: '✅' }
+const EMOJI = {
+  aula_cancelada: '❌', aula_remarcada: '🔄', aula_agendada: '✅', falta: '⚠️', solicitacao: '📄',
+  pagamento: '💳', credito: '🪙', contrato: '✍️', lembrete_dia: '🔔', lembrete_hora: '⏰', horario_bloqueado: '🚫',
+}
 
 self.addEventListener('push', (event) => {
   let d = {}
   try { d = event.data ? event.data.json() : {} } catch { d = {} }
   const emoji = EMOJI[d.tipo] || '🔔'
   event.waitUntil(
-    self.registration.showNotification(`${emoji} ${d.titulo || 'AmaralPro'}`, {
+    // App aberto e visível: o banner dentro do app já avisa, então não duplica no aparelho
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((lista) => {
+      if (lista.some((c) => c.visibilityState === 'visible')) return
+      return self.registration.showNotification(`${emoji} ${d.titulo || 'AmaralPro'}`, {
       body: d.mensagem || '',
       icon: '/icon-192.png',
       badge: '/badge-96.png',
@@ -20,6 +26,7 @@ self.addEventListener('push', (event) => {
       lang: 'pt-BR',
       actions: [{ action: 'abrir', title: d.acao || 'Abrir' }],
       data: { url: d.url || '/' },
+      })
     })
   )
 })

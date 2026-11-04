@@ -3,10 +3,11 @@
 import { cookies } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 import { createServiceClient } from '@/lib/supabase/server'
+import type { TipoAviso } from '@/lib/tiposAviso'
 
 export interface AvisoAluno {
   id: string
-  tipo: 'aula_cancelada' | 'aula_remarcada'
+  tipo: TipoAviso
   titulo: string
   mensagem: string
   created_at: string

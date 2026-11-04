@@ -2,10 +2,11 @@
 
 import { createServiceClient } from '@/lib/supabase/server'
 import { getInstructorSession } from './authInstrutor'
+import type { TipoAviso } from '@/lib/tiposAviso'
 
 export interface AvisoInstrutor {
   id: string
-  tipo: 'aula_agendada' | 'aula_cancelada' | 'aula_remarcada'
+  tipo: TipoAviso
   titulo: string
   mensagem: string
   created_at: string

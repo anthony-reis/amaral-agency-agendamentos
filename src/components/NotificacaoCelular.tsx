@@ -2,22 +2,36 @@
 
 import { useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { CalendarCheck, CalendarClock, CalendarX2 } from 'lucide-react'
+import { AlarmClock, Ban, BadgeCheck, Bell, CalendarCheck, CalendarClock, CalendarX2, Coins, FileSignature, FileText, UserX } from 'lucide-react'
+import type { TipoAviso } from '@/lib/tiposAviso'
 
 export interface ItemNotificacao {
   id: string
-  tipo: 'aula_agendada' | 'aula_cancelada' | 'aula_remarcada'
+  tipo: TipoAviso
   titulo: string
   mensagem: string
 }
 
 export const DURACAO_NOTIFICACAO_MS = 6000
 
-const ESTILO = {
-  aula_agendada: { Icon: CalendarCheck, cor: 'bg-emerald-500/15 text-emerald-400' },
-  aula_cancelada: { Icon: CalendarX2, cor: 'bg-red-500/15 text-red-400' },
-  aula_remarcada: { Icon: CalendarClock, cor: 'bg-amber-500/15 text-amber-400' },
-} as const
+const VERDE = 'bg-emerald-500/15 text-emerald-400'
+const VERMELHO = 'bg-red-500/15 text-red-400'
+const AMBAR = 'bg-amber-500/15 text-amber-400'
+const AZUL = 'bg-sky-500/15 text-sky-400'
+
+const ESTILO: Record<TipoAviso, { Icon: typeof Bell; cor: string }> = {
+  aula_agendada: { Icon: CalendarCheck, cor: VERDE },
+  aula_cancelada: { Icon: CalendarX2, cor: VERMELHO },
+  aula_remarcada: { Icon: CalendarClock, cor: AMBAR },
+  falta: { Icon: UserX, cor: VERMELHO },
+  solicitacao: { Icon: FileText, cor: AZUL },
+  pagamento: { Icon: BadgeCheck, cor: VERDE },
+  credito: { Icon: Coins, cor: VERDE },
+  contrato: { Icon: FileSignature, cor: AMBAR },
+  lembrete_dia: { Icon: Bell, cor: AZUL },
+  lembrete_hora: { Icon: AlarmClock, cor: AMBAR },
+  horario_bloqueado: { Icon: Ban, cor: VERMELHO },
+}
 
 function Cartao({ item, onFechar }: { item: ItemNotificacao; onFechar: (id: string) => void }) {
   useEffect(() => {
@@ -25,7 +39,7 @@ function Cartao({ item, onFechar }: { item: ItemNotificacao; onFechar: (id: stri
     return () => clearTimeout(t)
   }, [item.id, onFechar])
 
-  const { Icon, cor } = ESTILO[item.tipo]
+  const { Icon, cor } = ESTILO[item.tipo] ?? { Icon: Bell, cor: AZUL }
   return (
     <motion.button
       type="button"

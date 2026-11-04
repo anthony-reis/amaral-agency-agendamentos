@@ -171,7 +171,18 @@ export async function criarAvisoAluno(
   }
 ) {
   try {
-    await supabase.from('avisos_aluno').insert(a)
+    // Função do banco: junta rajadas (ex.: 20 aulas desmarcadas) em um único aviso/push
+    const { error } = await supabase.rpc('registrar_aviso_aluno', {
+      p_autoescola: a.autoescola_id,
+      p_student: a.student_id,
+      p_tipo: a.tipo,
+      p_titulo: a.titulo,
+      p_msg: a.mensagem,
+      p_agend: a.agendamento_id ?? null,
+      p_agrupar: true,
+    })
+    // Migration ainda não aplicada: grava direto, como antes
+    if (error) await supabase.from('avisos_aluno').insert(a)
   } catch (err) {
     console.error('[atividadeAluno] falha ao criar aviso do aluno:', err)
   }
