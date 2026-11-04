@@ -46,6 +46,7 @@ export async function enviarPush(perfil: 'aluno' | 'instrutor', ownerId: string,
         enviados++
       } catch (e) {
         const status = (e as { statusCode?: number }).statusCode
+        console.error('[push] falha ao enviar', perfil, status, (e as { body?: string }).body ?? (e as Error).message)
         // inscrição expirada/revogada: limpa
         if (status === 404 || status === 410) await supabase.from('push_subscriptions').delete().eq('id', s.id)
       }
