@@ -3,11 +3,11 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import type { ActionResult } from '@/features/painel/types'
-import { cancelarAgendamentoComOpcoes } from '@/features/painel/actions/agendamentos'
+import { cancelarAulaCore } from '@/lib/cancelarAula.server'
 import { autoescolaTemFeature } from '@/lib/features.server'
 import { buscarExamesBancaAgendados } from '@/lib/exameBanca'
 import { getDisponibilidade } from '@/lib/getDisponibilidade'
-import { dataBR, registrarHistoricoAgendamento } from '@/lib/atividadeAluno.server'
+import { criarAvisoAluno, dataBR, registrarHistoricoAgendamento } from '@/lib/atividadeAluno.server'
 import { getInstructorConfig } from '@/features/painel/actions/configuracoes'
 import { getInstructorSession } from './authInstrutor'
 import type { ExameBancaAgendado } from '@/lib/exameBancaTypes'
@@ -366,18 +366,34 @@ export async function marcarResultadoExame(
 }
 
 export async function atualizarStatusAula(
+  escola: string,
   agendamento_id: string,
   status: 'completed' | 'absent' | 'cancelled',
-  instructor_name: string,
-  autoescola_id: string,
   options?: { reason?: string; blockSlot?: boolean }
 ): Promise<ActionResult> {
+  // Quem é o instrutor e de qual escola vem da sessão, nunca do cliente
+  const session = await getInstructorSession(escola)
+  if (!session) return { success: false, error: 'Sessão expirada. Entre novamente.' }
+  const instructor_name = session.name
+  const autoescola_id = session.autoescola_id
+
   const supabase = createServiceClient()
 
+  // A aula precisa ser deste instrutor
+  const { data: propria } = await supabase
+    .from('agendamentos')
+    .select('id')
+    .eq('id', agendamento_id)
+    .eq('autoescola_id', autoescola_id)
+    .eq('instructor_name', instructor_name)
+    .maybeSingle()
+  if (!propria) return { success: false, error: 'Aula não encontrada na sua agenda.' }
+
   if (status === 'cancelled') {
-    return cancelarAgendamentoComOpcoes(agendamento_id, autoescola_id, {
+    return cancelarAulaCore(agendamento_id, autoescola_id, {
       blockSlot: options?.blockSlot || false,
-      reason: options?.reason
+      reason: options?.reason,
+      feito_por: `Instrutor ${instructor_name}`,
     })
   }
 
@@ -494,8 +510,12 @@ export async function listarHorariosParaAntecipar(
 export async function anteciparAula(
   escola: string,
   agendamentoId: string,
-  novoHorario: string
+  novoHorario: string,
+  alunoConsultado: boolean
 ): Promise<ActionResult> {
+  if (!alunoConsultado) {
+    return { success: false, error: 'Confirme que o aluno foi consultado e pode pegar o novo horário.' }
+  }
   const v = await validarAntecipacao(escola, agendamentoId)
   if (!v.ok) return { success: false, error: v.error }
   if (!v.horarios.includes(novoHorario)) {
@@ -529,13 +549,21 @@ export async function anteciparAula(
       origem: 'painel',
       de: { date: v.ag.date, time_slot: v.ag.time_slot, instrutor: v.instructorName, categoria },
       para: { date: v.ag.date, time_slot: novoHorario, instrutor: v.instructorName, categoria },
-      feito_por: `Instrutor ${v.instructorName} (antecipou)`,
+      feito_por: `Instrutor ${v.instructorName} (antecipou, aluno consultado)`,
+    })
+    await criarAvisoAluno(supabase, {
+      autoescola_id: v.autoescola_id,
+      student_id: aluno.id,
+      agendamento_id: agendamentoId,
+      tipo: 'aula_remarcada',
+      titulo: 'Aula antecipada',
+      mensagem: `Sua aula de ${dataBR(v.ag.date)} foi antecipada pelo instrutor ${v.instructorName}: das ${v.ag.time_slot} para as ${novoHorario}.`,
     })
   }
   await supabase.from('activity_logs_painel').insert({
     username: v.instructorName,
     action_type: 'reagendamento',
-    description: `Instrutor ${v.instructorName} antecipou a aula de ${v.ag.student_name ?? 'aluno'} em ${dataBR(v.ag.date)}: das ${v.ag.time_slot} para ${novoHorario}`,
+    description: `Instrutor ${v.instructorName} antecipou a aula de ${v.ag.student_name ?? 'aluno'} em ${dataBR(v.ag.date)}: das ${v.ag.time_slot} para ${novoHorario} (aluno consultado)`,
     autoescola_id: v.autoescola_id,
     metadata: {
       ...(aluno ? { student_id: aluno.id } : {}),
@@ -543,6 +571,7 @@ export async function anteciparAula(
       date: v.ag.date,
       de_time_slot: v.ag.time_slot,
       para_time_slot: novoHorario,
+      aluno_consultado: true,
       origem: 'instrutor',
     },
   })

@@ -13,9 +13,9 @@ const DEBOUNCE_MS = 800
  * Rajadas (ex.: agendamento em massa) viram uma única chamada.
  */
 export function useAvisoRealtime(
-  /** Quem escuta: `autoescola:<id>` (painel/instrutor) ou `aluno:<id>` (só o que é do aluno). */
+  /** Quem escuta: `autoescola:<id>` (painel/instrutor) ou `aluno:<id>` (só o que é do aluno) ou `instrutor:<id>` (avisos do instrutor). */
   escopo: string,
-  tabela: 'agendamentos' | 'solicitacoes',
+  tabela: 'agendamentos' | 'solicitacoes' | 'avisos',
   onAviso: () => void,
   ativo = true
 ) {

@@ -50,10 +50,11 @@ export interface LinhaHistoricoAgendamento {
   agendamento_id: string
   student_id: string
   student_name: string
-  tipo: 'agendado' | 'reagendado'
+  tipo: 'agendado' | 'reagendado' | 'cancelado'
   origem?: 'aluno' | 'painel'
   de?: { date: string; time_slot: string; instrutor: string | null; categoria: string | null }
-  para: { date: string; time_slot: string; instrutor: string | null; categoria: string | null }
+  para?: { date: string; time_slot: string; instrutor: string | null; categoria: string | null }
+  motivo?: string | null
   feito_por: string
 }
 
@@ -70,10 +71,11 @@ export async function registrarHistoricoAgendamento(supabase: Supabase, l: Linha
       de_time_slot: l.de?.time_slot ?? null,
       de_instrutor: l.de?.instrutor ?? null,
       de_categoria: l.de?.categoria ?? null,
-      para_date: l.para.date,
-      para_time_slot: l.para.time_slot,
-      para_instrutor: l.para.instrutor,
-      para_categoria: l.para.categoria,
+      para_date: l.para?.date ?? null,
+      para_time_slot: l.para?.time_slot ?? null,
+      para_instrutor: l.para?.instrutor ?? null,
+      para_categoria: l.para?.categoria ?? null,
+      motivo: l.motivo ?? null,
       feito_por: l.feito_por,
     })
   } catch (err) {
@@ -83,4 +85,94 @@ export async function registrarHistoricoAgendamento(supabase: Supabase, l: Linha
 
 export function dataBR(yyyyMmDd: string) {
   return yyyyMmDd.split('-').reverse().join('/')
+}
+
+export interface AulaCancelada {
+  id: string
+  date: string
+  time_slot: string
+  instructor_name: string | null
+  instructorCategory: string | null
+  student_name: string | null
+  cpf_cnh: string | null
+  student_document: string | null
+}
+
+/**
+ * Registro único de um cancelamento feito pela escola/instrutor: histórico da
+ * aula, atividade do aluno (com `student_id`, que é o que a aba "Atividade"
+ * filtra) e aviso para o aluno. Nunca derruba o cancelamento se algo falhar.
+ */
+export async function registrarCancelamentoAula(
+  supabase: Supabase,
+  autoescola_id: string,
+  ag: AulaCancelada,
+  opts: { feito_por: string; motivo?: string | null; creditoDevolvido?: boolean; bloqueou?: boolean }
+) {
+  try {
+    const doc = ag.cpf_cnh ?? ag.student_document
+    const { data: aluno } = doc
+      ? await supabase.from('students').select('id, name').eq('autoescola_id', autoescola_id).eq('document_id', doc).maybeSingle()
+      : { data: null }
+
+    const quando = `${dataBR(ag.date)} às ${ag.time_slot}`
+    const instrutor = ag.instructor_name ? ` com ${ag.instructor_name}` : ''
+    const motivo = opts.motivo?.trim() || null
+
+    await supabase.from('activity_logs_painel').insert({
+      username: opts.feito_por,
+      action_type: 'cancelamento',
+      description: `Aula de ${aluno?.name ?? ag.student_name ?? 'aluno'} em ${quando}${instrutor} cancelada${opts.bloqueou ? ' e horário bloqueado' : ''}. Motivo: ${motivo ?? 'não informado'}.${opts.creditoDevolvido ? ' Crédito devolvido.' : ''}`,
+      metadata: {
+        ...(aluno ? { student_id: aluno.id } : {}),
+        agendamento_id: ag.id,
+        reason: motivo,
+        blocked: !!opts.bloqueou,
+      },
+      autoescola_id,
+    })
+
+    if (!aluno) return
+
+    await registrarHistoricoAgendamento(supabase, {
+      autoescola_id,
+      agendamento_id: ag.id,
+      student_id: aluno.id,
+      student_name: aluno.name ?? ag.student_name ?? '',
+      tipo: 'cancelado',
+      origem: 'painel',
+      de: { date: ag.date, time_slot: ag.time_slot, instrutor: ag.instructor_name, categoria: ag.instructorCategory },
+      motivo,
+      feito_por: opts.feito_por,
+    })
+
+    await criarAvisoAluno(supabase, {
+      autoescola_id,
+      student_id: aluno.id,
+      agendamento_id: ag.id,
+      tipo: 'aula_cancelada',
+      titulo: 'Aula desmarcada',
+      mensagem: `Sua aula de ${quando}${instrutor} foi desmarcada.${motivo ? ` Motivo: ${motivo}.` : ''}${opts.creditoDevolvido ? ' O crédito foi devolvido para você agendar outra.' : ''}`,
+    })
+  } catch (err) {
+    console.error('[atividadeAluno] falha ao registrar cancelamento:', err)
+  }
+}
+
+export async function criarAvisoAluno(
+  supabase: Supabase,
+  a: {
+    autoescola_id: string
+    student_id: string
+    agendamento_id?: string
+    tipo: 'aula_cancelada' | 'aula_remarcada'
+    titulo: string
+    mensagem: string
+  }
+) {
+  try {
+    await supabase.from('avisos_aluno').insert(a)
+  } catch (err) {
+    console.error('[atividadeAluno] falha ao criar aviso do aluno:', err)
+  }
 }

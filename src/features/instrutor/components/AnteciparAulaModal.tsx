@@ -21,6 +21,7 @@ export function AnteciparAulaModal({ open, escola, aula, telefone, onSuccess, on
   const [horarios, setHorarios] = useState<string[] | null>(null)
   const [escolhido, setEscolhido] = useState<string | null>(null)
   const [erro, setErro] = useState('')
+  const [consultado, setConsultado] = useState(false)
   // Guarda o horário de antes: o card já troca aula.time_slot ao antecipar.
   const [concluido, setConcluido] = useState<{ de: string; para: string } | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -31,6 +32,7 @@ export function AnteciparAulaModal({ open, escola, aula, telefone, onSuccess, on
     setHorarios(null)
     setEscolhido(null)
     setErro('')
+    setConsultado(false)
     setConcluido(null)
     listarHorariosParaAntecipar(escola, aula.id).then((r) => {
       if (!ativo) return
@@ -49,7 +51,7 @@ export function AnteciparAulaModal({ open, escola, aula, telefone, onSuccess, on
     if (!escolhido) return
     setErro('')
     startTransition(async () => {
-      const r = await anteciparAula(escola, aula.id, escolhido)
+      const r = await anteciparAula(escola, aula.id, escolhido, consultado)
       if (!r.success) {
         setErro(r.error)
         // horário pode ter sido ocupado: recarrega as opções
@@ -64,6 +66,15 @@ export function AnteciparAulaModal({ open, escola, aula, telefone, onSuccess, on
       onSuccess(escolhido)
     })
   }
+
+  // Consulta antes de antecipar: pergunta se o aluno consegue pegar o horário que surgiu.
+  const primeiroNome = aula.student_name.split(' ')[0]
+  const consultaHref =
+    escolhido && telefone
+      ? `https://wa.me/55${telefone.replace(/\D/g, '')}?text=${encodeURIComponent(
+          `Olá, ${primeiroNome}! Surgiu um horário mais cedo: dá para antecipar sua aula do dia ${aula.date.split('-').reverse().slice(0, 2).join('/')} das ${aula.time_slot} para as ${escolhido}? Consegue?`
+        )}`
+      : null
 
   // Mensagem pronta para o instrutor avisar o aluno da mudança.
   const dataCurta = aula.date.split('-').reverse().slice(0, 2).join('/')
@@ -155,7 +166,7 @@ export function AnteciparAulaModal({ open, escola, aula, telefone, onSuccess, on
                     {horarios.map((h) => (
                       <button
                         key={h}
-                        onClick={() => setEscolhido(h)}
+                        onClick={() => { setEscolhido(h); setConsultado(false) }}
                         disabled={isPending}
                         className={`py-2 rounded-xl border text-sm font-semibold transition-colors ${
                           escolhido === h
@@ -167,16 +178,40 @@ export function AnteciparAulaModal({ open, escola, aula, telefone, onSuccess, on
                       </button>
                     ))}
                   </div>
+                  {escolhido && (
+                    <div className="mb-4 space-y-2.5 rounded-xl border border-[--p-border] p-3">
+                      <p className="text-xs text-[--p-text-2]">
+                        Antes de antecipar, pergunte ao aluno se ele consegue pegar o horário das {escolhido}.
+                      </p>
+                      {consultaHref ? (
+                        <a
+                          href={consultaHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-full py-2 rounded-xl text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-500 flex items-center justify-center gap-2"
+                        >
+                          <MessageCircle className="w-4 h-4" />
+                          Consultar {primeiroNome} no WhatsApp
+                        </a>
+                      ) : (
+                        <p className="text-xs text-[--p-text-3]">Telefone indisponível: consulte o aluno por outro meio.</p>
+                      )}
+                      <label className="flex items-start gap-2 text-xs font-medium text-[--p-text-1] cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={consultado}
+                          onChange={(e) => setConsultado(e.target.checked)}
+                          disabled={isPending}
+                          className="rounded mt-0.5"
+                        />
+                        Consultei o aluno e ele confirmou que pode pegar o horário das {escolhido}
+                      </label>
+                    </div>
+                  )}
                 </>
               )}
 
               {erro && <p className="text-xs text-red-400 mb-3">{erro}</p>}
-
-              {!concluido && horarios && horarios.length > 0 && (
-                <p className="text-xs text-amber-400 mb-3">
-                  Depois de antecipar, lembre-se de avisar o aluno sobre a mudança de horário.
-                </p>
-              )}
 
               {!concluido && (
               <div className="flex gap-2">
@@ -189,7 +224,7 @@ export function AnteciparAulaModal({ open, escola, aula, telefone, onSuccess, on
                 </button>
                 <button
                   onClick={confirmar}
-                  disabled={isPending || !escolhido}
+                  disabled={isPending || !escolhido || !consultado}
                   className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white bg-sky-500 hover:bg-sky-400 disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {isPending && <Loader2 className="w-4 h-4 animate-spin" />}

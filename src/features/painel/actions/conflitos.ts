@@ -3,6 +3,7 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { getCurrentUsername, assertPodeEditar } from './authPainel'
+import { registrarCancelamentoAula } from '@/lib/atividadeAluno.server'
 import type { Conflito } from '../types'
 
 export async function detectarConflitos(autoescola_id: string): Promise<Conflito[]> {
@@ -180,7 +181,7 @@ export async function resolverConflito(
   // Fetch the agendamento to get student info for credit refund
   const { data: agendamento } = await supabase
     .from('agendamentos')
-    .select('student_document, cpf_cnh, instructorCategory, instructor_name, autoescola_id, date, time_slot')
+    .select('id, student_document, cpf_cnh, student_name, instructorCategory, instructor_name, autoescola_id, date, time_slot')
     .eq('id', agendamentoId)
     .eq('autoescola_id', autoescola_id)
     .single()
@@ -196,6 +197,7 @@ export async function resolverConflito(
     .eq('autoescola_id', autoescola_id)
 
   // Refund credit to the student
+  let creditoDevolvido = false
   if (agendamento) {
     const doc = agendamento.student_document ?? agendamento.cpf_cnh
     const { data: inst } = agendamento.instructor_name ? await supabase.from('instructors').select('category').eq('name', agendamento.instructor_name).eq('autoescola_id', agendamento.autoescola_id).single() : { data: null }
@@ -227,20 +229,19 @@ export async function resolverConflito(
               .update({ [creditField]: current + 1 })
               .eq('student_id', student.id)
 
-            // Registrar log de atividade
-            const userAct = await getCurrentUsername()
-            const dateBR = agendamento.date.split('-').reverse().join('/')
-            await supabase.from('activity_logs_painel').insert({
-              username: userAct,
-              action_type: 'cancelamento',
-              description: `Conflito resolvido: agendamento em ${dateBR} às ${agendamento.time_slot} foi cancelado e 1 crédito de ${trueCat} devolvido ao aluno.`,
-              metadata: { agendamento_id: agendamentoId },
-              autoescola_id,
-            })
+            creditoDevolvido = true
           }
         }
       }
     }
+
+  if (agendamento) {
+    await registrarCancelamentoAula(supabase, autoescola_id, agendamento, {
+      feito_por: await getCurrentUsername(),
+      motivo: 'Conflito resolvido: horário duplicado',
+      creditoDevolvido,
+    })
+  }
 
   // ESSENCIAL: Revalidar o cache para que o calendário e a disponibilidade reflitam a liberação do horário
   revalidatePath('/', 'layout')

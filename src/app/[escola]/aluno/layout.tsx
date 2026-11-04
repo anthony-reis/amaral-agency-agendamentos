@@ -6,6 +6,9 @@ import { ComunicadosModalWrapper } from '@/features/aluno/components/Comunicados
 import { buscarComunicadosNaoLidos } from '@/features/aluno/actions/comunicados'
 import { lojaVisivelParaAluno } from '@/lib/loja'
 import { getAutoescolaFeatures } from '@/lib/features.server'
+import { AtivarNotificacoes } from '@/features/push/AtivarNotificacoes'
+import { AvisosAluno } from '@/features/aluno/components/AvisosAluno'
+import { buscarAvisosNaoLidos } from '@/features/aluno/actions/avisos'
 import { AulasAoVivo } from '@/features/aluno/components/AulasAoVivo'
 import { TermosAceiteGate } from '@/features/aluno/components/TermosAceiteGate'
 import { getTermosPendentesAluno } from '@/lib/termos.server'
@@ -70,6 +73,8 @@ export default async function AlunoLayout({ children, params }: Props) {
     unreadComunicados = await buscarComunicadosNaoLidos(autoescola.id, studentDocument)
   }
 
+  const avisos = isIdentified && studentId ? await buscarAvisosNaoLidos(autoescola.id, studentId) : []
+
   const features = await getAutoescolaFeatures(autoescola.id)
   const lojaAtiva = isIdentified ? await lojaVisivelParaAluno(autoescola.id) : false
   let contratoPendente = false
@@ -102,6 +107,8 @@ export default async function AlunoLayout({ children, params }: Props) {
         onLogout={handleLogout}
       />
       <main className="flex-1 min-w-0">
+        {isIdentified && studentId && <AvisosAluno avisos={avisos} escola={escola} studentId={studentId} />}
+        {isIdentified && studentId && <AtivarNotificacoes perfil="aluno" escola={escola} />}
         {children}
       </main>
       {isIdentified && studentId && <AulasAoVivo studentId={studentId} />}

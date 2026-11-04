@@ -39,7 +39,7 @@ export function InstructorAulaCard({ aula, instructorName, onUpdate, instructorC
 
   function handleConfirmarAcao(status: 'absent') {
     startTransition(async () => {
-      const result = await atualizarStatusAula(aula.id, status, instructorName, aula.autoescola_id)
+      const result = await atualizarStatusAula(escola, aula.id, status)
       if (result.success) {
         onUpdate(aula.id, status)
         setModalAberto(null)
@@ -59,7 +59,7 @@ export function InstructorAulaCard({ aula, instructorName, onUpdate, instructorC
 
   function handleConfirmarCancelamento(options: { blockSlot: boolean; reason?: string }) {
     startTransition(async () => {
-      const result = await atualizarStatusAula(aula.id, 'cancelled', instructorName, aula.autoescola_id, options)
+      const result = await atualizarStatusAula(escola, aula.id, 'cancelled', options)
       if (result.success) {
         onUpdate(aula.id, 'cancelled')
         setModalAberto(null)

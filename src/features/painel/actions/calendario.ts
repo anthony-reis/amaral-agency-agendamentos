@@ -4,6 +4,7 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { getCurrentUsername, assertPodeEditar } from './authPainel'
 import { bloqueioFeature, autoescolaTemFeature } from '@/lib/features.server'
+import { registrarCancelamentoAula } from '@/lib/atividadeAluno.server'
 import { buscarExamesBancaAgendados } from '@/lib/exameBanca'
 import type { ExameBancaAgendado } from '@/lib/exameBancaTypes'
 import { horariosDoInstrutorNoDia, isoWeekday, bloqueioAplicaAoInstrutor } from '@/lib/horariosDia'
@@ -321,7 +322,7 @@ export async function atualizarStatusAgendamento(
 
   const { data: ag, error: fetchErr } = await supabase
     .from('agendamentos')
-    .select('status, autoescola_id, cpf_cnh, student_document, instructorCategory, instructor_name')
+    .select('id, status, autoescola_id, cpf_cnh, student_document, student_name, instructorCategory, instructor_name, date, time_slot')
     .eq('id', id)
     .single()
 
@@ -336,6 +337,7 @@ export async function atualizarStatusAgendamento(
 
   // Devolver crédito se estiver cancelando um agendamento antes não cancelado
   if (status === 'cancelled' && ag.status !== 'cancelled') {
+    let creditoDevolvido = false
     const { data: inst } = ag.instructor_name ? await supabase.from('instructors').select('category').eq('name', ag.instructor_name).eq('autoescola_id', ag.autoescola_id).single() : { data: null }
     const trueCategory = inst?.category ?? ag.instructorCategory
 
@@ -364,17 +366,16 @@ export async function atualizarStatusAgendamento(
             .update({ [creditField]: current + 1 })
             .eq('student_id', student.id)
           
-          const userAct = await getCurrentUsername()
-          await supabase.from('activity_logs_painel').insert({
-              username: userAct,
-              action_type: 'cancelamento',
-              description: `Cancelamento de aula pelo calendário: devolvido 1 crédito de ${trueCategory} para aluno com doc ${doc}.`,
-              metadata: { agendamento_id: id },
-              autoescola_id: ag.autoescola_id,
-            })
+          creditoDevolvido = true
         }
       }
     }
+
+    await registrarCancelamentoAula(supabase, ag.autoescola_id, ag, {
+      feito_por: await getCurrentUsername(),
+      motivo: 'Cancelado pelo calendário',
+      creditoDevolvido,
+    })
   }
 
   revalidatePath('/', 'layout')

@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getInstructorSession, logoutInstrutor } from '@/features/instrutor/actions/authInstrutor'
 import { InstructorSidebar } from '@/features/instrutor/components/InstructorSidebar'
+import { AvisosInstrutor } from '@/features/instrutor/components/AvisosInstrutor'
+import { AtivarNotificacoes } from '@/features/push/AtivarNotificacoes'
 import { ComunicadosModalWrapper } from '@/features/instrutor/components/ComunicadosModalWrapper'
 import { buscarComunicadosNaoLidosInstrutor } from '@/features/instrutor/actions/comunicados'
 
@@ -43,6 +45,8 @@ export default async function InstructorLayout({ children, params }: Props) {
         onLogout={handleLogout}
       />
       <main className="flex-1 min-w-0 p-4 lg:p-6">
+        <AvisosInstrutor escola={escola} instructorId={session.instructorId} />
+        <AtivarNotificacoes perfil="instrutor" escola={escola} />
         {children}
       </main>
       {autoescola && unreadComunicados.length > 0 && (

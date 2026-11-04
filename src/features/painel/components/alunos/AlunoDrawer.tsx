@@ -2,14 +2,14 @@
 
 import { useEffect, useState, useTransition } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { AlertTriangle, UserCheck, Activity, CalendarClock, FileSignature, LogIn, Send, FileText, Loader2, Paperclip, ScrollText, Upload, Check, CreditCard, FileCheck, IdCard, KeyRound, Minus, Plus, Trash2, MessageCircle, X } from 'lucide-react'
+import { AlertTriangle, UserCheck, Activity, CalendarClock, CalendarX2, FileSignature, LogIn, Send, FileText, Loader2, Paperclip, ScrollText, Upload, Check, CreditCard, FileCheck, IdCard, KeyRound, Minus, Plus, Trash2, MessageCircle, X } from 'lucide-react'
 import { CAMBIOS, parseCambio } from '@/lib/cambio'
 import { formatarPrecoCentavos, type PedidoLojaStatus } from '@/lib/loja-types'
 import { METODO_LABEL, STATUS_BADGE, STATUS_LABEL, formatarDataHoraCompleta } from '../vendasUi'
 import { editarAluno, resetarSenhaAluno } from '../../actions/alunos'
 import { getAulasFuturasAluno } from '../../actions/vinculoInstrutor'
 import { agruparPorInstrutor, rotuloAulas, vinculoImpossivel, type AulaFutura } from '@/lib/vinculoInstrutor'
-import { listarAtividadeAluno, type EventoAluno } from '../../actions/atividadeAluno'
+import { listarAtividadeAluno, type PaginaAtividadeAluno } from '../../actions/atividadeAluno'
 import { anexarContratoAssinado, cancelarContrato, enviarContratoAluno, listarContratosAluno, type ContratosDoAluno } from '../../actions/contratos'
 import { STATUS_CONTRATO_LABEL } from '@/lib/contratos'
 import { enviarAnexoAluno, excluirAnexoAluno, getTermosAluno, listarAnexosAluno, listarPagamentosMpAluno, type AnexoAluno, type PagamentoMpAluno, type TermosAlunoStatus } from '../../actions/anexos'
@@ -690,6 +690,7 @@ const TIPO_ATIVIDADE: Record<string, { label: string; Icon: typeof Activity; cor
   aluno_acesso: { label: 'Acesso ao app', Icon: LogIn, cor: 'text-slate-400' },
   agendamento: { label: 'Agendamento', Icon: CalendarClock, cor: 'text-emerald-500' },
   reagendamento: { label: 'Remarcação', Icon: CalendarClock, cor: 'text-cyan-500' },
+  cancelamento: { label: 'Cancelamento', Icon: CalendarX2, cor: 'text-red-500' },
   contrato: { label: 'Contrato', Icon: FileSignature, cor: 'text-violet-500' },
   termos: { label: 'Termos', Icon: FileText, cor: 'text-indigo-400' },
   venda: { label: 'Venda', Icon: Activity, cor: 'text-sky-500' },
@@ -697,27 +698,34 @@ const TIPO_ATIVIDADE: Record<string, { label: string; Icon: typeof Activity; cor
 }
 
 function AbaAtividade({ aluno, autoescola_id }: Pick<Props, 'autoescola_id'> & { aluno: AlunoComCreditos }) {
-  const [eventos, setEventos] = useState<EventoAluno[] | null>(null)
+  const [dados, setDados] = useState<PaginaAtividadeAluno | null>(null)
+  const [pagina, setPagina] = useState(1)
+  const [carregando, setCarregando] = useState(false)
   const [erro, setErro] = useState('')
+
+  // Trocou de aluno: volta para a primeira página
+  useEffect(() => { setPagina(1); setDados(null) }, [aluno.id])
 
   useEffect(() => {
     let ativo = true
-    setEventos(null); setErro('')
-    listarAtividadeAluno(autoescola_id, aluno.id).then((r) => {
+    setCarregando(true); setErro('')
+    listarAtividadeAluno(autoescola_id, aluno.id, pagina).then((r) => {
       if (!ativo) return
-      if (r.success) setEventos(r.data); else setErro(r.error)
+      setCarregando(false)
+      if (r.success) setDados(r.data); else setErro(r.error)
     })
     return () => { ativo = false }
-  }, [autoescola_id, aluno.id])
+  }, [autoescola_id, aluno.id, pagina])
 
   if (erro) return <p className="text-sm text-red-400">{erro}</p>
-  if (!eventos) return <p className="text-sm text-[--p-text-3] flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</p>
-  if (eventos.length === 0) return <p className="text-sm text-[--p-text-3]">Nenhuma atividade registrada ainda.</p>
+  if (!dados) return <p className="text-sm text-[--p-text-3] flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</p>
+  const eventos = dados.eventos
+  if (dados.total === 0) return <p className="text-sm text-[--p-text-3]">Nenhuma atividade registrada ainda.</p>
 
   return (
     <div className="space-y-3">
       <p className="text-xs text-[--p-text-3]">Ações do aluno no app (acessos, agendamentos, remarcações, contrato, termos) e as aulas já marcadas.</p>
-      <ol className="space-y-3">
+      <ol className={`space-y-3 transition-opacity ${carregando ? 'opacity-50' : ''}`}>
         {eventos.map((e) => {
           const cfg = TIPO_ATIVIDADE[e.tipo] ?? { label: e.tipo, Icon: Activity, cor: 'text-[--p-text-3]' }
           return (
@@ -735,6 +743,27 @@ function AbaAtividade({ aluno, autoescola_id }: Pick<Props, 'autoescola_id'> & {
           )
         })}
       </ol>
+      {dados.totalPaginas > 1 && (
+        <div className="flex items-center justify-between pt-2 border-t border-[--p-border]">
+          <button
+            type="button"
+            onClick={() => setPagina((p) => Math.max(1, p - 1))}
+            disabled={carregando || dados.pagina <= 1}
+            className="px-3 py-1.5 text-xs rounded-lg border border-[--p-border] text-[--p-text-2] hover:bg-[--p-hover] disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            ← Mais recentes
+          </button>
+          <span className="text-[11px] text-[--p-text-3]">Página {dados.pagina} de {dados.totalPaginas} · {dados.total} registros</span>
+          <button
+            type="button"
+            onClick={() => setPagina((p) => Math.min(dados.totalPaginas, p + 1))}
+            disabled={carregando || dados.pagina >= dados.totalPaginas}
+            className="px-3 py-1.5 text-xs rounded-lg border border-[--p-border] text-[--p-text-2] hover:bg-[--p-hover] disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Mais antigos →
+          </button>
+        </div>
+      )}
     </div>
   )
 }

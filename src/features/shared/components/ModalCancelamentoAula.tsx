@@ -152,7 +152,7 @@ export function ModalCancelamentoAula({ open, onClose, onConfirm, isPending, aul
                     </div>
                     <div>
                       <p className="text-sm font-bold text-[--p-text-1]">Desmarcar e bloquear horário</p>
-                      <p className="text-xs text-[--p-text-3]">A aula será cancelada e ninguém poderá agendar neste slot.</p>
+                      <p className="text-xs text-[--p-text-3]">A aula será cancelada e ninguém poderá agendar neste horário.</p>
                     </div>
                   </button>
                 </div>
