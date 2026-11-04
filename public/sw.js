@@ -2,15 +2,23 @@
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()))
 
+const EMOJI = { aula_cancelada: '❌', aula_remarcada: '🔄', aula_agendada: '✅' }
+
 self.addEventListener('push', (event) => {
   let d = {}
   try { d = event.data ? event.data.json() : {} } catch { d = {} }
+  const emoji = EMOJI[d.tipo] || '🔔'
   event.waitUntil(
-    self.registration.showNotification(d.titulo || 'AmaralPro', {
+    self.registration.showNotification(`${emoji} ${d.titulo || 'AmaralPro'}`, {
       body: d.mensagem || '',
-      icon: '/logo.png',
-      badge: '/logo.png',
+      icon: '/icon-192.png',
+      badge: '/badge-96.png',
       tag: d.tag || undefined,
+      renotify: !!d.tag,
+      timestamp: Date.now(),
+      vibrate: [120, 70, 120],
+      lang: 'pt-BR',
+      actions: [{ action: 'abrir', title: d.acao || 'Abrir' }],
       data: { url: d.url || '/' },
     })
   )

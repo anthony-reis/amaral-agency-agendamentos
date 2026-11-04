@@ -8,8 +8,12 @@ export default function manifest(): MetadataRoute.Manifest {
     description: 'Agendamento de aulas da sua autoescola',
     start_url: '/',
     display: 'standalone',
-    background_color: '#0f172a',
-    theme_color: '#0f172a',
-    icons: [{ src: '/logo.png', sizes: 'any', type: 'image/png', purpose: 'any' }],
+    background_color: '#1d4a38',
+    theme_color: '#1d4a38',
+    icons: [
+      { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+      { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+      { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+    ],
   }
 }

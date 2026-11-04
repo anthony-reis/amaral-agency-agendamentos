@@ -8,6 +8,10 @@ export interface PayloadPush {
   mensagem: string
   url: string
   tag?: string
+  /** Tipo do aviso: define o emoji do título no aparelho. */
+  tipo?: string
+  /** Texto do botão da notificação (Android/desktop). */
+  acao?: string
 }
 
 let configurado = false

@@ -23,20 +23,22 @@ export async function POST(req: Request) {
   await new Promise((r) => setTimeout(r, 2500))
 
   if (tabela === 'avisos_aluno') {
-    const { data: a } = await supabase.from('avisos_aluno').select('student_id, autoescola_id, titulo, mensagem, lido_em').eq('id', id).maybeSingle()
+    const { data: a } = await supabase.from('avisos_aluno').select('student_id, autoescola_id, tipo, titulo, mensagem, lido_em').eq('id', id).maybeSingle()
     if (!a || a.lido_em) return NextResponse.json({ ok: true, enviados: 0 })
     const { data: esc } = await supabase.from('autoescolas').select('slug').eq('id', a.autoescola_id).maybeSingle()
     const n = await enviarPush('aluno', a.student_id, {
-      titulo: a.titulo, mensagem: a.mensagem, tag: id, url: esc ? `/${esc.slug}/aluno/minhas-aulas` : '/',
+      titulo: a.titulo, mensagem: a.mensagem, tag: id, tipo: a.tipo, acao: 'Ver minhas aulas',
+      url: esc ? `/${esc.slug}/aluno/minhas-aulas` : '/',
     })
     return NextResponse.json({ ok: true, enviados: n })
   }
 
-  const { data: a } = await supabase.from('avisos_instrutor').select('instructor_id, autoescola_id, titulo, mensagem, lido_em').eq('id', id).maybeSingle()
+  const { data: a } = await supabase.from('avisos_instrutor').select('instructor_id, autoescola_id, tipo, titulo, mensagem, lido_em').eq('id', id).maybeSingle()
   if (!a || a.lido_em) return NextResponse.json({ ok: true, enviados: 0 })
   const { data: esc } = await supabase.from('autoescolas').select('slug').eq('id', a.autoescola_id).maybeSingle()
   const n = await enviarPush('instrutor', a.instructor_id, {
-    titulo: a.titulo, mensagem: a.mensagem, tag: id, url: esc ? `/${esc.slug}/instrutor` : '/',
+    titulo: a.titulo, mensagem: a.mensagem, tag: id, tipo: a.tipo, acao: 'Ver agenda',
+    url: esc ? `/${esc.slug}/instrutor` : '/',
   })
   return NextResponse.json({ ok: true, enviados: n })
 }
