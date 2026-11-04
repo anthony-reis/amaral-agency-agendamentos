@@ -4,6 +4,11 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { getInstructorSession } from './authInstrutor'
 import type { TipoAviso } from '@/lib/tiposAviso'
 
+function filtroValidade(): string {
+  const h20 = new Date(Date.now() - 20 * 3600_000).toISOString()
+  return `tipo.neq.lembrete_dia,and(tipo.eq.lembrete_dia,created_at.gte.${h20})`
+}
+
 export interface AvisoInstrutor {
   id: string
   tipo: TipoAviso
@@ -22,6 +27,7 @@ export async function buscarMeusAvisosInstrutor(escola: string): Promise<AvisoIn
     .eq('autoescola_id', session.autoescola_id)
     .eq('instructor_id', session.instructorId)
     .is('lido_em', null)
+    .or(filtroValidade())
     .order('created_at', { ascending: true })
     .limit(10)
   if (error) return []
