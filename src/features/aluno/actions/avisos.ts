@@ -63,3 +63,20 @@ export async function buscarMeusAvisos(): Promise<AvisoAluno[]> {
   if (error) return []
   return (data ?? []) as AvisoAluno[]
 }
+
+/** Histórico (30 dias) do aluno logado, lido ou não. Dono = cookie; nunca um id vindo do cliente. */
+export async function listarMinhasNotificacoes(): Promise<AvisoAluno[]> {
+  const studentId = (await cookies()).get('student_id')?.value
+  if (!studentId) return []
+  const desde = new Date(Date.now() - 30 * 86400_000).toISOString()
+  const { data, error } = await createServiceClient()
+    .from('avisos_aluno')
+    .select('id, tipo, titulo, mensagem, created_at')
+    .eq('student_id', studentId)
+    .gte('created_at', desde)
+    .or(filtroValidade())
+    .order('created_at', { ascending: false })
+    .limit(60)
+  if (error) return []
+  return (data ?? []) as AvisoAluno[]
+}

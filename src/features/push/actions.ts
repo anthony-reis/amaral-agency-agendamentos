@@ -3,6 +3,7 @@
 import { cookies } from 'next/headers'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getInstructorSession } from '@/features/instrutor/actions/authInstrutor'
+import { enviarPush } from '@/lib/push.server'
 
 export interface InscricaoPush {
   endpoint: string
@@ -43,4 +44,19 @@ export async function removerInscricaoPush(perfil: 'aluno' | 'instrutor', escola
   const d = await dono(perfil, escola)
   if (!d) return
   await createServiceClient().from('push_subscriptions').delete().eq('endpoint', endpoint).eq('perfil', perfil).eq('owner_id', d.owner_id)
+}
+
+/** Manda uma notificação de teste para os aparelhos do próprio usuário. Retorna quantos aparelhos receberam. */
+export async function enviarNotificacaoTeste(perfil: 'aluno' | 'instrutor', escola: string): Promise<{ enviados: number }> {
+  const d = await dono(perfil, escola)
+  if (!d) return { enviados: 0 }
+  const enviados = await enviarPush(perfil, d.owner_id, {
+    titulo: 'Teste de notificação',
+    mensagem: 'Está tudo certo! Você vai receber os avisos da escola neste aparelho.',
+    tipo: 'lembrete_dia',
+    url: `/${escola}/${perfil}/notificacoes`,
+    acao: 'Abrir',
+    forcar: true,
+  })
+  return { enviados }
 }

@@ -19,7 +19,7 @@ const VERMELHO = 'bg-red-500/15 text-red-400'
 const AMBAR = 'bg-amber-500/15 text-amber-400'
 const AZUL = 'bg-sky-500/15 text-sky-400'
 
-const ESTILO: Record<TipoAviso, { Icon: typeof Bell; cor: string }> = {
+export const ESTILO_AVISO: Record<TipoAviso, { Icon: typeof Bell; cor: string }> = {
   aula_agendada: { Icon: CalendarCheck, cor: VERDE },
   aula_cancelada: { Icon: CalendarX2, cor: VERMELHO },
   aula_remarcada: { Icon: CalendarClock, cor: AMBAR },
@@ -39,7 +39,7 @@ function Cartao({ item, onFechar }: { item: ItemNotificacao; onFechar: (id: stri
     return () => clearTimeout(t)
   }, [item.id, onFechar])
 
-  const { Icon, cor } = ESTILO[item.tipo] ?? { Icon: Bell, cor: AZUL }
+  const { Icon, cor } = ESTILO_AVISO[item.tipo] ?? { Icon: Bell, cor: AZUL }
   return (
     <motion.button
       type="button"

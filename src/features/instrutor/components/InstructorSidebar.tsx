@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { LayoutDashboard, LogOut, GraduationCap, Menu, X, ChevronRight, Car, Bike, BarChart3, Megaphone } from 'lucide-react'
+import { LayoutDashboard, LogOut, GraduationCap, Menu, X, ChevronRight, Car, Bike, BarChart3, Megaphone, Bell } from 'lucide-react'
 import { ThemeToggle } from '@/components/ThemeToggle'
 
 interface Props {
@@ -23,6 +23,8 @@ export function InstructorSidebar({ escola, name, category, logoUrl, onLogout }:
   const estatisticasLink = `/${escola}/instrutor/estatisticas`
   const comunicadosLink = `/${escola}/instrutor/comunicados`
 
+  const notificacoesLink = `/${escola}/instrutor/notificacoes`
+  const notificacoesActive = pathname === notificacoesLink
   const painelActive = pathname === painelLink
   const estatisticasActive = pathname === estatisticasLink || pathname.startsWith(estatisticasLink + '/')
   const comunicadosActive = pathname === comunicadosLink || pathname.startsWith(comunicadosLink + '/')
@@ -89,6 +91,19 @@ export function InstructorSidebar({ escola, name, category, logoUrl, onLogout }:
           <Megaphone className="w-4 h-4 shrink-0" />
           Comunicados
           {comunicadosActive && <ChevronRight className="w-3 h-3 ml-auto opacity-60" />}
+        </Link>
+        <Link
+          href={notificacoesLink}
+          onClick={() => setMobileOpen(false)}
+          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+            notificacoesActive
+              ? 'bg-[--p-accent]/10 text-[--p-accent]'
+              : 'text-[--p-text-3] hover:text-[--p-text-1] hover:bg-[--p-hover]'
+          }`}
+        >
+          <Bell className="w-4 h-4 shrink-0" />
+          Notificações
+          {notificacoesActive && <ChevronRight className="w-3 h-3 ml-auto opacity-60" />}
         </Link>
       </nav>
 

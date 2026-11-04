@@ -45,3 +45,21 @@ export async function marcarAvisosInstrutorLidos(escola: string, ids: string[]):
     .in('id', ids)
     .is('lido_em', null)
 }
+
+/** Histórico (30 dias) do instrutor logado. Dono = sessão; nunca um id vindo do cliente. */
+export async function listarNotificacoesInstrutor(escola: string): Promise<AvisoInstrutor[]> {
+  const session = await getInstructorSession(escola)
+  if (!session) return []
+  const desde = new Date(Date.now() - 30 * 86400_000).toISOString()
+  const { data, error } = await createServiceClient()
+    .from('avisos_instrutor')
+    .select('id, tipo, titulo, mensagem, created_at')
+    .eq('autoescola_id', session.autoescola_id)
+    .eq('instructor_id', session.instructorId)
+    .gte('created_at', desde)
+    .or(filtroValidade())
+    .order('created_at', { ascending: false })
+    .limit(60)
+  if (error) return []
+  return (data ?? []) as AvisoInstrutor[]
+}

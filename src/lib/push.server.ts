@@ -12,6 +12,8 @@ export interface PayloadPush {
   tipo?: string
   /** Texto do botão da notificação (Android/desktop). */
   acao?: string
+  /** Mostra no aparelho mesmo com o app aberto (usado no teste). */
+  forcar?: boolean
 }
 
 let configurado = false

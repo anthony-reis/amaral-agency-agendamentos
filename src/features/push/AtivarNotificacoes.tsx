@@ -1,10 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { Bell, Share, X } from 'lucide-react'
 import { salvarInscricaoPush } from './actions'
 
 const CHAVE_DISPENSA = 'amaralpro-push-dispensado'
+const CHAVE_DESLIGADO = 'amaralpro-push-desligado'
 
 function urlBase64ParaUint8(base64: string): Uint8Array<ArrayBuffer> {
   const padding = '='.repeat((4 - (base64.length % 4)) % 4)
@@ -21,9 +23,10 @@ export function AtivarNotificacoes({ perfil, escola }: { perfil: 'aluno' | 'inst
   const [estado, setEstado] = useState<Estado>('oculto')
   const [ocupado, setOcupado] = useState(false)
   const [detalheErro, setDetalheErro] = useState('')
+  const pathname = usePathname()
 
   useEffect(() => {
-    try { if (localStorage.getItem(CHAVE_DISPENSA)) return } catch {}
+    try { if (localStorage.getItem(CHAVE_DISPENSA) || localStorage.getItem(CHAVE_DESLIGADO)) return } catch {}
     const ios = /iphone|ipad|ipod/i.test(navigator.userAgent)
     const instalado = window.matchMedia('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone === true
     // iPhone só recebe push com o app na tela de início
@@ -85,7 +88,8 @@ export function AtivarNotificacoes({ perfil, escola }: { perfil: 'aluno' | 'inst
     setEstado('oculto')
   }
 
-  if (estado === 'oculto') return null
+  // A aba Notificações já tem o cartão fixo de status
+  if (estado === 'oculto' || pathname.endsWith('/notificacoes')) return null
 
   return (
     <div className="mx-auto max-w-2xl w-full px-4 pt-3">

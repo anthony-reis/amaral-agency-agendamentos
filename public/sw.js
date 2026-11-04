@@ -14,7 +14,7 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     // App aberto e visível: o banner dentro do app já avisa, então não duplica no aparelho
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((lista) => {
-      if (lista.some((c) => c.visibilityState === 'visible')) return
+      if (!d.forcar && lista.some((c) => c.visibilityState === 'visible')) return
       return self.registration.showNotification(`${emoji} ${d.titulo || 'AmaralPro'}`, {
       body: d.mensagem || '',
       icon: '/icon-192.png',
