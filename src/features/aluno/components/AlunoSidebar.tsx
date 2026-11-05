@@ -19,6 +19,8 @@ interface Props {
   contratoPendente?: boolean
   /** Módulo "dashboard_aluno": item "Início". Desligado, a marca leva para Agendar. */
   dashboardAtivo?: boolean
+  /** Módulo "notificacoes": item Notificações no menu. */
+  notificacoesAtivo?: boolean
   lojaAtiva?: boolean
   onLogout: () => Promise<void>
 }
@@ -48,6 +50,7 @@ export function AlunoSidebar({
   contratosAtivo = false,
   contratoPendente = false,
   dashboardAtivo = false,
+  notificacoesAtivo = false,
   lojaAtiva = false,
   onLogout,
 }: Props) {
@@ -156,19 +159,21 @@ export function AlunoSidebar({
           Comunicados
           {pathname === comunicadosLink && <ChevronRight className="w-3 h-3 ml-auto opacity-60" />}
         </Link>
-        <Link
-          href={notificacoesLink}
-          onClick={() => setMobileOpen(false)}
-          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-            pathname === notificacoesLink
-              ? 'bg-[--p-accent]/10 text-[--p-accent]'
-              : 'text-[--p-text-3] hover:text-[--p-text-1] hover:bg-[--p-hover]'
-          }`}
-        >
-          <Bell className="w-4 h-4 shrink-0" />
-          Notificações
-          {pathname === notificacoesLink && <ChevronRight className="w-3 h-3 ml-auto opacity-60" />}
-        </Link>
+        {notificacoesAtivo && (
+          <Link
+            href={notificacoesLink}
+            onClick={() => setMobileOpen(false)}
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+              pathname === notificacoesLink
+                ? 'bg-[--p-accent]/10 text-[--p-accent]'
+                : 'text-[--p-text-3] hover:text-[--p-text-1] hover:bg-[--p-hover]'
+            }`}
+          >
+            <Bell className="w-4 h-4 shrink-0" />
+            Notificações
+            {pathname === notificacoesLink && <ChevronRight className="w-3 h-3 ml-auto opacity-60" />}
+          </Link>
+        )}
         {lojaAtiva && (
           <Link
             href={lojaLink}

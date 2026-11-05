@@ -46,6 +46,11 @@ export const FEATURES = {
     descricao:
       'Aluno cria/usa senha após o CPF. Desligado: entra só com CPF/CNH. Atenção: ao ligar, todos os alunos criam senha no próximo acesso.',
   },
+  notificacoes: {
+    label: 'Notificações',
+    descricao:
+      'Aba Notificações (histórico de 30 dias e status), avisos em tempo real dentro do app e notificações push no celular de aluno e instrutor. Indicado para o plano mais alto.',
+  },
 } as const satisfies Record<string, { label: string; descricao: string }>
 
 export type FeatureKey = keyof typeof FEATURES

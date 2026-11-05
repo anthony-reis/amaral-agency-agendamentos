@@ -1,6 +1,8 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { listarMinhasNotificacoes } from '@/features/aluno/actions/avisos'
+import { createServiceClient } from '@/lib/supabase/server'
+import { exigirFeature } from '@/lib/features.server'
 import { StatusNotificacoes } from '@/features/push/StatusNotificacoes'
 import { ListaNotificacoes } from '@/features/push/ListaNotificacoes'
 
@@ -8,6 +10,10 @@ export default async function AlunoNotificacoesPage({ params }: { params: Promis
   const { escola } = await params
   const studentId = (await cookies()).get('student_id')?.value
   if (!studentId) redirect(`/${escola}/aluno`)
+
+  const { data: esc } = await createServiceClient().from('autoescolas').select('id').eq('slug', escola).maybeSingle()
+  if (!esc) redirect('/')
+  await exigirFeature(esc.id, 'notificacoes')
 
   const itens = await listarMinhasNotificacoes()
   return (

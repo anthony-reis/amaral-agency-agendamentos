@@ -73,9 +73,8 @@ export default async function AlunoLayout({ children, params }: Props) {
     unreadComunicados = await buscarComunicadosNaoLidos(autoescola.id, studentDocument)
   }
 
-  const avisos = isIdentified && studentId ? await buscarAvisosNaoLidos(autoescola.id, studentId) : []
-
   const features = await getAutoescolaFeatures(autoescola.id)
+  const avisos = isIdentified && studentId && features.notificacoes ? await buscarAvisosNaoLidos(autoescola.id, studentId) : []
   const lojaAtiva = isIdentified ? await lojaVisivelParaAluno(autoescola.id) : false
   let contratoPendente = false
   if (isIdentified && features.contratos) {
@@ -103,12 +102,13 @@ export default async function AlunoLayout({ children, params }: Props) {
         contratosAtivo={features.contratos}
         contratoPendente={contratoPendente}
         dashboardAtivo={features.dashboard_aluno}
+        notificacoesAtivo={features.notificacoes}
         lojaAtiva={lojaAtiva}
         onLogout={handleLogout}
       />
       <main className="flex-1 min-w-0">
-        {isIdentified && studentId && <AvisosAluno avisos={avisos} escola={escola} studentId={studentId} />}
-        {isIdentified && studentId && <AtivarNotificacoes perfil="aluno" escola={escola} />}
+        {isIdentified && studentId && features.notificacoes && <AvisosAluno avisos={avisos} escola={escola} studentId={studentId} />}
+        {isIdentified && studentId && features.notificacoes && <AtivarNotificacoes perfil="aluno" escola={escola} />}
         {children}
       </main>
       {isIdentified && studentId && <AulasAoVivo studentId={studentId} />}

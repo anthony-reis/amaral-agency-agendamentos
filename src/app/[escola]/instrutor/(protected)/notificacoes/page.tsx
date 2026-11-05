@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getInstructorSession } from '@/features/instrutor/actions/authInstrutor'
 import { listarNotificacoesInstrutor } from '@/features/instrutor/actions/avisos'
+import { exigirFeature } from '@/lib/features.server'
 import { StatusNotificacoes } from '@/features/push/StatusNotificacoes'
 import { ListaNotificacoes } from '@/features/push/ListaNotificacoes'
 
@@ -8,6 +9,8 @@ export default async function InstrutorNotificacoesPage({ params }: { params: Pr
   const { escola } = await params
   const session = await getInstructorSession(escola)
   if (!session) redirect(`/${escola}/instrutor/login?expirada=1`)
+
+  await exigirFeature(session.autoescola_id, 'notificacoes')
 
   const itens = await listarNotificacoesInstrutor(escola)
   const buscar = async () => {

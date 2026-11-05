@@ -2,6 +2,7 @@
 
 import { createServiceClient } from '@/lib/supabase/server'
 import { getInstructorSession } from './authInstrutor'
+import { autoescolaTemFeature } from '@/lib/features.server'
 import type { TipoAviso } from '@/lib/tiposAviso'
 
 function filtroValidade(): string {
@@ -20,7 +21,7 @@ export interface AvisoInstrutor {
 /** Avisos não vistos do instrutor logado (identificado pela sessão, nunca pelo cliente). */
 export async function buscarMeusAvisosInstrutor(escola: string): Promise<AvisoInstrutor[]> {
   const session = await getInstructorSession(escola)
-  if (!session) return []
+  if (!session || !(await autoescolaTemFeature(session.autoescola_id, 'notificacoes'))) return []
   const { data, error } = await createServiceClient()
     .from('avisos_instrutor')
     .select('id, tipo, titulo, mensagem, created_at')
@@ -49,7 +50,7 @@ export async function marcarAvisosInstrutorLidos(escola: string, ids: string[]):
 /** Histórico (30 dias) do instrutor logado. Dono = sessão; nunca um id vindo do cliente. */
 export async function listarNotificacoesInstrutor(escola: string): Promise<AvisoInstrutor[]> {
   const session = await getInstructorSession(escola)
-  if (!session) return []
+  if (!session || !(await autoescolaTemFeature(session.autoescola_id, 'notificacoes'))) return []
   const desde = new Date(Date.now() - 30 * 86400_000).toISOString()
   const { data, error } = await createServiceClient()
     .from('avisos_instrutor')

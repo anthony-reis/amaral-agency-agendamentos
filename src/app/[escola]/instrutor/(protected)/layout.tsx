@@ -6,6 +6,7 @@ import { AvisosInstrutor } from '@/features/instrutor/components/AvisosInstrutor
 import { AtivarNotificacoes } from '@/features/push/AtivarNotificacoes'
 import { ComunicadosModalWrapper } from '@/features/instrutor/components/ComunicadosModalWrapper'
 import { buscarComunicadosNaoLidosInstrutor } from '@/features/instrutor/actions/comunicados'
+import { getAutoescolaFeatures } from '@/lib/features.server'
 
 interface Props {
   children: React.ReactNode
@@ -29,6 +30,8 @@ export default async function InstructorLayout({ children, params }: Props) {
     ? await buscarComunicadosNaoLidosInstrutor(autoescola.id, session.instructorId)
     : []
 
+  const notificacoesAtivo = autoescola ? (await getAutoescolaFeatures(autoescola.id)).notificacoes : false
+
   async function handleLogout() {
     'use server'
     await logoutInstrutor()
@@ -42,11 +45,12 @@ export default async function InstructorLayout({ children, params }: Props) {
         name={session.name}
         category={session.category}
         logoUrl={autoescola?.logo_url ?? null}
+        notificacoesAtivo={notificacoesAtivo}
         onLogout={handleLogout}
       />
       <main className="flex-1 min-w-0 p-4 lg:p-6">
-        <AvisosInstrutor escola={escola} instructorId={session.instructorId} />
-        <AtivarNotificacoes perfil="instrutor" escola={escola} />
+        {notificacoesAtivo && <AvisosInstrutor escola={escola} instructorId={session.instructorId} />}
+        {notificacoesAtivo && <AtivarNotificacoes perfil="instrutor" escola={escola} />}
         {children}
       </main>
       {autoescola && unreadComunicados.length > 0 && (

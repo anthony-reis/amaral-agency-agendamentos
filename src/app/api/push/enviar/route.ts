@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { enviarPush } from '@/lib/push.server'
+import { autoescolaTemFeature } from '@/lib/features.server'
 
 export const runtime = 'nodejs'
 
@@ -29,7 +30,7 @@ export async function POST(req: Request) {
   const supabase = createServiceClient()
   if (tabela === 'avisos_aluno') {
     const { data: a } = await supabase.from('avisos_aluno').select('student_id, autoescola_id, tipo, titulo, mensagem, lido_em').eq('id', id).maybeSingle()
-    if (!a || a.lido_em) return NextResponse.json({ ok: true, enviados: 0 })
+    if (!a || a.lido_em || !(await autoescolaTemFeature(a.autoescola_id, 'notificacoes'))) return NextResponse.json({ ok: true, enviados: 0 })
     const { data: esc } = await supabase.from('autoescolas').select('slug').eq('id', a.autoescola_id).maybeSingle()
     const destino = destinoAluno(a.tipo)
     const n = await enviarPush('aluno', a.student_id, {
@@ -40,7 +41,7 @@ export async function POST(req: Request) {
   }
 
   const { data: a } = await supabase.from('avisos_instrutor').select('instructor_id, autoescola_id, tipo, titulo, mensagem, lido_em').eq('id', id).maybeSingle()
-  if (!a || a.lido_em) return NextResponse.json({ ok: true, enviados: 0 })
+  if (!a || a.lido_em || !(await autoescolaTemFeature(a.autoescola_id, 'notificacoes'))) return NextResponse.json({ ok: true, enviados: 0 })
   const { data: esc } = await supabase.from('autoescolas').select('slug').eq('id', a.autoescola_id).maybeSingle()
   const n = await enviarPush('instrutor', a.instructor_id, {
     titulo: a.titulo, mensagem: a.mensagem, tag: id, tipo: a.tipo, acao: 'Ver agenda',

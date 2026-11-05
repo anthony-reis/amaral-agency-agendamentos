@@ -4,6 +4,7 @@ import { cookies } from 'next/headers'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getInstructorSession } from '@/features/instrutor/actions/authInstrutor'
 import { enviarPush } from '@/lib/push.server'
+import { autoescolaTemFeature } from '@/lib/features.server'
 
 export interface InscricaoPush {
   endpoint: string
@@ -33,6 +34,7 @@ export async function salvarInscricaoPush(
 ): Promise<{ ok: boolean }> {
   const d = await dono(perfil, escola)
   if (!d || !sub.endpoint.startsWith('https://')) return { ok: false }
+  if (!(await autoescolaTemFeature(d.autoescola_id, 'notificacoes'))) return { ok: false }
   const { error } = await createServiceClient().from('push_subscriptions').upsert(
     { ...d, perfil, endpoint: sub.endpoint, p256dh: sub.p256dh, auth: sub.auth, user_agent: userAgent.slice(0, 200) },
     { onConflict: 'endpoint,perfil' }
@@ -49,7 +51,7 @@ export async function removerInscricaoPush(perfil: 'aluno' | 'instrutor', escola
 /** Manda uma notificação de teste para os aparelhos do próprio usuário. Retorna quantos aparelhos receberam. */
 export async function enviarNotificacaoTeste(perfil: 'aluno' | 'instrutor', escola: string): Promise<{ enviados: number }> {
   const d = await dono(perfil, escola)
-  if (!d) return { enviados: 0 }
+  if (!d || !(await autoescolaTemFeature(d.autoescola_id, 'notificacoes'))) return { enviados: 0 }
   const enviados = await enviarPush(perfil, d.owner_id, {
     titulo: 'Teste de notificação',
     mensagem: 'Está tudo certo! Você vai receber os avisos da escola neste aparelho.',

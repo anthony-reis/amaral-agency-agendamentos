@@ -3,12 +3,19 @@
 import { cookies } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 import { createServiceClient } from '@/lib/supabase/server'
+import { autoescolaTemFeature } from '@/lib/features.server'
 import type { TipoAviso } from '@/lib/tiposAviso'
 
 /** Lembretes perdem o sentido com o tempo: não mostra "daqui a pouco" horas depois. */
 function filtroValidade(): string {
   const h = (n: number) => new Date(Date.now() - n * 3600_000).toISOString()
   return `tipo.not.in.(lembrete_hora,lembrete_dia),and(tipo.eq.lembrete_hora,created_at.gte.${h(3)}),and(tipo.eq.lembrete_dia,created_at.gte.${h(20)})`
+}
+
+/** Módulo "notificacoes" da escola do aluno logado (a escola vem do cadastro, nunca do cliente). */
+async function moduloLigadoParaAluno(studentId: string): Promise<boolean> {
+  const { data } = await createServiceClient().from('students').select('autoescola_id').eq('id', studentId).maybeSingle()
+  return data ? autoescolaTemFeature(data.autoescola_id, 'notificacoes') : false
 }
 
 export interface AvisoAluno {
@@ -51,7 +58,7 @@ export async function marcarAvisosComoLidos(ids: string[], escola: string): Prom
 /** Avisos não vistos do aluno logado (identificado só pelo cookie). */
 export async function buscarMeusAvisos(): Promise<AvisoAluno[]> {
   const studentId = (await cookies()).get('student_id')?.value
-  if (!studentId) return []
+  if (!studentId || !(await moduloLigadoParaAluno(studentId))) return []
   const { data, error } = await createServiceClient()
     .from('avisos_aluno')
     .select('id, tipo, titulo, mensagem, created_at')
@@ -67,7 +74,7 @@ export async function buscarMeusAvisos(): Promise<AvisoAluno[]> {
 /** Histórico (30 dias) do aluno logado, lido ou não. Dono = cookie; nunca um id vindo do cliente. */
 export async function listarMinhasNotificacoes(): Promise<AvisoAluno[]> {
   const studentId = (await cookies()).get('student_id')?.value
-  if (!studentId) return []
+  if (!studentId || !(await moduloLigadoParaAluno(studentId))) return []
   const desde = new Date(Date.now() - 30 * 86400_000).toISOString()
   const { data, error } = await createServiceClient()
     .from('avisos_aluno')
