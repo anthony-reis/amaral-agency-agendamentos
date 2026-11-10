@@ -10,7 +10,7 @@ import { getVincularAlunoInstrutor } from '@/features/painel/actions/configuraco
 import { listarInstrutores } from '@/features/painel/actions/instrutores'
 import { createServiceClient } from '@/lib/supabase/server'
 import { aulasFuturasPorDocumento } from '@/lib/aulasFuturas.server'
-import { agruparPorInstrutor } from '@/lib/vinculoInstrutor'
+import { agruparPorInstrutor, aulasDaModalidade, MODALIDADES } from '@/lib/vinculoInstrutor'
 import { AlunosList } from '@/features/painel/components/AlunosList'
 
 interface Props {
@@ -34,13 +34,16 @@ export default async function AlunosPage({ params }: Props) {
     vinculoAtivo ? listarInstrutores(session.autoescola_id) : Promise.resolve(null),
   ])
 
-  // Aulas futuras por aluno e instrutor (selo na tabela e cabeçalho do painel)
-  const aulasFuturasPorAluno: Record<string, { instrutor: string; qtd: number }[]> = {}
+  // Aulas futuras por aluno, modalidade e instrutor (selos na tabela e cabeçalho do painel)
+  const aulasFuturasPorAluno: Record<string, { categoria: 'CARRO' | 'MOTO'; instrutor: string; qtd: number }[]> = {}
   if (vinculoAtivo) {
     const porDoc = await aulasFuturasPorDocumento(createServiceClient(), session.autoescola_id)
     for (const a of alunos) {
-      const grupos = agruparPorInstrutor(porDoc.get(a.document_id) ?? [])
-      if (grupos.length) aulasFuturasPorAluno[a.id] = grupos.map((g) => ({ instrutor: g.instrutor, qtd: g.aulas.length }))
+      const aulas = porDoc.get(a.document_id) ?? []
+      const itens = MODALIDADES.flatMap((m) =>
+        agruparPorInstrutor(aulasDaModalidade(aulas, m.id)).map((g) => ({ categoria: m.id, instrutor: g.instrutor, qtd: g.aulas.length }))
+      )
+      if (itens.length) aulasFuturasPorAluno[a.id] = itens
     }
   }
 
@@ -57,7 +60,7 @@ export default async function AlunosPage({ params }: Props) {
       loginSenhaAtivo={features.login_senha_aluno}
       cambioAtivo={features.separar_cambio}
       aulasFuturasPorAluno={aulasFuturasPorAluno}
-      instrutoresVinculo={instrutores ? instrutores.map((i) => ({ id: i.id, name: i.name })) : null}
+      instrutoresVinculo={instrutores ? instrutores.map((i) => ({ id: i.id, name: i.name, category: i.category })) : null}
       contratosAtivo={features.contratos}
       contratoStatusInicial={contratoStatus}
     />

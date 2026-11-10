@@ -11,6 +11,7 @@ import { verificarCpf, confirmarSenha } from '../actions/autenticarAluno'
 import { redefinirSenhaPorCpf } from '../actions/recuperarSenha'
 import { PlanosPreview } from './PlanosPreview'
 import { AlunoDashboard } from '@/features/aluno/components/AlunoDashboard'
+import type { DashboardAluno } from '@/features/aluno/actions/dashboard'
 import type { Student, StudentCredits } from '../types'
 import type { Produto } from '@/lib/loja-types'
 
@@ -26,6 +27,8 @@ interface Props {
   exigeSenha: boolean
   /** Módulo "dashboard_aluno": sem ele, após identificar vai direto para Agendar. */
   dashboardAtivo: boolean
+  /** Dashboard já buscado no servidor (aluno com sessão ativa). */
+  initialDashboard?: DashboardAluno | null
 }
 
 type Step = 'cpf' | 'senha' | 'recuperar' | 'ok'
@@ -123,7 +126,7 @@ const inputCls =
 export function IdentificacaoPageContent({
   escola, autoescolaId, produtos, lojaAtiva,
   initialIdentified, initialStudent, initialCredits,
-  exigeSenha, dashboardAtivo,
+  exigeSenha, dashboardAtivo, initialDashboard,
 }: Props) {
   const router = useRouter()
 
@@ -255,6 +258,7 @@ export function IdentificacaoPageContent({
         credits={credits}
         produtos={produtos}
         lojaAtiva={lojaAtiva}
+        initialDashboard={initialDashboard}
       />
     )
   }

@@ -44,47 +44,20 @@ export async function getCalendarioData(
   year: number,
   month: number // 1-based
 ): Promise<DiaCalendario[]> {
-  const supabase = createServiceClient()
-  const monthStr = String(month).padStart(2, '0')
-  const prefix = `${year}-${monthStr}`
-  const daysInMonthEarly = new Date(year, month, 0).getDate()
-  const dateFrom = `${prefix}-01`
-  const dateTo = `${prefix}-${String(daysInMonthEarly).padStart(2, '0')}`
+  // Agregação feita no Postgres (função calendario_mes): 1 chamada em vez de 2
+  // consultas + contagem em JS.
+  const { data, error } = await createServiceClient().rpc('calendario_mes', {
+    p_autoescola_id: autoescola_id,
+    p_ano: year,
+    p_mes: month,
+  })
+  if (error) throw new Error(error.message)
 
-  const { data: agendamentos } = await supabase
-    .from('agendamentos')
-    .select('date')
-    .eq('autoescola_id', autoescola_id)
-    .gte('date', dateFrom)
-    .lte('date', dateTo)
-    .neq('status', 'cancelled')
-
-  const { data: bloqueios } = await supabase
-    .from('blockedTimeSlots')
-    .select('date')
-    .eq('autoescola_id', autoescola_id)
-    .gte('date', dateFrom)
-    .lte('date', dateTo)
-
-  const contagem = new Map<string, number>()
-  for (const a of agendamentos ?? []) {
-    contagem.set(a.date, (contagem.get(a.date) ?? 0) + 1)
-  }
-
-  const diasBloqueados = new Set((bloqueios ?? []).map((b) => b.date))
-
-  const result: DiaCalendario[] = []
-  for (let d = 1; d <= daysInMonthEarly; d++) {
-    const dayStr = String(d).padStart(2, '0')
-    const date = `${prefix}-${dayStr}`
-    result.push({
-      date,
-      total: contagem.get(date) ?? 0,
-      bloqueado: diasBloqueados.has(date),
-    })
-  }
-
-  return result
+  return ((data ?? []) as { dia: string; total: number; bloqueado: boolean }[]).map((r) => ({
+    date: r.dia,
+    total: r.total,
+    bloqueado: r.bloqueado,
+  }))
 }
 
 export async function getInstrutoresDoDia(

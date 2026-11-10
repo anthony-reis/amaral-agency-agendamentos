@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { createServiceClient } from '@/lib/supabase/server'
+import { getAutoescolaPorSlug } from '@/lib/autoescola.server'
 import { autoescolaAcessivel } from '@/lib/autoescolaAcesso'
 import { listarInstrutoresParaLogin } from '@/features/instrutor/actions/authInstrutor'
 import { InstructorLoginForm } from '@/features/instrutor/components/InstructorLoginForm'
@@ -12,13 +12,7 @@ interface Props {
 export default async function InstructorLoginPage({ params, searchParams }: Props) {
   const { escola } = await params
   const { expirada } = await searchParams
-  const supabase = createServiceClient()
-
-  const { data: autoescola } = await supabase
-    .from('autoescolas')
-    .select('id, nome, status, is_teste')
-    .eq('slug', escola)
-    .single()
+  const autoescola = await getAutoescolaPorSlug(escola)
 
   if (!autoescolaAcessivel(autoescola)) notFound()
 

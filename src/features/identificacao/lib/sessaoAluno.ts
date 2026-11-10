@@ -8,7 +8,9 @@ import { registrarAtividadeAluno } from '@/lib/atividadeAluno.server'
 // Fica fora dos arquivos 'use server' de propósito: exportada de lá, viraria
 // uma server action pública capaz de logar como qualquer aluno.
 
-const COOKIE_MAX_AGE = 60 * 60 * 4 // 4 horas
+// 30 dias (antes 4h): o aluno não precisa se identificar de novo a cada poucas horas,
+// o que também reduz as visitas à tela de identificação. Sem renovação: vale a partir do login.
+const COOKIE_MAX_AGE = 60 * 60 * 24 * 30
 
 export async function criarSessaoAluno(student: { id: string; name: string; document_id: string }) {
   const cookieStore = await cookies()

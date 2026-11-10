@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createServiceClient } from '@/lib/supabase/server'
+import { getAutoescolaPorSlug } from '@/lib/autoescola.server'
 import { AlunoSidebar } from '@/features/aluno/components/AlunoSidebar'
 import { ComunicadosModalWrapper } from '@/features/aluno/components/ComunicadosModalWrapper'
 import { buscarComunicadosNaoLidos } from '@/features/aluno/actions/comunicados'
@@ -27,12 +28,7 @@ export default async function AlunoLayout({ children, params }: Props) {
   const studentId = cookieStore.get('student_id')?.value
   const isIdentified = !!studentId
 
-  const supabase = createServiceClient()
-  const { data: autoescola } = await supabase
-    .from('autoescolas')
-    .select('id, nome, logo_url')
-    .eq('slug', escola)
-    .single()
+  const autoescola = await getAutoescolaPorSlug(escola)
 
   if (!autoescola) redirect('/')
 
@@ -46,9 +42,31 @@ export default async function AlunoLayout({ children, params }: Props) {
     redirect(`/${escola}/aluno`)
   }
 
-  // Termos de uso / privacidade: no primeiro acesso, nada do app abre antes
-  // do aceite (vale para todas as rotas do aluno, não só a inicial).
-  const termosPendentes = studentId ? await getTermosPendentesAluno(autoescola.id, studentId) : null
+  // Consultas independentes em paralelo (antes eram em sequência).
+  const identificado = isIdentified && !!studentId
+  const [termosPendentes, features, unreadComunicados, lojaAtiva, contratoPendente] = await Promise.all([
+    // Termos de uso / privacidade: no primeiro acesso, nada do app abre antes
+    // do aceite (vale para todas as rotas do aluno, não só a inicial).
+    studentId ? getTermosPendentesAluno(autoescola.id, studentId) : Promise.resolve(null),
+    getAutoescolaFeatures(autoescola.id),
+    isIdentified && studentDocument
+      ? buscarComunicadosNaoLidos(autoescola.id, studentDocument)
+      : Promise.resolve([] as Comunicado[]),
+    isIdentified ? lojaVisivelParaAluno(autoescola.id) : Promise.resolve(false),
+    (async () => {
+      if (!identificado || !studentId) return false
+      const features = await getAutoescolaFeatures(autoescola.id)
+      if (!features.contratos) return false
+      const { count } = await createServiceClient()
+        .from('contratos_aluno')
+        .select('id', { count: 'exact', head: true })
+        .eq('autoescola_id', autoescola.id)
+        .eq('student_id', studentId)
+        .eq('status', 'pendente')
+      return (count ?? 0) > 0
+    })(),
+  ])
+
   if (termosPendentes) {
     return (
       <TermosAceiteGate
@@ -68,27 +86,7 @@ export default async function AlunoLayout({ children, params }: Props) {
     )
   }
 
-  let unreadComunicados: Comunicado[] = []
-  if (isIdentified && studentDocument) {
-    unreadComunicados = await buscarComunicadosNaoLidos(autoescola.id, studentDocument)
-  }
-
-  const features = await getAutoescolaFeatures(autoescola.id)
-  const avisos = isIdentified && studentId && features.notificacoes ? await buscarAvisosNaoLidos(autoescola.id, studentId) : []
-  const lojaAtiva = isIdentified ? await lojaVisivelParaAluno(autoescola.id) : false
-  let contratoPendente = false
-  if (isIdentified && features.contratos) {
-    const studentId = cookieStore.get('student_id')?.value
-    if (studentId) {
-      const { count } = await createServiceClient()
-        .from('contratos_aluno')
-        .select('id', { count: 'exact', head: true })
-        .eq('autoescola_id', autoescola.id)
-        .eq('student_id', studentId)
-        .eq('status', 'pendente')
-      contratoPendente = (count ?? 0) > 0
-    }
-  }
+  const avisos = identificado && studentId && features.notificacoes ? await buscarAvisosNaoLidos(autoescola.id, studentId) : []
 
   return (
     <div className={`min-h-screen bg-[--p-bg-base] ${isIdentified ? 'flex flex-col lg:flex-row' : 'flex flex-col'}`}>

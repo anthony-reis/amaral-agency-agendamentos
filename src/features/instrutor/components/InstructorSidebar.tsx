@@ -54,7 +54,7 @@ export function InstructorSidebar({ escola, name, category, logoUrl, notificacoe
 
       {/* Nav items */}
       <nav className="flex-1 px-3 py-4 space-y-0.5">
-        <Link
+        <Link prefetch={false}
           href={painelLink}
           onClick={() => setMobileOpen(false)}
           className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
@@ -67,7 +67,7 @@ export function InstructorSidebar({ escola, name, category, logoUrl, notificacoe
           Painel
           {painelActive && <ChevronRight className="w-3 h-3 ml-auto opacity-60" />}
         </Link>
-        <Link
+        <Link prefetch={false}
           href={estatisticasLink}
           onClick={() => setMobileOpen(false)}
           className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
@@ -80,7 +80,7 @@ export function InstructorSidebar({ escola, name, category, logoUrl, notificacoe
           Estatísticas
           {estatisticasActive && <ChevronRight className="w-3 h-3 ml-auto opacity-60" />}
         </Link>
-        <Link
+        <Link prefetch={false}
           href={comunicadosLink}
           onClick={() => setMobileOpen(false)}
           className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
@@ -94,7 +94,7 @@ export function InstructorSidebar({ escola, name, category, logoUrl, notificacoe
           {comunicadosActive && <ChevronRight className="w-3 h-3 ml-auto opacity-60" />}
         </Link>
         {notificacoesAtivo && (
-          <Link
+          <Link prefetch={false}
             href={notificacoesLink}
             onClick={() => setMobileOpen(false)}
             className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${

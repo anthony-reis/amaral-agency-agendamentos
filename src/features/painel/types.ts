@@ -183,7 +183,7 @@ export interface Aluno {
   name: string
   /** Câmbio do carro (módulo separar_cambio). null = vê qualquer instrutor. */
   cambio: 'MANUAL' | 'AUTOMATICO' | null
-  /** Instrutor responsável (opção "vincular aluno ao instrutor"). null = sem vínculo. */
+  /** Em desuso: o vínculo agora é por modalidade (`vinculos`). */
   instrutor_id: string | null
   email: string | null
   phone: string | null
@@ -207,6 +207,8 @@ export interface AlunoCreditos {
 
 export interface AlunoComCreditos extends Aluno {
   creditos: AlunoCreditos | null
+  /** Instrutor responsável por modalidade (id), opção "vincular aluno ao instrutor". */
+  vinculos?: Partial<Record<'CARRO' | 'MOTO', string>>
   /** Aluno já criou senha (módulo login_senha_aluno). A senha em si nunca vem. */
   tem_senha?: boolean
 }

@@ -81,7 +81,7 @@ export function AlunoSidebar({
     <>
       {/* Brand + ThemeToggle */}
       <div className="flex items-center gap-3 px-5 py-4 border-b border-[--p-border]">
-        <Link
+        <Link prefetch={false}
           href={dashboardLink}
           onClick={() => setMobileOpen(false)}
           className="flex items-center gap-3 min-w-0 flex-1"
@@ -104,7 +104,7 @@ export function AlunoSidebar({
       {/* Nav items */}
       <nav className="flex-1 px-3 py-4 space-y-0.5">
         {dashboardAtivo && (
-          <Link
+          <Link prefetch={false}
             href={dashboardLink}
             onClick={() => setMobileOpen(false)}
             className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
@@ -118,7 +118,7 @@ export function AlunoSidebar({
             {pathname === dashboardLink && <ChevronRight className="w-3 h-3 ml-auto opacity-60" />}
           </Link>
         )}
-        <Link
+        <Link prefetch={false}
           href={agendarLink}
           onClick={() => setMobileOpen(false)}
           className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
@@ -133,7 +133,7 @@ export function AlunoSidebar({
             <ChevronRight className="w-3 h-3 ml-auto opacity-60" />
           )}
         </Link>
-        <Link
+        <Link prefetch={false}
           href={aulasLink}
           onClick={() => setMobileOpen(false)}
           className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
@@ -146,7 +146,7 @@ export function AlunoSidebar({
           Minhas Aulas
           {pathname === aulasLink && <ChevronRight className="w-3 h-3 ml-auto opacity-60" />}
         </Link>
-        <Link
+        <Link prefetch={false}
           href={comunicadosLink}
           onClick={() => setMobileOpen(false)}
           className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
@@ -160,7 +160,7 @@ export function AlunoSidebar({
           {pathname === comunicadosLink && <ChevronRight className="w-3 h-3 ml-auto opacity-60" />}
         </Link>
         {notificacoesAtivo && (
-          <Link
+          <Link prefetch={false}
             href={notificacoesLink}
             onClick={() => setMobileOpen(false)}
             className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
@@ -175,7 +175,7 @@ export function AlunoSidebar({
           </Link>
         )}
         {lojaAtiva && (
-          <Link
+          <Link prefetch={false}
             href={lojaLink}
             onClick={() => setMobileOpen(false)}
             className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
@@ -192,7 +192,7 @@ export function AlunoSidebar({
           </Link>
         )}
         {solicitacoesAtivo && (
-          <Link
+          <Link prefetch={false}
             href={solicitacoesLink}
             onClick={() => setMobileOpen(false)}
             className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
@@ -209,7 +209,7 @@ export function AlunoSidebar({
           </Link>
         )}
         {contratosAtivo && (
-          <Link
+          <Link prefetch={false}
             href={contratoLink}
             onClick={() => setMobileOpen(false)}
             className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
@@ -265,7 +265,7 @@ export function AlunoSidebar({
 
       {/* Mobile top bar */}
       <div className="lg:hidden w-full flex items-center justify-between px-4 py-3 bg-[--p-bg-card] border-b border-[--p-border] sticky top-0 z-30">
-        <Link href={dashboardLink}>
+        <Link prefetch={false} href={dashboardLink}>
           <SchoolBrand logoUrl={autoescolaLogoUrl} nome={autoescolaNome} />
         </Link>
         <div className="flex items-center gap-1">

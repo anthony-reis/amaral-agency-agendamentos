@@ -21,7 +21,6 @@ import {
   criarAgendamento,
   atualizarTelefoneAluno,
   reagendarAula,
-  verificarAulaExistente,
 } from "@/features/aluno/actions/agendarAula";
 import type { StudentCredits } from "@/features/identificacao/types";
 
@@ -37,6 +36,8 @@ interface Props {
   credits: StudentCredits;
   rescheduleMode?: boolean;
   rescheduleClassId?: string;
+  /** Aulas futuras do aluno (para conferir "1 aula por dia" sem chamar o servidor). */
+  aulasFuturas?: { id: string; date: string; time_slot: string; instructor_name: string }[];
   rescheduleOldCategory?: "CARRO" | "MOTO";
   rescheduleLimitHours?: number;
 }
@@ -87,6 +88,7 @@ export function AgendamentoFlow({
   credits,
   rescheduleMode,
   rescheduleClassId,
+  aulasFuturas = [],
   rescheduleOldCategory,
   rescheduleLimitHours = 2,
 }: Props) {
@@ -208,34 +210,23 @@ export function AgendamentoFlow({
     setDate(d);
     setError(null);
     
-    // Check if student already has a class on this date
-    startTransition(async () => {
-      try {
-        const result = await verificarAulaExistente(
-          autoescolaId,
-          studentDocument,
-          dateStr(d),
-          rescheduleMode && rescheduleClassId ? rescheduleClassId : undefined
-        );
-        
-        if (result.exists) {
-          setError(
-            `Você já tem uma aula neste dia às ${result.time_slot?.substring(0, 5) ?? '—'} com ${result.instructor_name ?? 'instrutor'}. Cada aluno pode ter apenas 1 aula por dia.`
-          );
-          return;
-        }
-        
-        if (rescheduleMode && rescheduleOldCategory) {
-          loadInstructors(rescheduleOldCategory, d);
-        } else {
-          goNext();
-        }
-      } catch (err: unknown) {
-        setError(
-          err instanceof Error ? err.message : 'Erro ao verificar disponibilidade'
-        );
-      }
-    });
+    // Já tem aula neste dia? Confere nas aulas que a página já trouxe (sem ir ao servidor).
+    // Na remarcação, a própria aula remarcada não conta. O servidor valida de novo ao agendar.
+    const existente = aulasFuturas.find(
+      (a) => a.date === dateStr(d) && !(rescheduleMode && rescheduleClassId && a.id === rescheduleClassId),
+    );
+    if (existente) {
+      setError(
+        `Você já tem uma aula neste dia às ${existente.time_slot?.substring(0, 5) ?? '—'} com ${existente.instructor_name ?? 'instrutor'}. Cada aluno pode ter apenas 1 aula por dia.`
+      );
+      return;
+    }
+
+    if (rescheduleMode && rescheduleOldCategory) {
+      loadInstructors(rescheduleOldCategory, d);
+    } else {
+      goNext();
+    }
   };
 
   const handleCategorySelect = (cat: "CARRO" | "MOTO") => {

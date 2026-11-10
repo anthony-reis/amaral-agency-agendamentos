@@ -465,7 +465,7 @@ export function PainelNav({
             pathname === dashboardItem.href ||
             pathname.startsWith(dashboardItem.href + "/");
           return (
-            <Link
+            <Link prefetch={false}
               href={dashboardItem.href}
               onClick={() => setMobileOpen(false)}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
@@ -490,7 +490,7 @@ export function PainelNav({
               pathname === solicitacoesHref ||
               pathname.startsWith(solicitacoesHref + "/");
             return (
-              <Link
+              <Link prefetch={false}
                 href={solicitacoesHref}
                 onClick={() => setMobileOpen(false)}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
@@ -555,7 +555,7 @@ export function PainelNav({
                           pathname === item.href ||
                           pathname.startsWith(item.href + "/");
                         return (
-                          <Link
+                          <Link prefetch={false}
                             key={item.href}
                             href={item.href}
                             onClick={() => setMobileOpen(false)}

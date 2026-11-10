@@ -1,7 +1,7 @@
 import 'server-only'
 
 import type { createServiceClient } from '@/lib/supabase/server'
-import type { AulaFutura } from '@/lib/vinculoInstrutor'
+import { normalizarModalidade, type AulaFutura, type TotalInstrutor } from '@/lib/vinculoInstrutor'
 
 type Supabase = ReturnType<typeof createServiceClient>
 
@@ -43,4 +43,35 @@ export async function aulasFuturasPorDocumento(supabase: Supabase, autoescola_id
     mapa.set(doc, [...(mapa.get(doc) ?? []), aula as AulaFutura])
   }
   return mapa
+}
+
+/**
+ * Com quem o aluno tem aulas, por modalidade: concluídas + agendadas/confirmadas
+ * (canceladas e faltas não contam). Base da sugestão "quem mais tem aulas".
+ */
+export async function totaisPorInstrutor(supabase: Supabase, autoescola_id: string, document_id: string): Promise<TotalInstrutor[]> {
+  const { data } = await supabase
+    .from('agendamentos')
+    .select('date, instructor_name, instructorCategory, status')
+    .eq('autoescola_id', autoescola_id)
+    .in('status', ['completed', ...STATUS_ATIVOS])
+    .or(`student_document.eq.${document_id},cpf_cnh.eq.${document_id}`)
+    .limit(2000)
+
+  const hoje = hojeBRT()
+  const mapa = new Map<string, TotalInstrutor>()
+  for (const a of data ?? []) {
+    const categoria = normalizarModalidade(a.instructorCategory)
+    if (!categoria || !a.instructor_name) continue
+    const chave = `${categoria}|${a.instructor_name}`
+    const t = mapa.get(chave) ?? { categoria, instrutor: a.instructor_name, qtd: 0, concluidas: 0, futuras: 0, proxima: null }
+    t.qtd += 1
+    if (a.status === 'completed') t.concluidas += 1
+    else if (a.date >= hoje) {
+      t.futuras += 1
+      if (!t.proxima || a.date < t.proxima) t.proxima = a.date
+    }
+    mapa.set(chave, t)
+  }
+  return [...mapa.values()]
 }

@@ -11,7 +11,7 @@ import { VenderCreditosModal } from './VenderCreditosModal'
 import { AlunoDrawer } from './alunos/AlunoDrawer'
 import { ExcluirAlunoModal } from './alunos/ExcluirAlunoModal'
 import { NovoAlunoModal } from './alunos/NovoAlunoModal'
-import { rotuloAulas } from '@/lib/vinculoInstrutor'
+import { instrutorServe, MODALIDADES, rotuloAulas, type Modalidade } from '@/lib/vinculoInstrutor'
 import { CATS, creditoDaCat, formatDoc, inputCls, linkWhatsapp, totalCreditos, type Cat } from './alunos/utils'
 
 interface Props {
@@ -31,9 +31,9 @@ interface Props {
   /** Módulo "separar_cambio": câmbio manual/automático do aluno. */
   cambioAtivo?: boolean
   /** Opção "vincular aluno ao instrutor" (aba Sistema): instrutores para escolher; null = desligada. */
-  instrutoresVinculo?: { id: string; name: string }[] | null
-  /** Aulas futuras por aluno e instrutor (só com o vínculo ligado). */
-  aulasFuturasPorAluno?: Record<string, { instrutor: string; qtd: number }[]>
+  instrutoresVinculo?: { id: string; name: string; category: string }[] | null
+  /** Aulas futuras por aluno, modalidade e instrutor (só com o vínculo ligado). */
+  aulasFuturasPorAluno?: Record<string, { categoria: Modalidade; instrutor: string; qtd: number }[]>
   /** Módulo "contratos": aba Contrato e selo na tabela. */
   contratosAtivo?: boolean
   /** Situação do contrato por aluno (só com o módulo ligado). */
@@ -368,19 +368,24 @@ export function AlunosList({
                       </button>
                       {instrutoresVinculo && (() => {
                         const resumo = aulasFuturasPorAluno[a.id] ?? []
-                        const nome = instrutoresVinculo.find((i) => i.id === a.instrutor_id)?.name
-                        if (nome) {
-                          return (
-                            <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-500/10 text-violet-500">
-                              {nome} · {rotuloAulas(resumo.find((r) => r.instrutor === nome)?.qtd ?? 0)}
+                        const ativas = MODALIDADES.filter((m) => instrutoresVinculo.some((i) => instrutorServe(i.category, m.id)))
+                        return ativas.map((m) => {
+                          const prefixo = ativas.length > 1 ? `${m.label}: ` : ''
+                          const nome = instrutoresVinculo.find((i) => i.id === a.vinculos?.[m.id])?.name
+                          const daModalidade = resumo.filter((r) => r.categoria === m.id)
+                          if (nome) {
+                            return (
+                              <span key={m.id} className="mt-0.5 mr-1 inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-500/10 text-violet-500">
+                                {prefixo}{nome} · {rotuloAulas(daModalidade.find((r) => r.instrutor === nome)?.qtd ?? 0)}
+                              </span>
+                            )
+                          }
+                          return daModalidade.length > 1 ? (
+                            <span key={m.id} className="mt-0.5 mr-1 inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-500" title={daModalidade.map((r) => `${r.instrutor}: ${r.qtd}`).join(' · ')}>
+                              {prefixo}aulas com {daModalidade.length} instrutores
                             </span>
-                          )
-                        }
-                        return resumo.length > 1 ? (
-                          <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-500" title={resumo.map((r) => `${r.instrutor}: ${r.qtd}`).join(' · ')}>
-                            Aulas com {resumo.length} instrutores
-                          </span>
-                        ) : null
+                          ) : null
+                        })
                       })()}
                       {contratosAtivo && contratoStatus[a.id] && (
                         <span className={`mt-0.5 inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${

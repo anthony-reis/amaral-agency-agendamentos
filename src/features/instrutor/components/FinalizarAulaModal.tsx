@@ -19,6 +19,9 @@ import {
 import type { AulaInstrutor } from "../actions/minhasAulas";
 import { SignatureFullscreen } from "@/features/shared/components/SignatureFullscreen";
 import { compressImage } from "@/lib/compressImage";
+import { useParams } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { prepararUploadsAula, concluirAulaComEvidencias } from "../actions/finalizarAula";
 
 interface Props {
   open: boolean;
@@ -37,6 +40,7 @@ export function FinalizarAulaModal({
   onCancel,
   registrarKm = false,
 }: Props) {
+  const { escola } = useParams<{ escola: string }>();
   const [signatureDataURL, setSignatureDataURL] = useState<string | null>(null);
   const [signaturePreview, setSignaturePreview] = useState<string | null>(null);
   const [assinaturaFullscreen, setAssinaturaFullscreen] = useState(false);
@@ -142,18 +146,13 @@ export function FinalizarAulaModal({
     setError(null);
 
     try {
-      const formData = new FormData();
-      formData.append("agendamento_id", aula.id);
-      formData.append("instructor_name", instructorName);
-      formData.append("autoescola_id", aula.autoescola_id);
-      formData.append("signatureDataURL", signatureDataURL);
-      formData.append("foto", fotoFile);
-      if (registrarKm && aula.km_inicial != null && kmFinal) {
-        formData.append("km_final", kmFinal);
-      }
+      const foto = fotoFile;
+      const assinaturaBlob = await (await fetch(signatureDataURL)).blob();
+      const sigExt = assinaturaBlob.type === "image/png" ? "png" : "jpg";
+      const kmEnviado =
+        registrarKm && aula.km_inicial != null && kmFinal ? parseInt(kmFinal, 10) : null;
 
-      // Libera a memória das imagens imediatamente após montar o FormData
-      // (o FormData já tem referência ao blob/string — não precisa manter nos states)
+      // Libera a memória das imagens imediatamente (os arquivos já estão em variáveis locais)
       setSignatureDataURL(null);
       setSignaturePreview(null);
       setFotoFile(null);
@@ -163,13 +162,33 @@ export function FinalizarAulaModal({
         previewUrlRef.current = null;
       }
 
-      const res = await fetch("/api/finalizar-aula", { method: "POST", body: formData });
-      const result = await res.json();
+      // 1) URLs assinadas  2) upload direto ao Storage (sem passar pela Vercel)  3) conclui a aula
+      const prep = await prepararUploadsAula(escola, aula.id, sigExt);
+      if (!prep.success) {
+        setError(prep.error);
+        setIsPending(false);
+        return;
+      }
+      const storage = createClient().storage.from("aulas-finalizadas");
+      const [upFoto, upAssinatura] = await Promise.all([
+        storage.uploadToSignedUrl(prep.data.foto.path, prep.data.foto.token, foto, {
+          contentType: foto.type || "image/jpeg",
+        }),
+        storage.uploadToSignedUrl(prep.data.assinatura.path, prep.data.assinatura.token, assinaturaBlob, {
+          contentType: assinaturaBlob.type || "image/jpeg",
+        }),
+      ]);
+      if (upFoto.error || upAssinatura.error) {
+        setError(upFoto.error ? "Erro ao fazer upload da foto." : "Erro ao salvar assinatura.");
+        setIsPending(false);
+        return;
+      }
 
+      const result = await concluirAulaComEvidencias(escola, aula.id, sigExt, kmEnviado);
       if (result.success) {
         onSuccess(aula.id);
       } else {
-        setError(result.error ?? "Erro ao finalizar aula.");
+        setError(result.error);
         setIsPending(false);
       }
     } catch {

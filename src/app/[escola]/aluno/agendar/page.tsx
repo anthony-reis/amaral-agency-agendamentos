@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createServiceClient } from '@/lib/supabase/server'
+import { getAutoescolaPorSlug } from '@/lib/autoescola.server'
 import { AgendamentoFlow } from '@/features/identificacao/components/AgendamentoFlow'
 import { janelaAbertaAgora, MSG_FORA_DO_HORARIO, normalizarJanela } from '@/lib/janelaAgendamento'
 import { CalendarClock } from 'lucide-react'
@@ -22,10 +23,27 @@ export default async function EscolaAgendarPage({ params, searchParams }: Props)
 
   const supabase = createServiceClient()
 
-  const [creditsResult, studentResult, autoescolaResult] = await Promise.all([
+  const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
+
+  // Já resolvida pelo layout no mesmo request (React cache): não vai ao banco de novo
+  const autoescola = await getAutoescolaPorSlug(escola)
+  if (!autoescola) redirect('/')
+  const autoescolaResult = { data: autoescola }
+
+  const [creditsResult, studentResult, aulasFuturasResult] = await Promise.all([
     supabase.from('student_credits').select('*').eq('student_id', studentId).single(),
     supabase.from('students').select('phone').eq('id', studentId).single(),
-    supabase.from('autoescolas').select('id, nome, logo_url, reagendamento_min_horas, janela_agendamento').eq('slug', escola).single(),
+    // Aulas futuras do aluno: o fluxo confere "1 aula por dia" no próprio navegador
+    // (sem chamar o servidor a cada data escolhida). O servidor valida de novo ao agendar.
+    studentDocument
+      ? supabase
+          .from('agendamentos')
+          .select('id, date, time_slot, instructor_name')
+          .eq('autoescola_id', autoescola.id)
+          .gte('date', hoje)
+          .neq('status', 'cancelled')
+          .or(`student_document.eq.${studentDocument},cpf_cnh.eq.${studentDocument}`)
+      : Promise.resolve({ data: [] as { id: string; date: string; time_slot: string; instructor_name: string }[] }),
   ])
 
   let rescheduleOldCategory: "CARRO" | "MOTO" | undefined = undefined;
@@ -53,8 +71,6 @@ export default async function EscolaAgendarPage({ params, searchParams }: Props)
   }
 
   if (!creditsResult.data) redirect(`/${escola}/aluno`)
-  if (!autoescolaResult.data) redirect('/')
-
   if (!janelaAbertaAgora(normalizarJanela(autoescolaResult.data.janela_agendamento))) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center p-6">
@@ -84,6 +100,7 @@ export default async function EscolaAgendarPage({ params, searchParams }: Props)
       rescheduleClassId={typeof reagendar === 'string' ? reagendar : undefined}
       rescheduleOldCategory={rescheduleOldCategory}
       rescheduleLimitHours={autoescolaResult.data.reagendamento_min_horas ?? 2}
+      aulasFuturas={aulasFuturasResult.data ?? []}
     />
   )
 }

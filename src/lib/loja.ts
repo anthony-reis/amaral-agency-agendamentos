@@ -1,5 +1,7 @@
 import 'server-only'
 
+import { cache } from 'react'
+
 import { createServiceClient } from '@/lib/supabase/server'
 import { autoescolaTemFeature } from '@/lib/features.server'
 
@@ -23,7 +25,7 @@ export async function lojaHabilitada(autoescola_id: string): Promise<boolean> {
  * Visibilidade da Loja para o aluno: além da credencial ativa,
  * exige ao menos 1 produto ativo no catálogo.
  */
-export async function lojaVisivelParaAluno(autoescola_id: string): Promise<boolean> {
+export const lojaVisivelParaAluno = cache(async (autoescola_id: string): Promise<boolean> => {
   if (!(await lojaHabilitada(autoescola_id))) return false
   const supabase = createServiceClient()
   const { count } = await supabase
@@ -32,4 +34,4 @@ export async function lojaVisivelParaAluno(autoescola_id: string): Promise<boole
     .eq('autoescola_id', autoescola_id)
     .eq('ativo', true)
   return (count ?? 0) > 0
-}
+})

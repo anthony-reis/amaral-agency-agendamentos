@@ -1,13 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import {
   Car, Bike, CheckCircle2, XCircle, FileCheck, Route, Calendar as CalendarIcon,
   ChevronLeft, ChevronRight, CalendarDays, BookOpen, ShoppingBag, Clock, User,
 } from 'lucide-react'
-import { getAlunoStats, getAgendamentosMes, type AlunoStats, type AulaCalendario } from '../actions/dashboard'
+import { getDashboardAluno, type AlunoStats, type AulaCalendario, type DashboardAluno } from '../actions/dashboard'
 import { PlanosPreview } from '@/features/identificacao/components/PlanosPreview'
 import type { StudentCredits } from '@/features/identificacao/types'
 import type { Produto } from '@/lib/loja-types'
@@ -20,6 +20,8 @@ interface Props {
   credits: StudentCredits
   produtos: Produto[]
   lojaAtiva: boolean
+  /** Dados já buscados no servidor (evita 2 chamadas ao abrir a tela). */
+  initialDashboard?: DashboardAluno | null
 }
 
 const MESES = [
@@ -54,26 +56,42 @@ const DOT_COLOR: Record<string, string> = {
   absent: 'bg-red-400',
 }
 
-export function AlunoDashboard({ escola, autoescolaId, documentId, studentName, credits, produtos, lojaAtiva }: Props) {
+export function AlunoDashboard({ escola, autoescolaId, documentId, studentName, credits, produtos, lojaAtiva, initialDashboard }: Props) {
   const now = new Date()
-  const [stats, setStats] = useState<AlunoStats | null>(null)
-  const [ano, setAno] = useState(now.getFullYear())
-  const [mes, setMes] = useState(now.getMonth() + 1)
-  const [aulas, setAulas] = useState<AulaCalendario[]>([])
-  const [loadingCalendar, setLoadingCalendar] = useState(true)
+  const [stats, setStats] = useState<AlunoStats | null>(initialDashboard?.stats ?? null)
+  const [ano, setAno] = useState(initialDashboard?.ano ?? now.getFullYear())
+  const [mes, setMes] = useState(initialDashboard?.mes ?? now.getMonth() + 1)
+  const [aulas, setAulas] = useState<AulaCalendario[]>(initialDashboard?.aulas ?? [])
+  const [loadingCalendar, setLoadingCalendar] = useState(!initialDashboard)
   const [selectedDate, setSelectedDate] = useState(todayStr())
+  // Meses já carregados ficam em memória: voltar a um mês não chama o servidor de novo.
+  const cacheMeses = useRef(
+    new Map<string, AulaCalendario[]>(
+      initialDashboard ? [[`${initialDashboard.ano}-${initialDashboard.mes}`, initialDashboard.aulas]] : []
+    )
+  )
 
   useEffect(() => {
-    getAlunoStats(autoescolaId, documentId).then(setStats)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  useEffect(() => {
+    const chave = `${ano}-${mes}`
+    const emCache = cacheMeses.current.get(chave)
+    if (emCache) {
+      setAulas(emCache)
+      setLoadingCalendar(false)
+      // Sem estatísticas ainda (login feito no cliente): a 1ª chamada já traz tudo
+      return
+    }
+    let cancelado = false
     setLoadingCalendar(true)
-    getAgendamentosMes(autoescolaId, documentId, ano, mes).then((data) => {
-      setAulas(data)
+    getDashboardAluno(autoescolaId, documentId, ano, mes).then((data) => {
+      if (cancelado) return
+      cacheMeses.current.set(chave, data.aulas)
+      setAulas(data.aulas)
+      setStats((s) => s ?? data.stats)
       setLoadingCalendar(false)
     })
+    return () => {
+      cancelado = true
+    }
   }, [autoescolaId, documentId, ano, mes])
 
   function navigate(delta: number) {
@@ -219,7 +237,7 @@ export function AlunoDashboard({ escola, autoescolaId, documentId, studentName, 
 
         {/* Ações rápidas */}
         <div className="space-y-3">
-          <Link
+          <Link prefetch={false}
             href={`/${escola}/aluno/agendar`}
             className="flex items-center gap-3 bg-[--p-accent] text-white rounded-2xl p-4 hover:opacity-90 transition-opacity"
           >
@@ -229,7 +247,7 @@ export function AlunoDashboard({ escola, autoescolaId, documentId, studentName, 
               <p className="text-[11px] text-white/80">Escolha data e instrutor</p>
             </div>
           </Link>
-          <Link
+          <Link prefetch={false}
             href={`/${escola}/aluno/minhas-aulas`}
             className="flex items-center gap-3 bg-[--p-bg-card] border border-[--p-border] rounded-2xl p-4 hover:bg-[--p-hover] transition-colors"
           >
@@ -240,7 +258,7 @@ export function AlunoDashboard({ escola, autoescolaId, documentId, studentName, 
             </div>
           </Link>
           {lojaAtiva && (
-            <Link
+            <Link prefetch={false}
               href={`/${escola}/aluno/loja`}
               className="flex items-center gap-3 bg-[--p-bg-card] border border-[--p-border] rounded-2xl p-4 hover:bg-[--p-hover] transition-colors"
             >

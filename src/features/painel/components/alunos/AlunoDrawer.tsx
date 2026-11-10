@@ -7,8 +7,11 @@ import { CAMBIOS, parseCambio } from '@/lib/cambio'
 import { formatarPrecoCentavos, type PedidoLojaStatus } from '@/lib/loja-types'
 import { METODO_LABEL, STATUS_BADGE, STATUS_LABEL, formatarDataHoraCompleta } from '../vendasUi'
 import { editarAluno, resetarSenhaAluno } from '../../actions/alunos'
-import { getAulasFuturasAluno } from '../../actions/vinculoInstrutor'
-import { agruparPorInstrutor, rotuloAulas, vinculoImpossivel, type AulaFutura } from '@/lib/vinculoInstrutor'
+import { getDadosVinculoAluno, type DadosVinculoAluno } from '../../actions/vinculoInstrutor'
+import {
+  agruparPorInstrutor, aulasDaModalidade, instrutorServe, MODALIDADES, rotuloAulas, sugerirInstrutor, vinculoImpossivel,
+  type Modalidade,
+} from '@/lib/vinculoInstrutor'
 import { listarAtividadeAluno, type PaginaAtividadeAluno } from '../../actions/atividadeAluno'
 import { anexarContratoAssinado, cancelarContrato, enviarContratoAluno, listarContratosAluno, type ContratosDoAluno } from '../../actions/contratos'
 import { STATUS_CONTRATO_LABEL } from '@/lib/contratos'
@@ -35,9 +38,9 @@ interface Props {
   onContratoStatus: (status: 'pendente' | 'assinado' | null) => void
   cambioAtivo: boolean
   /** Opção "vincular aluno ao instrutor" ligada: instrutores para escolher. null = opção desligada. */
-  instrutoresVinculo: { id: string; name: string }[] | null
-  /** Aulas futuras do aluno por instrutor (cabeçalho do painel). */
-  resumoAulas?: { instrutor: string; qtd: number }[]
+  instrutoresVinculo: { id: string; name: string; category: string }[] | null
+  /** Aulas futuras do aluno por modalidade e instrutor (cabeçalho do painel). */
+  resumoAulas?: { categoria: Modalidade; instrutor: string; qtd: number }[]
   pendente: Partial<Record<Cat, number>>
   ocupado: boolean
   onFechar: () => void
@@ -178,45 +181,45 @@ function AbaCreditos({ aluno, canEdit, podeAdicionar, vendasAtivo, pendente, ocu
   )
 }
 
-// ─── Instrutor responsável (vínculo) ─────────────────────────────────────────
+// ─── Instrutor responsável (vínculo por modalidade) ──────────────────────────
 
 function dataCurta(date: string) {
   const texto = new Date(`${date}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' })
   return texto.charAt(0).toUpperCase() + texto.slice(1)
 }
 
-function BlocoInstrutor({ valor, onChange, instrutores, canEdit, aluno, autoescola_id }: {
+type Instrutores = { id: string; name: string; category: string }[]
+type Vinculos = Partial<Record<Modalidade, string>>
+
+function LinhaModalidade({ modalidade, mostrarRotulo, valor, onChange, instrutores, canEdit, salvoId, dados }: {
+  modalidade: Modalidade
+  mostrarRotulo: boolean
   valor: string
   onChange: (id: string) => void
-  instrutores: { id: string; name: string }[]
+  instrutores: Instrutores
   canEdit: boolean
-  aluno: AlunoComCreditos
-  autoescola_id: string
+  salvoId: string
+  dados: DadosVinculoAluno | null
 }) {
-  const [aulas, setAulas] = useState<AulaFutura[] | null>(null)
-
-  useEffect(() => {
-    let ativo = true
-    setAulas(null)
-    getAulasFuturasAluno(autoescola_id, aluno.id).then((r) => { if (ativo) setAulas(r.success ? r.data : []) })
-    return () => { ativo = false }
-  }, [autoescola_id, aluno.id])
-
-  const grupos = agruparPorInstrutor(aulas ?? [])
+  const rotulo = MODALIDADES.find((m) => m.id === modalidade)!.label
+  const opcoesBase = instrutores.filter((i) => instrutorServe(i.category, modalidade))
+  const grupos = agruparPorInstrutor(aulasDaModalidade(dados?.futuras ?? [], modalidade))
   const bloqueado = vinculoImpossivel(grupos)
-  const vinculado = instrutores.find((i) => i.id === aluno.instrutor_id)
+  const vinculado = opcoesBase.find((i) => i.id === salvoId)
   const comVinculado = vinculado ? grupos.find((g) => g.instrutor === vinculado.name)?.aulas.length ?? 0 : 0
-  const outrosInstrutores = vinculado ? grupos.filter((g) => g.instrutor !== vinculado.name) : []
+  const outros = vinculado ? grupos.filter((g) => g.instrutor !== vinculado.name) : []
   // Sem vínculo e com aulas em mais de um instrutor: não dá para vincular.
   // Já vinculado nessa situação: só permite desvincular.
-  const opcoes = bloqueado && vinculado ? instrutores.filter((i) => i.id === vinculado.id) : instrutores
+  const opcoes = bloqueado && vinculado ? opcoesBase.filter((i) => i.id === vinculado.id) : opcoesBase
   const desabilitado = !canEdit || (bloqueado && !vinculado)
+  const sugestao = dados ? sugerirInstrutor(dados.totais, modalidade) : null
+  const sugestaoInstrutor = sugestao ? opcoesBase.find((i) => i.name === sugestao.instrutor) : undefined
 
   return (
-    <section className="rounded-xl border border-[--p-border] bg-[--p-bg-input] p-3 space-y-3">
+    <div className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-xs font-medium text-[--p-text-2]">Instrutor responsável</span>
-        {vinculado && aulas && (
+        <span className="text-xs font-medium text-[--p-text-2]">{mostrarRotulo ? `Instrutor de ${rotulo}` : 'Instrutor responsável'}</span>
+        {vinculado && dados && (
           <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-500">
             <UserCheck className="w-3 h-3" /> {vinculado.name} · {rotuloAulas(comVinculado)} agendada{comVinculado === 1 ? '' : 's'}
           </span>
@@ -228,15 +231,15 @@ function BlocoInstrutor({ valor, onChange, instrutores, canEdit, aluno, autoesco
         {opcoes.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
       </select>
 
-      {!aulas ? (
+      {!dados ? (
         <p className="text-xs text-[--p-text-3]">Carregando aulas agendadas…</p>
       ) : bloqueado ? (
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 space-y-2">
           <p className="text-xs font-semibold text-amber-500 flex items-start gap-1.5">
             <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
             {vinculado
-              ? `Este aluno tem aulas agendadas com ${grupos.length} instrutores diferentes. Só é possível remover o vínculo.`
-              : `Não é possível vincular: o aluno tem aulas agendadas com ${grupos.length} instrutores diferentes.`}
+              ? `Este aluno tem aulas de ${rotulo} agendadas com ${grupos.length} instrutores diferentes. Só é possível remover o vínculo.`
+              : `Não é possível vincular: o aluno tem aulas de ${rotulo} agendadas com ${grupos.length} instrutores diferentes.`}
           </p>
           <ul className="space-y-1.5">
             {grupos.map((g) => (
@@ -244,12 +247,17 @@ function BlocoInstrutor({ valor, onChange, instrutores, canEdit, aluno, autoesco
                 <p className="font-semibold text-[--p-text-1]">{g.instrutor} <span className="font-normal text-[--p-text-3]">· {rotuloAulas(g.aulas.length)}</span></p>
                 <ul className="ml-3 text-[--p-text-2]">
                   {g.aulas.map((a) => (
-                    <li key={a.id}>{dataCurta(a.date)} às {a.time_slot}{a.instructorCategory ? ` · ${a.instructorCategory}` : ''}</li>
+                    <li key={a.id}>{dataCurta(a.date)} às {a.time_slot}</li>
                   ))}
                 </ul>
               </li>
             ))}
           </ul>
+          {sugestao && (
+            <p className="text-xs text-[--p-text-2]">
+              Com quem mais tem aulas: <b>{sugestao.instrutor}</b> ({rotuloAulas(sugestao.qtd)}){sugestao.empate ? ' — empate' : ''}.
+            </p>
+          )}
           <p className="text-[11px] text-[--p-text-3]">Remarque ou cancele as aulas até restar um só instrutor para poder vincular.</p>
         </div>
       ) : (
@@ -257,16 +265,64 @@ function BlocoInstrutor({ valor, onChange, instrutores, canEdit, aluno, autoesco
           {grupos.length === 1 && (
             <p className="text-xs text-[--p-text-2]">Aulas agendadas com <b>{grupos[0].instrutor}</b>: {grupos[0].aulas.length}.</p>
           )}
-          {grupos.length === 0 && <p className="text-xs text-[--p-text-3]">Nenhuma aula agendada.</p>}
-          {outrosInstrutores.length > 0 && (
+          {grupos.length === 0 && <p className="text-xs text-[--p-text-3]">Nenhuma aula de {rotulo} agendada.</p>}
+          {outros.length > 0 && (
             <p className="text-xs text-amber-500 flex items-start gap-1.5">
               <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
-              As aulas já agendadas são com {outrosInstrutores[0].instrutor} ({outrosInstrutores[0].aulas.length}), não com o instrutor vinculado.
+              As aulas já agendadas são com {outros[0].instrutor} ({outros[0].aulas.length}), não com o instrutor vinculado.
+            </p>
+          )}
+          {!salvoId && !valor && sugestao && sugestaoInstrutor && canEdit && (
+            <p className="text-xs text-[--p-text-2]">
+              Sugestão: <b>{sugestao.instrutor}</b> — com quem mais tem aulas ({rotuloAulas(sugestao.qtd)}{sugestao.empate ? ', empate' : ''}).{' '}
+              <button type="button" onClick={() => onChange(sugestaoInstrutor.id)} className="font-semibold text-[#0ea5e9] hover:underline">Usar</button>
             </p>
           )}
         </>
       )}
-      <p className="text-xs text-[--p-text-3]">Com vínculo, o aluno só agenda e remarca com este instrutor.</p>
+    </div>
+  )
+}
+
+function BlocoVinculos({ valores, onChange, instrutores, canEdit, aluno, autoescola_id }: {
+  valores: Vinculos
+  onChange: (m: Modalidade, id: string) => void
+  instrutores: Instrutores
+  canEdit: boolean
+  aluno: AlunoComCreditos
+  autoescola_id: string
+}) {
+  const [dados, setDados] = useState<DadosVinculoAluno | null>(null)
+
+  useEffect(() => {
+    let ativo = true
+    setDados(null)
+    getDadosVinculoAluno(autoescola_id, aluno.id).then((r) => { if (ativo) setDados(r.success ? r.data : { futuras: [], totais: [] }) })
+    return () => { ativo = false }
+  }, [autoescola_id, aluno.id])
+
+  // Só mostra as modalidades que a escola tem instrutor para atender.
+  const modalidades = MODALIDADES.filter((m) => instrutores.some((i) => instrutorServe(i.category, m.id)))
+  if (modalidades.length === 0) return null
+
+  return (
+    <section className="rounded-xl border border-[--p-border] bg-[--p-bg-input] p-3 space-y-4">
+      {modalidades.map((m) => (
+        <LinhaModalidade
+          key={m.id}
+          modalidade={m.id}
+          mostrarRotulo={modalidades.length > 1}
+          valor={valores[m.id] ?? ''}
+          onChange={(id) => onChange(m.id, id)}
+          instrutores={instrutores}
+          canEdit={canEdit}
+          salvoId={aluno.vinculos?.[m.id] ?? ''}
+          dados={dados}
+        />
+      ))}
+      <p className="text-xs text-[--p-text-3]">
+        Com vínculo, o aluno só agenda e remarca com este instrutor{modalidades.length > 1 ? ' (cada modalidade tem o seu)' : ''}.
+      </p>
     </section>
   )
 }
@@ -276,7 +332,9 @@ function BlocoInstrutor({ valor, onChange, instrutores, canEdit, aluno, autoesco
 function AbaDados({ aluno, autoescola_id, canEdit, cambioAtivo, instrutoresVinculo, onAtualizado }:
   Pick<Props, 'autoescola_id' | 'canEdit' | 'cambioAtivo' | 'instrutoresVinculo' | 'onAtualizado'> & { aluno: AlunoComCreditos }) {
   const [isPending, startTransition] = useTransition()
-  const [form, setForm] = useState({ name: aluno.name, phone: aluno.phone ?? '', email: aluno.email ?? '', cambio: aluno.cambio ?? '', instrutor_id: aluno.instrutor_id ?? '' })
+  const [form, setForm] = useState({ name: aluno.name, phone: aluno.phone ?? '', email: aluno.email ?? '', cambio: aluno.cambio ?? '' })
+  const [vinculos, setVinculos] = useState<Vinculos>({ CARRO: aluno.vinculos?.CARRO ?? '', MOTO: aluno.vinculos?.MOTO ?? '' })
+  const vinculosAlterados = MODALIDADES.filter((m) => (vinculos[m.id] ?? '') !== (aluno.vinculos?.[m.id] ?? ''))
   const [erro, setErro] = useState('')
   const [salvo, setSalvo] = useState(false)
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -286,7 +344,7 @@ function AbaDados({ aluno, autoescola_id, canEdit, cambioAtivo, instrutoresVincu
   const alterado =
     form.name !== aluno.name || form.phone !== (aluno.phone ?? '') || form.email !== (aluno.email ?? '') ||
     (cambioAtivo && form.cambio !== (aluno.cambio ?? '')) ||
-    (!!instrutoresVinculo && form.instrutor_id !== (aluno.instrutor_id ?? ''))
+    (!!instrutoresVinculo && vinculosAlterados.length > 0)
 
   function salvar(e: React.FormEvent) {
     e.preventDefault()
@@ -297,7 +355,7 @@ function AbaDados({ aluno, autoescola_id, canEdit, cambioAtivo, instrutoresVincu
         phone: form.phone,
         email: form.email,
         ...(cambioAtivo && { cambio: form.cambio }),
-        ...(instrutoresVinculo && { instrutor_id: form.instrutor_id }),
+        ...(instrutoresVinculo && vinculosAlterados.length > 0 && { vinculos: Object.fromEntries(vinculosAlterados.map((m) => [m.id, vinculos[m.id] ?? ''])) }),
       }, autoescola_id)
       if (!result.success) { setErro(result.error); return }
       onAtualizado({
@@ -305,7 +363,9 @@ function AbaDados({ aluno, autoescola_id, canEdit, cambioAtivo, instrutoresVincu
         phone: form.phone || null,
         email: form.email || null,
         ...(cambioAtivo && { cambio: parseCambio(form.cambio) }),
-        ...(instrutoresVinculo && { instrutor_id: form.instrutor_id || null }),
+        ...(instrutoresVinculo && vinculosAlterados.length > 0 && {
+          vinculos: Object.fromEntries(MODALIDADES.filter((m) => vinculos[m.id]).map((m) => [m.id, vinculos[m.id]!])),
+        }),
       })
       setSalvo(true)
     })
@@ -336,9 +396,9 @@ function AbaDados({ aluno, autoescola_id, canEdit, cambioAtivo, instrutoresVincu
         </Campo>
       )}
       {instrutoresVinculo && (
-        <BlocoInstrutor
-          valor={form.instrutor_id}
-          onChange={(id) => { setSalvo(false); setForm((p) => ({ ...p, instrutor_id: id })) }}
+        <BlocoVinculos
+          valores={vinculos}
+          onChange={(m, id) => { setSalvo(false); setVinculos((p) => ({ ...p, [m]: id })) }}
           instrutores={instrutoresVinculo}
           canEdit={canEdit}
           aluno={aluno}
@@ -829,8 +889,13 @@ function AbaAcesso({ aluno, autoescola_id, canEdit, onAtualizado }:
 
 export function AlunoDrawer(props: Props) {
   const { aluno, abaInicial = 'creditos', canEdit, examesAtivo, loginSenhaAtivo, contratosAtivo, onFechar } = props
-  const instrutorVinculadoNome = props.instrutoresVinculo?.find((i) => i.id === aluno?.instrutor_id)?.name ?? null
-  const aulasComVinculado = props.resumoAulas?.find((r) => r.instrutor === instrutorVinculadoNome)?.qtd ?? 0
+  const modalidadesComInstrutor = MODALIDADES.filter((m) => props.instrutoresVinculo?.some((i) => instrutorServe(i.category, m.id)))
+  const vinculosCabecalho = modalidadesComInstrutor.flatMap((m) => {
+    const nome = props.instrutoresVinculo?.find((i) => i.id === aluno?.vinculos?.[m.id])?.name
+    if (!nome) return []
+    const qtd = props.resumoAulas?.find((r) => r.categoria === m.id && r.instrutor === nome)?.qtd ?? 0
+    return [{ chave: m.id, texto: `${modalidadesComInstrutor.length > 1 ? `${m.label}: ` : 'Instrutor: '}${nome} · ${rotuloAulas(qtd)}` }]
+  })
   const reduzir = useReducedMotion()
   const [aba, setAba] = useState<AbaId>('creditos')
 
@@ -883,11 +948,11 @@ export function AlunoDrawer(props: Props) {
                 <div className="min-w-0 flex-1">
                   <h3 className="font-bold text-[--p-text-1] truncate">{aluno.name}</h3>
                   <p className="text-xs text-[--p-text-3] font-mono">{formatDoc(aluno.document_id)}</p>
-                  {instrutorVinculadoNome && (
-                    <p className="text-xs text-violet-500 font-medium mt-0.5 flex items-center gap-1">
-                      <UserCheck className="w-3 h-3" /> Instrutor: {instrutorVinculadoNome} · {rotuloAulas(aulasComVinculado)}
+                  {vinculosCabecalho.map((v) => (
+                    <p key={v.chave} className="text-xs text-violet-500 font-medium mt-0.5 flex items-center gap-1">
+                      <UserCheck className="w-3 h-3" /> {v.texto}
                     </p>
-                  )}
+                  ))}
                 </div>
                 <button onClick={onFechar} className="p-1 text-[--p-text-3] hover:text-[--p-text-1]" aria-label="Fechar">
                   <X className="w-5 h-5" />

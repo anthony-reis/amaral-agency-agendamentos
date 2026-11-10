@@ -48,12 +48,43 @@ export async function getDisponibilidade(
 ): Promise<InstructorDisponivel[]> {
   const supabase = createServiceClient()
 
-  // 1. Instructors matching category or AMBOS
-  const { data: instructorsAll } = await supabase
-    .from('instructors')
-    .select('id, name, category, cambio')
-    .eq('autoescola_id', autoescolaId)
-    .or(`category.eq.${category},category.eq.AMBOS`)
+  // Todas as consultas são independentes: rodam em paralelo (antes, em sequência).
+  const [
+    { data: instructorsAll },
+    { data: timeSlots },
+    { data: agendamentos },
+    { data: blocked },
+    { data: stats },
+  ] = await Promise.all([
+    // Instrutores da categoria (ou AMBOS)
+    supabase
+      .from('instructors')
+      .select('id, name, category, cambio')
+      .eq('autoescola_id', autoescolaId)
+      .or(`category.eq.${category},category.eq.AMBOS`),
+    // Horários ativos
+    supabase
+      .from('horarios_disponiveis')
+      .select('horario, instrutor, dias_semana, data')
+      .eq('autoescola_id', autoescolaId)
+      .eq('ativo', true),
+    // Agendamentos do dia (não cancelados)
+    supabase
+      .from('agendamentos')
+      .select('time_slot, instructor_name, status')
+      .eq('autoescola_id', autoescolaId)
+      .eq('date', date)
+      .neq('status', 'cancelled'),
+    // Bloqueios: data exata OU recorrentes (status no banco é 'Bloqueado')
+    supabase
+      .from('blockedTimeSlots')
+      .select('time_slot, instructor, vehicle_type, weekdays, date')
+      .eq('autoescola_id', autoescolaId)
+      .eq('status', 'Bloqueado')
+      .or(`date.eq.${date},date.eq.RECORRENTE_DIA_SEMANA`),
+    // Aulas concluídas por instrutor: contagem feita no Postgres (antes baixava todas as linhas)
+    supabase.rpc('aulas_concluidas_por_instrutor', { p_autoescola_id: autoescolaId }),
+  ])
 
   // Câmbio do aluno: instrutor sem câmbio definido atende qualquer um
   const instructors = cambio
@@ -62,43 +93,12 @@ export async function getDisponibilidade(
 
   if (!instructors || instructors.length === 0) return []
 
-  // 2. Available time slots (active)
-  const { data: timeSlots } = await supabase
-    .from('horarios_disponiveis')
-    .select('horario, instrutor, dias_semana, data')
-    .eq('autoescola_id', autoescolaId)
-    .eq('ativo', true)
-
-  // 3. Existing bookings for that date (non-cancelled)
-  const { data: agendamentos } = await supabase
-    .from('agendamentos')
-    .select('time_slot, instructor_name, status')
-    .eq('autoescola_id', autoescolaId)
-    .eq('date', date)
-    .neq('status', 'cancelled')
-
-  // 4. Blocked slots: exact date OR recurring (date = 'RECORRENTE_DIA_SEMANA')
-  //    status in DB is 'Bloqueado' (not 'active')
-  const { data: blocked } = await supabase
-    .from('blockedTimeSlots')
-    .select('time_slot, instructor, vehicle_type, weekdays, date')
-    .eq('autoescola_id', autoescolaId)
-    .eq('status', 'Bloqueado')
-    .or(`date.eq.${date},date.eq.RECORRENTE_DIA_SEMANA`)
-
   const dayOfWeek = new Date(date + 'T12:00:00').getDay() // local noon avoids TZ edge cases
 
-  // 5. Stats (total completed classes per instructor)
-  const { data: stats } = await supabase
-    .from('agendamentos')
-    .select('instructor_name')
-    .eq('autoescola_id', autoescolaId)
-    .eq('status', 'completed')
-
-  const instructorStats = (stats ?? []).reduce((acc: Record<string, number>, row) => {
-    acc[row.instructor_name] = (acc[row.instructor_name] || 0) + 1
-    return acc
-  }, {})
+  const instructorStats: Record<string, number> = {}
+  for (const row of (stats ?? []) as { instructor_name: string; total: number }[]) {
+    instructorStats[row.instructor_name] = row.total
+  }
 
   return instructors
     .map((inst) => {

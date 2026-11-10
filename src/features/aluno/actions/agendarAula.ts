@@ -73,11 +73,15 @@ export async function fetchDisponibilidade(
   category: string,
   studentId?: string
 ) {
-  await liberarReservasVencidas(autoescolaId)
-  const cambio = await cambioDoAluno(autoescolaId, studentId, category)
+  // Independentes entre si: em paralelo. A liberação de reservas precisa terminar
+  // antes de calcular a disponibilidade (ela altera os bloqueios).
+  const [, cambio, vinculado] = await Promise.all([
+    liberarReservasVencidas(autoescolaId),
+    cambioDoAluno(autoescolaId, studentId, category),
+    // Aluno vinculado a um instrutor na modalidade (opção da autoescola) só vê os horários dele.
+    instrutorVinculadoDoAluno(autoescolaId, studentId, category),
+  ])
   const disponiveis = await getDisponibilidade(autoescolaId, date, category, cambio)
-  // Aluno vinculado a um instrutor (opção da autoescola) só vê os horários dele.
-  const vinculado = await instrutorVinculadoDoAluno(autoescolaId, studentId)
   return vinculado ? disponiveis.filter((i) => i.nome === vinculado.name) : disponiveis
 }
 
@@ -138,7 +142,7 @@ export async function criarAgendamento(data: {
   await validateOneClassPerDay(supabase, data.autoescola_id, data.studentDocument, data.date)
   const erroCambio = await bloqueioCambio(data.autoescola_id, data.studentId, data.category, data.instructorName)
   if (erroCambio) throw new Error(erroCambio)
-  const erroVinculo = await bloqueioInstrutorVinculado(data.autoescola_id, data.studentId, data.instructorName)
+  const erroVinculo = await bloqueioInstrutorVinculado(data.autoescola_id, data.studentId, data.instructorName, data.category)
   if (erroVinculo) throw new Error(erroVinculo)
 
   // Insert agendamento
@@ -255,7 +259,7 @@ export async function reagendarAula(agendamentoId: string, data: {
 
   const erroCambio = await bloqueioCambio(data.autoescola_id, data.studentId, data.category, data.instructorName)
   if (erroCambio) throw new Error(erroCambio)
-  const erroVinculo = await bloqueioInstrutorVinculado(data.autoescola_id, data.studentId, data.instructorName)
+  const erroVinculo = await bloqueioInstrutorVinculado(data.autoescola_id, data.studentId, data.instructorName, data.category)
   if (erroVinculo) throw new Error(erroVinculo)
 
   // 2. Adjust credits if category changed

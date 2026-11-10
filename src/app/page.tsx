@@ -24,6 +24,8 @@ export const metadata: Metadata = {
     'Agenda online, app do aluno e do instrutor, créditos, vendas com Pix, exames e financeiro num sistema só. Implantação em até 48h e suporte pelo WhatsApp.',
 }
 
+export const dynamic = 'force-static'
+
 export default function HomePage() {
   return (
     <div className={`${fonteLanding.variable} font-display bg-white text-slate-900`}>

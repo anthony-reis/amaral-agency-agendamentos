@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
-import { createServiceClient } from '@/lib/supabase/server'
 import { autoescolaAcessivel } from '@/lib/autoescolaAcesso'
+import { getAutoescolaPorSlug } from '@/lib/autoescola.server'
 
 interface Props {
   children: React.ReactNode
@@ -9,13 +9,7 @@ interface Props {
 
 export default async function EscolaLayout({ children, params }: Props) {
   const { escola } = await params
-  const supabase = createServiceClient()
-
-  const { data: autoescola } = await supabase
-    .from('autoescolas')
-    .select('id, nome, logo_url, slug, status, is_teste')
-    .eq('slug', escola)
-    .maybeSingle()
+  const autoescola = await getAutoescolaPorSlug(escola)
 
   if (!autoescolaAcessivel(autoescola)) notFound()
 
@@ -28,12 +22,7 @@ export async function generateMetadata({
   params: Promise<{ escola: string }>
 }) {
   const { escola } = await params
-  const supabase = createServiceClient()
-  const { data } = await supabase
-    .from('autoescolas')
-    .select('nome')
-    .eq('slug', escola)
-    .maybeSingle()
+  const data = await getAutoescolaPorSlug(escola)
 
   return {
     title: data ? `${data.nome} — AmaralPro` : 'AmaralPro',

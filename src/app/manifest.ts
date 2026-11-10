@@ -1,6 +1,8 @@
 import type { MetadataRoute } from 'next'
 
 // Necessário para instalar na tela de início (no iPhone, notificações só funcionam assim).
+export const dynamic = 'force-static'
+
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'AmaralPro',

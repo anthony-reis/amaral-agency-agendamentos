@@ -9,7 +9,10 @@ import { creditarPedido } from '@/lib/creditos'
 import { enviarArquivoAnexo, removerArquivoAnexo } from '@/lib/anexosAluno.server'
 import type { Produto, PedidoLoja, ProdutoSnapshot } from '@/lib/loja-types'
 import { aulasFuturasDoAluno } from '@/lib/aulasFuturas.server'
-import { agruparPorInstrutor, mensagemVinculoImpossivel, vinculoImpossivel } from '@/lib/vinculoInstrutor'
+import {
+  agruparPorInstrutor, aulasDaModalidade, instrutorServe, mensagemVinculoImpossivel, normalizarModalidade, rotuloModalidade, vinculoImpossivel,
+  type AulaFutura, type Modalidade,
+} from '@/lib/vinculoInstrutor'
 import type { AlunoComCreditos, AlunoCreditos, NovoAlunoInput, ActionResult } from '../types'
 
 export interface VendaNoCadastroInput {
@@ -26,7 +29,7 @@ export async function listarAlunos(
 
   let query = supabase
     .from('students')
-    .select('*, creditos:student_credits(*)')
+    .select('*, creditos:student_credits(*), vinculos:aluno_instrutores(categoria, instrutor_id)')
     .eq('autoescola_id', autoescola_id)
     .order('name', { ascending: true })
 
@@ -38,8 +41,13 @@ export async function listarAlunos(
   if (error) throw new Error(error.message)
 
   // A senha do aluno nunca vai para o navegador — só se ele já tem uma.
-  return (data ?? []).map(({ password, ...row }) => ({
+  return (data ?? []).map(({ password, vinculos, ...row }) => ({
     ...row,
+    vinculos: Object.fromEntries(
+      ((vinculos ?? []) as { categoria: string; instrutor_id: string }[])
+        .filter((v) => normalizarModalidade(v.categoria))
+        .map((v) => [v.categoria, v.instrutor_id])
+    ),
     tem_senha: Boolean(password),
     creditos: Array.isArray(row.creditos) ? row.creditos[0] ?? null : row.creditos ?? null,
   })) as AlunoComCreditos[]
@@ -205,7 +213,8 @@ export async function criarAluno(
 
 export async function editarAluno(
   id: string,
-  input: Partial<{ name: string; phone: string; email: string; cambio: string; instrutor_id: string }>,
+  /** `vinculos`: instrutor responsável por modalidade; '' remove o vínculo daquela modalidade. */
+  input: Partial<{ name: string; phone: string; email: string; cambio: string; vinculos: Partial<Record<Modalidade, string>> }>,
   autoescola_id: string
 ): Promise<ActionResult<void>> {
   const guard = await assertPodeEditar('cadastros')
@@ -213,52 +222,68 @@ export async function editarAluno(
 
   const supabase = createServiceClient()
 
-  // Instrutor responsável: '' desvincula; senão precisa ser desta autoescola.
-  let instrutorNome: string | null = null
-  if (input.instrutor_id) {
-    const { data: instrutor } = await supabase
-      .from('instructors')
-      .select('name')
-      .eq('id', input.instrutor_id)
-      .eq('autoescola_id', autoescola_id)
-      .maybeSingle()
-    if (!instrutor) return { success: false, error: 'Instrutor não encontrado.' }
-    instrutorNome = instrutor.name
-
-    // Aluno com aulas agendadas com mais de um instrutor não pode ser vinculado.
+  // Vínculos por modalidade: valida tudo antes de gravar qualquer coisa.
+  const mudancas = (Object.entries(input.vinculos ?? {}) as [Modalidade, string][]).filter(([m]) => normalizarModalidade(m))
+  const nomesVinculo: string[] = []
+  if (mudancas.length > 0) {
     const { data: atual } = await supabase
       .from('students')
-      .select('instrutor_id, document_id')
+      .select('document_id')
       .eq('id', id)
       .eq('autoescola_id', autoescola_id)
       .maybeSingle()
     if (!atual) return { success: false, error: 'Aluno não encontrado.' }
-    if (atual.instrutor_id !== input.instrutor_id) {
-      const grupos = agruparPorInstrutor(await aulasFuturasDoAluno(supabase, autoescola_id, atual.document_id))
-      if (vinculoImpossivel(grupos)) return { success: false, error: mensagemVinculoImpossivel(grupos) }
+
+    const { data: atuais } = await supabase.from('aluno_instrutores').select('categoria, instrutor_id').eq('student_id', id)
+    const idAtual = new Map((atuais ?? []).map((v) => [v.categoria as string, v.instrutor_id as string]))
+    let aulas: AulaFutura[] | null = null
+
+    for (const [m, instrutorId] of mudancas) {
+      if (!instrutorId) { nomesVinculo.push(`${rotuloModalidade(m)}: nenhum`); continue }
+      const { data: instrutor } = await supabase
+        .from('instructors')
+        .select('name, category')
+        .eq('id', instrutorId)
+        .eq('autoescola_id', autoescola_id)
+        .maybeSingle()
+      if (!instrutor) return { success: false, error: 'Instrutor não encontrado.' }
+      if (!instrutorServe(instrutor.category, m)) {
+        return { success: false, error: `${instrutor.name} não atende ${rotuloModalidade(m)}.` }
+      }
+      // Dentro da modalidade, aulas agendadas com mais de um instrutor impedem o vínculo.
+      if (idAtual.get(m) !== instrutorId) {
+        aulas ??= await aulasFuturasDoAluno(supabase, autoescola_id, atual.document_id)
+        const grupos = agruparPorInstrutor(aulasDaModalidade(aulas, m))
+        if (vinculoImpossivel(grupos)) return { success: false, error: mensagemVinculoImpossivel(grupos, m) }
+      }
+      nomesVinculo.push(`${rotuloModalidade(m)}: ${instrutor.name}`)
     }
   }
 
-  const { error } = await supabase
-    .from('students')
-    .update({
-      ...(input.name && { name: input.name.trim() }),
-      ...(input.phone !== undefined && { phone: input.phone.trim() || null }),
-      ...(input.email !== undefined && { email: input.email.trim() || null }),
-      ...(input.cambio !== undefined && { cambio: parseCambio(input.cambio) }),
-      ...(input.instrutor_id !== undefined && { instrutor_id: input.instrutor_id || null }),
-    })
-    .eq('id', id)
-    .eq('autoescola_id', autoescola_id)
+  const campos = {
+    ...(input.name && { name: input.name.trim() }),
+    ...(input.phone !== undefined && { phone: input.phone.trim() || null }),
+    ...(input.email !== undefined && { email: input.email.trim() || null }),
+    ...(input.cambio !== undefined && { cambio: parseCambio(input.cambio) }),
+  }
+  if (Object.keys(campos).length > 0) {
+    const { error } = await supabase.from('students').update(campos).eq('id', id).eq('autoescola_id', autoescola_id)
+    if (error) return { success: false, error: 'Erro ao editar aluno.' }
+  }
 
-  if (error) return { success: false, error: 'Erro ao editar aluno.' }
+  for (const [m, instrutorId] of mudancas) {
+    const { error } = instrutorId
+      ? await supabase.from('aluno_instrutores').upsert({ student_id: id, categoria: m, instrutor_id: instrutorId, autoescola_id }, { onConflict: 'student_id,categoria' })
+      : await supabase.from('aluno_instrutores').delete().eq('student_id', id).eq('categoria', m).eq('autoescola_id', autoescola_id)
+    if (error) return { success: false, error: 'Erro ao salvar o instrutor responsável.' }
+  }
 
   const userAct = await getCurrentUsername()
   await supabase.from('activity_logs_painel').insert({
     username: userAct,
     action_type: 'aluno',
     metadata: { student_id: id },
-    description: `Aluno editado (ID: ${id})${input.cambio !== undefined ? ` — câmbio: ${parseCambio(input.cambio) ?? 'livre'}` : ''}${input.instrutor_id !== undefined ? ` — instrutor responsável: ${instrutorNome ?? 'nenhum'}` : ''}`,
+    description: `Aluno editado (ID: ${id})${input.cambio !== undefined ? ` — câmbio: ${parseCambio(input.cambio) ?? 'livre'}` : ''}${nomesVinculo.length ? ` — instrutor responsável (${nomesVinculo.join(' · ')})` : ''}`,
     autoescola_id,
   })
 

@@ -1,6 +1,8 @@
 import { cookies } from 'next/headers'
 import { notFound, redirect } from 'next/navigation'
 import { createServiceClient } from '@/lib/supabase/server'
+import { getAutoescolaPorSlug } from '@/lib/autoescola.server'
+import { getDashboardAluno, type DashboardAluno } from '@/features/aluno/actions/dashboard'
 import { lojaVisivelParaAluno } from '@/lib/loja'
 import { getAutoescolaFeatures } from '@/lib/features.server'
 import { listarProdutosLoja } from '@/features/aluno/actions/loja'
@@ -14,41 +16,44 @@ interface Props {
 export default async function EscolaAlunoPage({ params }: Props) {
   const { escola } = await params
 
-  const supabase = createServiceClient()
-  const { data: autoescola } = await supabase
-    .from('autoescolas')
-    .select('id')
-    .eq('slug', escola)
-    .single()
-
+  const autoescola = await getAutoescolaPorSlug(escola)
   if (!autoescola) notFound()
 
-  const features = await getAutoescolaFeatures(autoescola.id)
-  const mostrarPlanos = await lojaVisivelParaAluno(autoescola.id)
-  const produtos = mostrarPlanos ? await listarProdutosLoja(autoescola.id) : []
-
-  // Sessão já ativa (cookie de identificação presente) — pula direto pro
-  // dashboard em vez de pedir CPF e senha de novo.
   const cookieStore = await cookies()
   const studentId = cookieStore.get('student_id')?.value
+  const supabase = createServiceClient()
+
+  // Independentes: em paralelo (layout e página compartilham o cache do request)
+  const [features, mostrarPlanos, aluno] = await Promise.all([
+    getAutoescolaFeatures(autoescola.id),
+    lojaVisivelParaAluno(autoescola.id),
+    // Sessão já ativa (cookie de identificação presente) — pula direto pro
+    // dashboard em vez de pedir CPF e senha de novo.
+    studentId
+      ? Promise.all([
+          supabase
+            .from('students')
+            .select('id, name, document_id')
+            .eq('id', studentId)
+            .eq('autoescola_id', autoescola.id)
+            .maybeSingle(),
+          supabase.from('student_credits').select('*').eq('student_id', studentId).maybeSingle(),
+        ])
+      : Promise.resolve(null),
+  ])
+  const produtos = mostrarPlanos ? await listarProdutosLoja(autoescola.id) : []
+
   let initialStudent: { name: string; document_id: string } | null = null
   let initialCredits: StudentCredits | null = null
+  let initialDashboard: DashboardAluno | null = null
 
-  if (studentId) {
-    const { data: student } = await supabase
-      .from('students')
-      .select('id, name, document_id')
-      .eq('id', studentId)
-      .eq('autoescola_id', autoescola.id)
-      .maybeSingle()
-    if (student) {
-      initialStudent = { name: student.name, document_id: student.document_id }
-      const { data: credits } = await supabase
-        .from('student_credits')
-        .select('*')
-        .eq('student_id', student.id)
-        .maybeSingle()
-      initialCredits = (credits as StudentCredits | null) ?? null
+  const student = aluno?.[0].data
+  if (student) {
+    initialStudent = { name: student.name, document_id: student.document_id }
+    initialCredits = (aluno?.[1].data as StudentCredits | null) ?? null
+    if (features.dashboard_aluno) {
+      const hoje = new Date()
+      initialDashboard = await getDashboardAluno(autoescola.id, student.document_id, hoje.getFullYear(), hoje.getMonth() + 1)
     }
   }
 
@@ -77,6 +82,7 @@ export default async function EscolaAlunoPage({ params }: Props) {
           initialCredits={initialCredits}
           exigeSenha={features.login_senha_aluno}
           dashboardAtivo={features.dashboard_aluno}
+          initialDashboard={initialDashboard}
         />
       </div>
     </div>

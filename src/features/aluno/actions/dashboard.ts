@@ -9,54 +9,6 @@ export interface AlunoStats {
   kmTotal: number
 }
 
-const AGENDAMENTO_COLS = 'id, date, time_slot, instructor_name, instructorCategory, status, tipo, km_rodado'
-
-// Agendamentos vinculam ao aluno por CPF/CNH (TEXT), não por FK — precisa
-// consultar tanto `student_document` quanto `cpf_cnh` e deduplicar por id
-// (mesma convenção usada em minhas-aulas/page.tsx).
-function dedupPorId<T extends { id: string }>(a: T[], b: T[]): T[] {
-  return Array.from(new Map([...a, ...b].map((x) => [x.id, x])).values())
-}
-
-export async function getAlunoStats(autoescola_id: string, documentId: string): Promise<AlunoStats> {
-  const supabase = createServiceClient()
-
-  const [{ data: byDoc }, { data: byCpf }] = await Promise.all([
-    supabase
-      .from('agendamentos')
-      .select(AGENDAMENTO_COLS)
-      .eq('autoescola_id', autoescola_id)
-      .eq('student_document', documentId)
-      .neq('status', 'cancelled'),
-    supabase
-      .from('agendamentos')
-      .select(AGENDAMENTO_COLS)
-      .eq('autoescola_id', autoescola_id)
-      .eq('cpf_cnh', documentId)
-      .neq('status', 'cancelled'),
-  ])
-
-  const agendamentos = dedupPorId(byDoc ?? [], byCpf ?? [])
-
-  let aulasConcluidas = 0
-  let tentativasExame = 0
-  let faltas = 0
-  let kmTotal = 0
-
-  for (const a of agendamentos) {
-    const tipo = (a.tipo as 'aula' | 'banca' | null) ?? 'aula'
-    if (a.status === 'completed') {
-      if (tipo === 'banca') tentativasExame++
-      else aulasConcluidas++
-      kmTotal += a.km_rodado ?? 0
-    } else if (a.status === 'absent') {
-      faltas++
-    }
-  }
-
-  return { aulasConcluidas, tentativasExame, faltas, kmTotal }
-}
-
 export interface AulaCalendario {
   id: string
   date: string
@@ -67,48 +19,54 @@ export interface AulaCalendario {
   instructorCategory: string | null
 }
 
+export interface DashboardAluno {
+  stats: AlunoStats
+  aulas: AulaCalendario[]
+  ano: number
+  mes: number
+}
+
+/**
+ * Estatísticas + aulas do mês numa única chamada ao Postgres (função aluno_dashboard).
+ * Antes eram 4 consultas (2 por action) e 2 invocações a cada abertura do /aluno.
+ */
+export async function getDashboardAluno(
+  autoescola_id: string,
+  documentId: string,
+  ano: number,
+  mes: number
+): Promise<DashboardAluno> {
+  const { data, error } = await createServiceClient().rpc('aluno_dashboard', {
+    p_autoescola_id: autoescola_id,
+    p_doc: documentId,
+    p_ano: ano,
+    p_mes: mes,
+  })
+  if (error) throw new Error(error.message)
+  const r = (data ?? {}) as { stats?: Partial<AlunoStats>; aulas?: AulaCalendario[] }
+  return {
+    stats: {
+      aulasConcluidas: r.stats?.aulasConcluidas ?? 0,
+      tentativasExame: r.stats?.tentativasExame ?? 0,
+      faltas: r.stats?.faltas ?? 0,
+      kmTotal: r.stats?.kmTotal ?? 0,
+    },
+    aulas: r.aulas ?? [],
+    ano,
+    mes,
+  }
+}
+
+export async function getAlunoStats(autoescola_id: string, documentId: string): Promise<AlunoStats> {
+  const hoje = new Date()
+  return (await getDashboardAluno(autoescola_id, documentId, hoje.getFullYear(), hoje.getMonth() + 1)).stats
+}
+
 export async function getAgendamentosMes(
   autoescola_id: string,
   documentId: string,
   ano: number,
   mes: number
 ): Promise<AulaCalendario[]> {
-  const dateStart = `${ano}-${String(mes).padStart(2, '0')}-01`
-  const lastDay = new Date(ano, mes, 0).getDate()
-  const dateEnd = `${ano}-${String(mes).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
-
-  const supabase = createServiceClient()
-
-  const [{ data: byDoc }, { data: byCpf }] = await Promise.all([
-    supabase
-      .from('agendamentos')
-      .select(AGENDAMENTO_COLS)
-      .eq('autoescola_id', autoescola_id)
-      .eq('student_document', documentId)
-      .neq('status', 'cancelled')
-      .gte('date', dateStart)
-      .lte('date', dateEnd),
-    supabase
-      .from('agendamentos')
-      .select(AGENDAMENTO_COLS)
-      .eq('autoescola_id', autoescola_id)
-      .eq('cpf_cnh', documentId)
-      .neq('status', 'cancelled')
-      .gte('date', dateStart)
-      .lte('date', dateEnd),
-  ])
-
-  const agendamentos = dedupPorId(byDoc ?? [], byCpf ?? [])
-
-  return agendamentos
-    .map((a) => ({
-      id: a.id,
-      date: a.date,
-      time_slot: a.time_slot,
-      status: a.status,
-      tipo: ((a.tipo as 'aula' | 'banca' | null) ?? 'aula') as 'aula' | 'banca',
-      instructor_name: a.instructor_name,
-      instructorCategory: a.instructorCategory,
-    }))
-    .sort((a, b) => a.date.localeCompare(b.date) || a.time_slot.localeCompare(b.time_slot))
+  return (await getDashboardAluno(autoescola_id, documentId, ano, mes)).aulas
 }

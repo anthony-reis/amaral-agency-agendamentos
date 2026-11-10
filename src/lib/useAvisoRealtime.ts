@@ -3,14 +3,15 @@
 import { useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
-const DEBOUNCE_MS = 800
+const DEBOUNCE_MS = 2500
 
 /**
  * Use no máximo uma vez por tabela em cada página (um canal por tabela).
  * Escuta o canal de avisos (Realtime Broadcast, enviado por
  * trigger no banco — ver migration `realtime_avisos`). O aviso não carrega
  * dados: ao receber, chame a server action para buscar o estado atual.
- * Rajadas (ex.: agendamento em massa) viram uma única chamada.
+ * Rajadas (ex.: agendamento em massa) viram uma única chamada; com a aba
+ * em segundo plano a chamada espera a aba voltar a ficar visível.
  */
 export function useAvisoRealtime(
   /** Quem escuta: `autoescola:<id>` (painel/instrutor) ou `aluno:<id>` (só o que é do aluno) ou `instrutor:<id>` (avisos do instrutor). */
@@ -29,17 +30,36 @@ export function useAvisoRealtime(
 
     const supabase = createClient()
     let timer: ReturnType<typeof setTimeout> | null = null
+    // Aba em segundo plano não busca nada: guarda que houve aviso e atualiza
+    // uma única vez quando a pessoa volta para a aba (economiza invocações).
+    let pendente = false
+
+    function disparar() {
+      if (document.hidden) {
+        pendente = true
+        return
+      }
+      onAvisoRef.current()
+    }
+    function aoVoltar() {
+      if (!document.hidden && pendente) {
+        pendente = false
+        onAvisoRef.current()
+      }
+    }
 
     const channel = supabase
       .channel(`${escopo}:${tabela}`)
       .on('broadcast', { event: 'mudou' }, () => {
         if (timer) clearTimeout(timer)
-        timer = setTimeout(() => onAvisoRef.current(), DEBOUNCE_MS)
+        timer = setTimeout(disparar, DEBOUNCE_MS)
       })
       .subscribe()
+    document.addEventListener('visibilitychange', aoVoltar)
 
     return () => {
       if (timer) clearTimeout(timer)
+      document.removeEventListener('visibilitychange', aoVoltar)
       supabase.removeChannel(channel)
     }
   }, [escopo, tabela, ativo])

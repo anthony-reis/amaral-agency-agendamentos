@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { createServiceClient } from '@/lib/supabase/server'
+import { getAutoescolaPorSlug } from '@/lib/autoescola.server'
 import { getPainelSession, logoutPainel } from '@/features/painel/actions/authPainel'
 import { PainelNav } from '@/features/painel/components/PainelNav'
 import { getAutoescolaFeatures } from '@/lib/features.server'
@@ -18,18 +18,13 @@ export default async function PainelProtectedLayout({ children, params }: Props)
     redirect(`/${escola}/painel/login`)
   }
 
-  const supabase = createServiceClient()
-  const { data: autoescola } = await supabase
-    .from('autoescolas')
-    .select('nome, logo_url')
-    .eq('slug', escola)
-    .single()
-
   // Usuário desativado no /admin (ou sessão inválida) perde o acesso na hora
-  const acesso = await getAcessoPainel()
+  const [autoescola, acesso, features] = await Promise.all([
+    getAutoescolaPorSlug(escola),
+    getAcessoPainel(),
+    getAutoescolaFeatures(session.autoescola_id),
+  ])
   if (!acesso) redirect(`/${escola}/painel/login`)
-
-  const features = await getAutoescolaFeatures(session.autoescola_id)
 
   async function handleLogout() {
     'use server'

@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { createServiceClient } from '@/lib/supabase/server'
+import { getAutoescolaPorSlug } from '@/lib/autoescola.server'
 import { getInstructorSession, logoutInstrutor } from '@/features/instrutor/actions/authInstrutor'
 import { InstructorSidebar } from '@/features/instrutor/components/InstructorSidebar'
 import { AvisosInstrutor } from '@/features/instrutor/components/AvisosInstrutor'
@@ -19,18 +19,16 @@ export default async function InstructorLayout({ children, params }: Props) {
 
   if (!session) redirect(`/${escola}/instrutor/login?expirada=1`)
 
-  const supabase = createServiceClient()
-  const { data: autoescola } = await supabase
-    .from('autoescolas')
-    .select('id, nome, logo_url')
-    .eq('slug', escola)
-    .single()
+  const autoescola = await getAutoescolaPorSlug(escola)
 
-  const unreadComunicados = autoescola
-    ? await buscarComunicadosNaoLidosInstrutor(autoescola.id, session.instructorId)
-    : []
+  const [unreadComunicados, features] = autoescola
+    ? await Promise.all([
+        buscarComunicadosNaoLidosInstrutor(autoescola.id, session.instructorId),
+        getAutoescolaFeatures(autoescola.id),
+      ])
+    : [[], null]
 
-  const notificacoesAtivo = autoescola ? (await getAutoescolaFeatures(autoescola.id)).notificacoes : false
+  const notificacoesAtivo = features?.notificacoes ?? false
 
   async function handleLogout() {
     'use server'
